@@ -1,9 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
-    { "source": "/", "destination": "/game/index.html" }
+  "redirects": [
+    { "source": "/", "destination": "/game/", "permanent": false }
   ],
   "headers": [
     {
@@ -15,7 +14,14 @@
     {
       "source": "/game/js/(.*)",
       "headers": [
-        { "key": "Content-Type", "value": "text/javascript; charset=utf-8" }
+        { "key": "Content-Type", "value": "text/javascript; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/game/(.*).html",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     }
   ]
