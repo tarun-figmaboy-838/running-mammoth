@@ -24,10 +24,27 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1920, height: 1080 } } },
     { name: 'phone-landscape', use: { ...devices['Desktop Chrome'], viewport: { width: 844, height: 390 } } }
   ],
-  webServer: {
-    command: 'node tools/serve.mjs 8181',
-    url: 'http://127.0.0.1:8181/index.html',
-    reuseExistingServer: true,
-    timeout: 30_000
-  }
+  webServer: [
+    {
+      command: 'node tools/serve.mjs 8181',
+      url: 'http://127.0.0.1:8181/index.html',
+      reuseExistingServer: true,
+      timeout: 30_000
+    },
+    {
+      // The deploy check (zzdeploy.spec.mjs) needs the Vercel simulator, which serves
+      // the repo root under the real vercel.json. It used to be started by hand, so
+      // the check only ran when someone remembered to.
+      //
+      // reuseExistingServer is false ON PURPOSE, unlike the dev server above: the sim
+      // reads vercel.json once at startup, so a leftover process from an earlier run
+      // keeps serving the OLD routing and the test passes against a config that no
+      // longer exists. That is exactly how a broken deploy shipped. Fail loudly on a
+      // busy port instead.
+      command: 'node tools/zzvercel-sim.mjs root 8201',
+      url: 'http://127.0.0.1:8201/game/',
+      reuseExistingServer: false,
+      timeout: 30_000
+    }
+  ]
 });

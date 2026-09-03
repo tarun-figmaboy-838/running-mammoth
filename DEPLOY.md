@@ -27,14 +27,37 @@ sharp, which are development tools.
 
 ## If Root Directory is left as the repo root
 
-It still works. The root `vercel.json` rewrites `/` to `/game/index.html`, and
-`.vercelignore` keeps the tooling out of the upload. The URLs are uglier
+It still works, but it is the fragile arrangement. The root `vercel.json` redirects `/`
+to `/game/` and `.vercelignore` keeps the tooling out of the upload. The URLs are uglier
 (`/game/assets/…`) and the two config files have to stay in step, which is why `game`
 is the recommended setting.
 
+**`"trailingSlash": true` in the root config is load-bearing. Do not set it to false.**
+`game/index.html` links its stylesheets, modules and art with *relative* paths
+(`css/style.css`, `js/main.js`) so that the same file works when the folder is served at
+`/`. A relative path resolves against the directory of the current URL, so the browser
+must come to rest on `/game/` **with the slash**. Land it on `/game` instead and the
+directory is `/`, every one of those paths resolves to `/css/style.css`, `/js/main.js`,
+`/assets/…`, and all of them 404 — a blank white page with no styling and no game, while
+the files themselves are uploaded and perfectly reachable one level down.
+
+That is not hypothetical; it is what shipped. `"trailingSlash": false` makes Vercel add
+its own 308 from `/game/` to `/game`, so the redirect handed the browser the right URL
+and the normaliser immediately took the slash back off:
+
+```
+/       307 → /game/       (the config redirect)
+/game/  308 → /game        (trailingSlash: false — this was the bug)
+/game   200                 base is now "/", so css/style.css → /css/style.css → 404
+```
+
+With `true`, the last two steps run the other way (`/game` 308 → `/game/`), the page
+settles on `/game/`, and the relative paths resolve under it.
+
 **Both files are kept on purpose.** Vercel reads `vercel.json` from whichever folder is
-the root directory, so exactly one of them is ever in effect — and neither setting can
-produce a broken deploy.
+the root directory, so exactly one of them is ever in effect. `game/vercel.json` can
+leave `trailingSlash` false safely — with Root Directory set to `game` the page is
+served at `/`, which has no slash to strip. The setting only bites at a subpath.
 
 ## Why the headers are split
 
@@ -67,12 +90,30 @@ and the page stays blank. Against a deployed URL, the things worth confirming ar
 ones that only break in production:
 
 1. `/` loads the cover, and PLAY starts a run.
-2. The network panel shows no 404s, and `/js/engine.js` arrives as
+2. **The URL bar ends in a slash** — `…/game/`, not `…/game`. This is the whole of the
+   bug described above, and it is visible before the page has finished loading.
+3. The network panel shows no 404s, and `/js/engine.js` arrives as
    `text/javascript`.
-3. The character animates — a missing sprite sheet is a silent 404 that leaves only a
+4. The character animates — a missing sprite sheet is a silent 404 that leaves only a
    shadow on the snow.
-4. A phase completes: the instruction sign, the hanging ice blocks, one cut, and the
+5. A phase completes: the instruction sign, the hanging ice blocks, one cut, and the
    crossing sealing.
 
-`npx playwright test` covers all of that locally against `tools/serve.mjs`; it is the
-same code path a deploy serves.
+`npx playwright test` covers all of that locally, against two servers that Playwright
+starts for itself:
+
+- **`tools/serve.mjs`** serves `game/` as the root. This is the dev server most tests
+  use — and note what it cannot see: because the game *is* the root there, every
+  relative path resolves correctly no matter what the routing does. A repo-root deploy's
+  breakage is structurally invisible to it. It never had a chance of catching this.
+- **`tools/zzvercel-sim.mjs`** serves the repo root and applies the real root
+  `vercel.json` — its redirects, `trailingSlash`, `cleanUrls`, rewrites and headers — one
+  round trip at a time, the way Vercel does. `tests/zzdeploy.spec.mjs` enters at `/` and
+  plays a full phase through it, so the redirect chain and the relative paths are
+  exercised for real. If it goes red, the deploy is broken; that is the only local check
+  that can tell you so.
+
+The simulator reads `vercel.json` once at startup, so Playwright starts it with
+`reuseExistingServer: false`. A leftover sim from an earlier run would keep serving the
+old routing and turn the check green against a config that no longer exists — which is
+precisely how the broken deploy got signed off.
