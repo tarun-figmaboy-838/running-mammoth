@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+  <defs>
+  <linearGradient id="hsSkin" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFF3E2"/>
+    <stop offset=".5" stop-color="#FFD9AE"/>
+    <stop offset="1" stop-color="#E8A968"/>
+  </linearGradient>
+  </defs>
+  <g id="shadow"><ellipse cx="30" cy="58.4" rx="12" ry="3" fill="#0B2C4E" opacity=".22"/></g>
+  <g id="trail">
+    <!-- the swipe being demonstrated, so the gesture reads even in a still frame -->
+    <path d="M6.4 40.6c4-3.4 8.4-5.4 12.8-6" fill="none" stroke="#FFFFFF" stroke-width="4.4"
+          stroke-linecap="round" opacity=".92"/>
+    <path d="M4 47.6c5-4.2 10.6-6.8 16.4-7.6" fill="none" stroke="#FFFFFF" stroke-width="3"
+          stroke-linecap="round" opacity=".5"/>
+  </g>
+  <g id="base">
+    <!-- a mitten with one pointing finger: reads at 40px, unlike a five-finger hand -->
+    <path d="M25.6 10.4a4.4 4.4 0 0 1 8.8 0v16.2h4.2a9 9 0 0 1 9 9v9.6c0 5.6-4.6 10.2-10.2 10.2h-9.2c-6.4 0-11.6-5.2-11.6-11.6V28.2a4.2 4.2 0 0 1 8.4 0v4.2h.6z"
+          fill="url(#hsSkin)" stroke="#14496F" stroke-width="3.2" stroke-linejoin="round"/>
+  </g>
+  <g id="highlight" opacity=".8">
+    <path d="M29.8 14.2v11.2" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+</svg>

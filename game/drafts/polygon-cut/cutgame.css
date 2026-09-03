@@ -1,0 +1,182 @@
+/* One screen: a question, and the polygons.
+ *
+ * The hierarchy is question, then shapes, then nothing. Every value here is in service
+ * of one thing — that the number of sides is countable at a glance — so the shapes get
+ * the space, a single stroke weight, and no decoration near their corners. A shadow or
+ * a highlight over a vertex is not styling in this game, it is a wrong answer.
+ */
+
+:root {
+  --ink: #14496F;
+  --ink-soft: #3E7CA8;
+  --face-a: #FFFFFF;
+  --face-b: #E8F6FE;
+  --face-c: #C9E8FB;
+  --ground-a: #F4FBFF;
+  --ground-b: #DCEEF9;
+}
+
+/* A 16:9 stage, letterboxed, so the layout is the same shape at every window size. */
+.cut-stage {
+  position: absolute;
+  inset: 0;
+  /* One row, and the level fills it — the level owns the question/shapes split itself.
+     Declaring auto + 1fr here put the whole level in the auto row and left the fraction
+     empty, which pushed everything into the top half of the screen. */
+  display: grid;
+  grid-template-rows: 1fr;
+  gap: clamp(18px, 2.4vw, 46px);
+  padding: clamp(20px, 3vw, 58px) clamp(20px, 3.4vw, 66px);
+  background: linear-gradient(180deg, var(--ground-a) 0%, var(--ground-b) 100%);
+  overflow: hidden;
+}
+
+/* ---------------- question ---------------- */
+
+.question {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(22px, 3.1vw, 60px);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* ---------------- the options ---------------- */
+
+/* Generous gaps, and never a wrap that leaves one shape alone on a row. Three sit in a
+   row; five go 3 + 2 and six go 3 + 3, both set explicitly rather than left to the
+   browser, because a shape squeezed into a leftover slot is a shape whose sides cannot
+   be counted. */
+.shapes {
+  display: grid;
+  align-content: center;
+  justify-content: center;
+  justify-items: center;
+  gap: clamp(14px, 2.6vw, 52px) clamp(18px, 3.2vw, 64px);
+  grid-template-columns: repeat(3, 1fr);
+}
+.shapes[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.shapes[data-count="5"] { grid-template-columns: repeat(6, 1fr); }
+.shapes[data-count="6"] { grid-template-columns: repeat(3, 1fr); }
+
+/* five shapes: three across the top, two centred beneath */
+.shapes[data-count="5"] > .poly { grid-column: span 2; }
+.shapes[data-count="5"] > .poly:nth-child(4) { grid-column: 2 / span 2; }
+.shapes[data-count="5"] > .poly:nth-child(5) { grid-column: 4 / span 2; }
+
+.poly {
+  position: relative;
+  width: 100%;
+  max-width: clamp(120px, 19vw, 300px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  cursor: crosshair;
+  /* the interaction area reaches a little past the outline, so a near miss on a vertex
+     still registers — and nothing about it is ever drawn */
+  padding: clamp(4px, 0.8vw, 14px);
+  touch-action: none;                 /* the stroke is the cut; the page must not scroll */
+  -webkit-tap-highlight-color: transparent;
+}
+.shapes[data-count="5"] .poly,
+.shapes[data-count="6"] .poly { max-width: clamp(104px, 14.5vw, 232px); }
+
+.poly-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* One face, one stroke, at one weight for every shape in the game. The stroke is mitred
+   and not rounded: a rounded corner blunts the very thing being counted. */
+.poly-body,
+.poly-half {
+  fill: url(#polyFace);
+  stroke: var(--ink);
+  /* In SCREEN pixels, because non-scaling-stroke reinterprets the width that way. That
+     is the point of using it here: every polygon carries the same weight of line however
+     large it is drawn, so a shape never looks heavier just for being bigger. */
+  stroke-width: 4;
+  stroke-linejoin: miter;
+  stroke-miterlimit: 8;
+  vector-effect: non-scaling-stroke;
+}
+.poly-cut-line {
+  fill: none;
+  stroke: #FFFFFF;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  opacity: 0;
+}
+
+/* The halves have no geometry until a cut happens, so an uncut shape is a single
+   outline with no seam anywhere in it.
+
+   Their emptiness is NOT expressed as `d: path('')` here, though that reads better: the
+   CSS d property overrides the d attribute, so the halves would stay empty for ever and
+   a cut polygon would simply vanish. They are created without a d and hidden by opacity;
+   the geometry only ever comes from script. */
+.poly-half { opacity: 0; }
+.poly-svg.is-cut .poly-body { opacity: 0; }
+.poly-svg.is-cut .poly-half {
+  opacity: 1;
+  /* --slide is a whole transform function in px. A CSS transform on an SVG element needs
+     CSS units — translate(0.16 0.02) is valid as an SVG attribute but not as a CSS
+     value — and inside an SVG one px is one user unit, which is the intent. */
+  transform: var(--slide, none);
+  transition: transform 340ms cubic-bezier(.2, .8, .3, 1);
+}
+.poly-svg.is-cut .poly-cut-line { opacity: .9; transition: opacity 160ms ease; }
+
+/* hover is a small lift in the face only: the outline must not change weight, or the
+   shape appears to change shape */
+@media (hover: hover) {
+  .poly:not(.is-done):hover .poly-body { filter: brightness(1.04); }
+}
+
+/* A cut shape stays cut and stays visible. In "cut all the ..." levels that is how the
+   player sees which ones they have already found. */
+.poly.is-done { cursor: default; }
+
+/* WRONG: a short shake on that shape alone. No colour that reads as a scolding, no
+   text, nothing anywhere else on screen, and no change to what is cuttable. */
+.poly.is-wrong { animation: polyNo 320ms cubic-bezier(.36, .07, .19, .97); }
+@keyframes polyNo {
+  10%, 90% { transform: translateX(-2%); }
+  30%, 70% { transform: translateX(3%); }
+  50%      { transform: translateX(-3%); }
+}
+
+/* ---------------- level entrance and exit ---------------- */
+
+.level {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: clamp(18px, 2.4vw, 46px);
+  min-height: 0;
+  opacity: 0;
+  transform: translateY(clamp(8px, 1vw, 18px));
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+.level.is-in { opacity: 1; transform: none; }
+.level.is-out { opacity: 0; transform: translateY(calc(-1 * clamp(8px, 1vw, 18px))); }
+
+@media (prefers-reduced-motion: reduce) {
+  .level, .poly-svg.is-cut .poly-half { transition: none; }
+  .poly.is-wrong { animation: none; outline: none; }
+  .level { opacity: 1; transform: none; }
+}
+
+/* Portrait phones: the shapes would have to shrink past countable, so the rows stack
+   instead of narrowing. */
+@media (max-aspect-ratio: 1/1) {
+  .shapes[data-count="3"] { grid-template-columns: repeat(2, 1fr); }
+  .shapes[data-count="3"] > .poly:nth-child(3) { grid-column: 1 / span 2; }
+  .shapes[data-count="6"] { grid-template-columns: repeat(2, 1fr); }
+  .shapes[data-count="5"] { grid-template-columns: repeat(4, 1fr); }
+  .shapes[data-count="5"] > .poly:nth-child(4) { grid-column: 1 / span 2; }
+  .shapes[data-count="5"] > .poly:nth-child(5) { grid-column: 3 / span 2; }
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="trapezoid">
+  <defs>
+  <linearGradient id="shp" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFFFFF"/>
+    <stop offset=".34" stop-color="#DCF2FD"/>
+    <stop offset=".72" stop-color="#4FC0EE"/>
+    <stop offset="1" stop-color="#2A6E9E"/>
+  </linearGradient>
+  </defs>
+  <g id="base">
+    <polygon points="15,7 33,7 43,41 5,41" fill="url(#shp)" stroke="#14496F" stroke-width="3.4" stroke-linejoin="round"/>
+  </g>
+  <g id="highlight" opacity=".8">
+    <polyline points="15,7 33,7" fill="none" stroke="#FFFFFF"
+              stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+</svg>

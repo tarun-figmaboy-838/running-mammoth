@@ -1,0 +1,453 @@
+/* CHARACTER SHEET SLICER — raw generated grids in, engine-ready strips out.
+ *
+ * The generator delivers each animation as a GRID of frames at whatever size and
+ * layout it felt like: run is 5x4 in 1536x1024, jump is 7x2 in 2172x724, and the
+ * frames float at different heights inside their cells. The engine wants something
+ * much stricter (see ANIMATION.md): one horizontal strip, N cells of exactly
+ * 420x320, the character centred in its cell with its lowest pixel a shared 6px
+ * above the cell bottom, and the SAME character size across every animation.
+ *
+ * This bridges the two, and it is layout-agnostic on purpose:
+ *
+ *   FINDING FRAMES.  Connected components on the alpha mask, not a grid guess. A
+ *                    sheet whose rows are uneven, or whose frame count is not the
+ *                    product of two neat numbers, still comes out right — and a
+ *                    speck of stray matte becomes its own tiny blob and is dropped
+ *                    on area rather than being cropped into a frame. That last part
+ *                    is not hypothetical: one of these sheets carries 147 specks.
+ *
+ *   READING ORDER.   Blobs are clustered into rows by vertical overlap, then sorted
+ *                    left to right within each row. A grid read column-first would
+ *                    scramble a run cycle.
+ *
+ *   ONE SCALE FOR EVERYTHING.  The scale is computed ONCE across every sheet, from
+ *                    the largest frame in the whole set, so the character cannot
+ *                    change size between animations. Scaling each sheet to fit its
+ *                    own cell is the obvious thing to do and it is wrong: the
+ *                    knockout's frames are shorter than the run's, so it would come
+ *                    out a bigger animal sitting down.
+ *
+ *   BASELINE.        A locomotion sheet KEEPS its vertical bob — that is the
+ *                    animation, and without it the run reads as skating. So run and
+ *                    jump preserve each frame's height above the row's own lowest
+ *                    point, and the deepest frame in the sheet lands on the shared
+ *                    footline. A held-pose sheet (skid, shake, hurt) is flattened:
+ *                    every frame goes on the footline, because a pose the character
+ *                    holds while standing still has no business floating, and the
+ *                    learner can sit on one for minutes.
+ *
+ *     node tools/slice-char.mjs            slice and write
+ *     node tools/slice-char.mjs --report   measure and report, write nothing
+ *     node tools/slice-char.mjs --contact  also write a contact sheet to inspect
+ */
+import sharp from 'sharp';
+import { writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+
+const ROOT = resolve(import.meta.dirname, '..');
+const SRC = join(ROOT, 'game', 'assets', 'char');
+const REPORT = process.argv.includes('--report');
+const CONTACT = process.argv.includes('--contact');
+
+/* Cell geometry, from CFG.sprite. Changing these means changing the engine too. */
+const CW = 420, CH = 320, BASE_GAP = 6;
+/* How much of the cell the tallest frame fills. Under 1 leaves the crop safety the
+   delivery checklist asks for — nothing may touch a cell edge. */
+const FILL = 0.94;
+
+/* Which raw grid feeds which animation slot, and whether the sheet is locomotion
+   (keeps its bob) or held poses (flattened onto the footline). */
+/* Which raw grid feeds which slot, whether it keeps its bob, and WHICH of its frames
+   are wanted. The generator delivered more than the engine uses, and where it did the
+   extra frames are not padding — they are the wrong thing to end on:
+
+     shake    24 delivered. The engine HOLDS the last frame of this sheet for as long
+              as the learner takes over a puzzle, and it has to be the look into the
+              crevasse. Frames 0-11 are the shiver settling into head-down; 12-23 go
+              back to standing and shivering again, so ending there would hold a
+              trembling pose with motion lines on it for minutes.
+     hurt     18 delivered. Frames 16-17 are the character back on its feet, which is
+              the opposite of what the Try Again card needs behind it. 0-15 ends on
+              sat down and dazed.
+     jump     14 delivered, and the engine addresses this sheet BY NAME. Picking the
+              ten that form the arc — measured off each frame's own footline, so the
+              highest really is the apex — keeps the existing jumpMap correct.
+
+   run and skid are used whole: the run is distance-driven so more frames is simply a
+   smoother cycle, and the skid is mapped across a 0-1 progress so any count works. */
+const SHEETS = [
+  /* The 36-frame run cycle delivered as an animated GIF, laid out as a padded grid
+     by tools/gif-to-grid.mjs and PRE-SCALED there to match the other sheets' character
+     size. run.png (the earlier 20-frame grid) is kept as the previous take. */
+  { src: 'run-gif.png',    slot: 'run',   bob: true },
+  // idle crouch launch rise apex fall preLand land absorb alert
+  /* The 36-frame jump delivered as an animated GIF. All 36 are sliced so the arc can
+     be MEASURED rather than guessed at; the ten the engine addresses by name are then
+     picked from it — see the pick list below, which is derived from each frame's own
+     foot height. */
+  /* PICKED OFF THE MEASURED ARC, not guessed. Every frame's own foot line was read
+     out of the sliced sheet, which showed the delivered animation is two hops: a small
+     one around frames 7-15 and the real one at 16-23, then nineteen grounded frames.
+     The apex is frames 19-20 at foot line 192, the deepest compression is frame 25 at
+     174px tall, and the tallest grounded pose is 14.
+
+       idle 32   a settled grounded frame
+       crouch 25 the most compressed grounded frame
+       launch 16 the foot leaving the ground, 252
+       rise 17   climbing, 211
+       apex 19   the highest frame in the sheet, 192
+       fall 21   past the top, 208
+       preLand 22 coming down, 236
+       land 24   grounded and compressed, 183 tall
+       absorb 27 rising out of the compression
+       alert 14  the tallest grounded pose, for SURPRISED */
+  { src: 'jump-gif.png',   slot: 'jump',  bob: true,
+    pick: [32, 25, 16, 17, 19, 21, 22, 24, 27, 14] },
+  /* The 36-frame skid delivered as an animated GIF. The engine maps this sheet
+     across a 0-1 deceleration PROGRESS rather than a clock, so any frame count works
+     and all 36 are used: the last frame is what the character holds as it comes to
+     rest, which is exactly where the shiver takes over. */
+  { src: 'skid-gif.png',   slot: 'skid',  bob: false },
+  /* No shake and no hurt. Those came from earlier generated grids and were removed on
+     request — only the delivered GIFs are used now. PlayerController falls back to jump
+     poses for SHAKE, LOOK_DOWN, KNOCKOUT and HURT; add a GIF for either and put its
+     entry back here. */
+];
+
+const ALPHA = 40;          // a pixel counts as content above this
+/* A blob smaller than this share of the biggest is not a frame. It was 0.12, and a
+   hair tuft that had bled in from the neighbouring grid cell cleared that bar and got
+   composited into a frame as a clump of fur lying on the snow beside the character.
+   A third of the body is well above any stray and well below any real pose. */
+const MIN_AREA_FRAC = 0.30;
+
+/** Every separate opaque region in an image, with its bounds. */
+function blobs(data, W, H, C) {
+  const seen = new Int32Array(W * H);
+  const stack = new Int32Array(W * H);
+  const out = [];
+  for (let p = 0; p < W * H; p++) {
+    if (seen[p] || data[p * C + 3] <= ALPHA) continue;
+    let sp = 0; stack[sp++] = p; seen[p] = 1;
+    let x0 = W, x1 = -1, y0 = H, y1 = -1, n = 0;
+    const rowW = new Map();
+    while (sp) {
+      const q = stack[--sp];
+      const qx = q % W, qy = (q - qx) / W;
+      n++;
+      rowW.set(qy, (rowW.get(qy) || 0) + 1);
+      if (qx < x0) x0 = qx; if (qx > x1) x1 = qx;
+      if (qy < y0) y0 = qy; if (qy > y1) y1 = qy;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = qx + dx, ny = qy + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const r = ny * W + nx;
+          if (seen[r] || data[r * C + 3] <= ALPHA) continue;
+          seen[r] = 1; stack[sp++] = r;
+        }
+      }
+    }
+    /* THE FOOT LINE, which is not the same thing as the lowest pixel.
+
+       Aligning frames on their lowest pixel is the obvious thing to do and it is why
+       the character floated: in a head-down pose the lowest pixel is the tip of the
+       trunk, up to 52px below the feet in this art, so that frame was hoisted 52px
+       into the air and the animal visibly changed height and apparent size between
+       poses. A trunk, a tail and a flailing leg are all narrow; the feet are several
+       contact patches spread across the body. So the foot line is the LOWEST ROW that
+       still carries a quarter of the frame's widest row, and everything below it is
+       overhang that is allowed to hang past the ground. */
+    let widest = 0;
+    for (const w of rowW.values()) if (w > widest) widest = w;
+    let contact = y0;
+    for (const [ry, w] of rowW) if (w >= widest * 0.25 && ry > contact) contact = ry;
+    out.push({ x0, x1, y0, y1, n, w: x1 - x0 + 1, h: y1 - y0 + 1,
+               contact, above: contact - y0 + 1, below: y1 - contact });
+  }
+  return out;
+}
+
+/* ISOLATE THE CHARACTER inside one frame's crop.
+
+   Area filtering catches a stray that is its own blob. It cannot catch one that is
+   JOINED to the character by a thread of half-transparent matte, and the source sheets
+   have those: a hair tuft from the cell next door came through as a clump of fur lying
+   on the snow beside the animal, and because the thread made it one connected region
+   there was nothing to filter.
+
+   So the crop is labelled again at a HIGHER alpha threshold, which breaks those
+   threads — they are exactly the faint pixels.
+
+   WHAT IS ERASED IS DECIDED BY DISTANCE, NOT BY SIZE. Keeping only the biggest region
+   was the obvious rule and it was wrong: sweat drops, motion lines and the little
+   surprise marks are all separate regions too, and it deleted 60 of them from a single
+   sheet — which is the character arriving with bits of its own performance missing. A
+   fragment that bled in from the cell next door is FAR from the body; a sweat drop is
+   right beside the head. So a region survives unless it sits clear of the body's own
+   bounding box by more than a small margin. */
+async function isolate(sharpImg, box) {
+  const CUT = 150;            // a real edge is well above this; a matte thread is not
+  const NEAR = 14;            // px of slack around the body: decoration lives in here
+  const { data, info } = await sharpImg
+    .extract({ left: box.x0, top: box.y0, width: box.w, height: box.h })
+    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width: W, height: H, channels: C } = info;
+
+  const seen = new Int32Array(W * H);
+  const stack = new Int32Array(W * H);
+  const regions = [];
+  for (let p = 0; p < W * H; p++) {
+    if (seen[p] || data[p * C + 3] < CUT) continue;
+    const id = regions.length + 1;
+    let sp = 0; stack[sp++] = p; seen[p] = id;
+    let n = 0, x0 = W, x1 = -1, y0 = H, y1 = -1;
+    while (sp) {
+      const q = stack[--sp];
+      const qx = q % W, qy = (q - qx) / W;
+      n++;
+      if (qx < x0) x0 = qx; if (qx > x1) x1 = qx;
+      if (qy < y0) y0 = qy; if (qy > y1) y1 = qy;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = qx + dx, ny = qy + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const r = ny * W + nx;
+          if (seen[r] || data[r * C + 3] < CUT) continue;
+          seen[r] = id; stack[sp++] = r;
+        }
+      }
+    }
+    regions.push({ id, n, x0, x1, y0, y1 });
+  }
+  if (regions.length <= 1) return { data, W, H, C, erased: 0, total: regions.length };
+
+  const body = regions.reduce((a, b) => (b.n > a.n ? b : a));
+
+  /* Distance to the body's PIXELS, not to its bounding box. The box of a head-down
+     pose is a wide rectangle covering the whole animal, so a tuft lying under the chin
+     was inside it and survived — which is precisely the fragment this exists to remove.
+     The body mask is grown NEAR times instead, and anything the grown mask does not
+     touch is a fragment from the cell next door. */
+  let near = new Uint8Array(W * H);
+  for (let p = 0; p < W * H; p++) if (seen[p] === body.id) near[p] = 1;
+  for (let pass = 0; pass < NEAR; pass++) {
+    const grown = new Uint8Array(near);
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const p = y * W + x;
+        if (near[p]) continue;
+        if (near[p - 1] || near[p + 1] || near[p - W] || near[p + W]) grown[p] = 1;
+      }
+    }
+    near = grown;
+  }
+  const touching = new Set([body.id]);
+  for (let p = 0; p < W * H; p++) {
+    const id = seen[p];
+    if (id && near[p]) touching.add(id);
+  }
+  const drop = new Set(regions.filter(r => !touching.has(r.id)).map(r => r.id));
+  if (!drop.size) return { data, W, H, C, erased: 0, total: regions.length };
+
+  /* Erase the far regions and the soft pixels hanging off them, so no half-transparent
+     ghost of a deleted tuft is left behind. */
+  for (let pass = 0; pass < 3; pass++) {
+    const add = [];
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const p = y * W + x;
+        if (seen[p] || data[p * C + 3] === 0) continue;
+        for (const q of [p - 1, p + 1, p - W, p + W]) {
+          if (seen[q] && drop.has(seen[q])) { add.push(p); break; }
+        }
+      }
+    }
+    for (const p of add) { seen[p] = body.id + 1000; drop.add(body.id + 1000); }
+  }
+  let n = 0;
+  for (let p = 0; p < W * H; p++) {
+    if (seen[p] && drop.has(seen[p])) { data[p * C + 3] = 0; n++; }
+  }
+  return { data, W, H, C, erased: drop.size, total: regions.length, px: n };
+}
+
+/** Cluster blobs into rows by vertical overlap, then left-to-right in each row. */
+function readingOrder(list) {
+  const rows = [];
+  for (const b of [...list].sort((p, q) => p.y0 - q.y0)) {
+    const mid = (b.y0 + b.y1) / 2;
+    const row = rows.find(r => mid >= r.top && mid <= r.bot);
+    if (row) { row.items.push(b); row.top = Math.min(row.top, b.y0); row.bot = Math.max(row.bot, b.y1); }
+    else rows.push({ top: b.y0, bot: b.y1, items: [b] });
+  }
+  rows.forEach(r => r.items.sort((p, q) => p.x0 - q.x0));
+  return { frames: rows.flatMap(r => r.items), rows };
+}
+
+/* ---- pass one: measure every sheet, so one scale can serve them all ---- */
+const measured = [];
+for (const s of SHEETS) {
+  const file = join(SRC, s.src);
+  const { data, info } = await sharp(file).ensureAlpha().raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width: W, height: H, channels: C } = info;
+  const all = blobs(data, W, H, C);
+  const biggest = Math.max(...all.map(b => b.n));
+  const kept = all.filter(b => b.n >= biggest * MIN_AREA_FRAC);
+  let { frames, rows } = readingOrder(kept);
+
+  // only the frames this slot wants, in the order it wants them
+  if (s.pick) {
+    const src = frames;
+    frames = s.pick.map(i => src[i]);
+    rows = rows.map(r => ({ ...r, items: r.items.filter(q => frames.includes(q)) }))
+               .filter(r => r.items.length);
+  } else if (s.take) {
+    frames = frames.slice(0, s.take);
+    rows = rows.map(r => ({ ...r, items: r.items.filter(q => frames.includes(q)) }))
+               .filter(r => r.items.length);
+  }
+  /* HOW FAR EACH FRAME IS LIFTED off its row's foot line. On a locomotion sheet this
+     is the bob, and it is added to the frame's position — so the cell has to be able
+     to hold `above + lift`, not just `above`. Leaving it out of the scale is what let
+     the jump sheet's `rise` pose, which is both tall AND high, run off the top of its
+     cell. */
+  for (const f of frames) {
+    if (!s.bob) { f.lift = 0; continue; }
+    const row = rows.find(r => r.items.includes(f));
+    f.lift = row ? Math.max(...row.items.map(q => q.contact)) - f.contact : 0;
+  }
+  measured.push({ ...s, file, data, W, H, C, frames, rows,
+                  found: readingOrder(kept).frames.length, dropped: all.length - kept.length });
+}
+
+const maxW = Math.max(...measured.flatMap(m => m.frames.map(f => f.w)));
+const maxH = Math.max(...measured.flatMap(m => m.frames.map(f => f.h)));
+/* The tallest anything reaches ABOVE its feet — INCLUDING the bob that lifts it
+   further — and the furthest anything hangs BELOW them, taken across every sheet,
+   because one cell has to hold all of it at once. */
+const maxAbove = Math.max(...measured.flatMap(m => m.frames.map(f => f.above + f.lift)));
+const maxBelow = Math.max(...measured.flatMap(m => m.frames.map(f => f.below)));
+
+/* ONE scale for the whole set, so the character cannot change size between
+   animations, chosen so the tallest pose AND the longest overhang both fit inside a
+   single cell with the crop safety the checklist asks for. */
+const K = Math.min((CH - BASE_GAP) * FILL / (maxAbove + maxBelow), CW * FILL / maxW);
+
+/* Where the feet go, measured from the TOP of the cell. Everything below it is the
+   room reserved for a trunk or a tail hanging past the ground. */
+const FOOT_ROW = Math.round(CH - BASE_GAP - maxBelow * K);
+/* What the engine has to be told: how far the FOOT LINE sits above the cell bottom.
+   CFG.sprite.baseGap must equal this, or the character walks above or below the snow. */
+const ENGINE_BASE_GAP = CH - FOOT_ROW;
+
+console.log(`largest frame ${maxW}x${maxH};  above the feet ${maxAbove}, below ${maxBelow}`);
+console.log(`scale ${K.toFixed(4)}  ->  foot line at cell row ${FOOT_ROW}`);
+console.log(`cell ${CW}x${CH}, fill ${FILL}`);
+console.log(`ENGINE: CFG.sprite.baseGap must be ${ENGINE_BASE_GAP}\n`);
+
+/* ---- pass two: build each strip ---- */
+const summary = [];
+for (const m of measured) {
+  const n = m.frames.length;
+  const cells = [];
+  let strays = 0;
+
+  for (const f of m.frames) {
+    /* How high this frame sits. For a locomotion sheet, measured against the LOWEST
+       frame in its own row — the generator kept a row roughly consistent even when
+       rows are not — so the bob survives. For a held-pose sheet, zero. */
+    // measured in pass one off the row's own FOOT lines, so the bob is real movement
+    const lift = f.lift || 0;
+    const dw = Math.max(1, Math.round(f.w * K));
+    const dh = Math.max(1, Math.round(f.h * K));
+    const dx = Math.round((CW - dw) / 2);
+    /* Positioned by the FOOT LINE. dy is the top of the crop, so it is the contact row
+       less however much of this frame sits above its own feet. */
+    const dy = Math.round(FOOT_ROW - f.above * K - lift * K);
+
+    const iso = await isolate(sharp(m.file), f);
+    strays += iso.erased || 0;
+    /* .png() matters: a resize on a RAW input hands back raw pixels, and composite()
+       cannot parse those - it needs an encoded image. */
+    const cut = await sharp(iso.data, { raw: { width: iso.W, height: iso.H, channels: iso.C } })
+      .resize(dw, dh, { fit: 'fill', kernel: 'lanczos3' })
+      .png().toBuffer();
+
+    cells.push(await sharp({
+      create: { width: CW, height: CH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+    }).composite([{ input: cut, left: dx, top: Math.max(0, dy) }]).png().toBuffer());
+  }
+
+  const strip = sharp({
+    create: { width: CW * n, height: CH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+  }).composite(cells.map((b, i) => ({ input: b, left: i * CW, top: 0 })));
+
+  const outName = `mammoth-${m.slot}.webp`;
+  if (!REPORT) {
+    await strip.webp({ nearLossless: true, quality: 88, effort: 5, alphaQuality: 100 })
+      .toFile(join(SRC, outName));
+  }
+
+  // where each frame's lowest pixel ended up, for the crop-safety check
+  const bottoms = [];
+  {
+    const raw = await strip.clone().raw().toBuffer({ resolveWithObject: true });
+    const { data: d, info: inf } = raw;
+    for (let i = 0; i < n; i++) {
+      let low = -1;
+      for (let y = inf.height - 1; y >= 0 && low < 0; y--) {
+        for (let x = i * CW; x < (i + 1) * CW; x++) {
+          if (d[(y * inf.width + x) * inf.channels + 3] > 12) { low = y; break; }
+        }
+      }
+      bottoms.push(low);
+    }
+  }
+  const lo = Math.min(...bottoms), hi = Math.max(...bottoms);
+  /* The number that matters: where each frame's FEET ended up. On a held-pose sheet
+     these must all be identical, or the character shifts under a pose it is holding. */
+  const feet = m.frames.map(f => Math.round(FOOT_ROW - (f.lift || 0) * K));
+  const fLo = Math.min(...feet), fHi = Math.max(...feet);
+  // the topmost pixel too, so a frame running off the top of its cell is reported here
+  let top = CH;
+  {
+    const raw = await strip.clone().raw().toBuffer({ resolveWithObject: true });
+    const { data: d, info: inf } = raw;
+    for (let y = 0; y < inf.height && top === CH; y++) {
+      for (let x = 0; x < inf.width; x++) {
+        if (d[(y * inf.width + x) * inf.channels + 3] > 12) { top = y; break; }
+      }
+    }
+  }
+  summary.push({ slot: m.slot, n, dropped: m.dropped, rows: m.rows.length,
+                 drift: fHi - fLo, lowest: hi, highest: top,
+                 feet: fLo + '..' + fHi, outName });
+  console.log(`${m.slot.padEnd(6)} ${String(n).padStart(2)} of ${m.found} frames  ${m.rows.length} row(s)  ` +
+              `${m.dropped} speck(s), ${strays} joined stray(s) erased  ` +
+              `feet ${fLo}..${fHi} (bob ${fHi - fLo})  px ${top}..${hi}  ` +
+              `${CW * n}x${CH}  -> ${REPORT ? '(not written)' : outName}`);
+
+  if (CONTACT && !REPORT) {
+    await sharp(join(SRC, outName))
+      .flatten({ background: { r: 168, g: 214, b: 240 } })
+      .resize({ width: Math.min(CW * n, 3600) })
+      .png().toFile(join(ROOT, 'test-results', `contact-${m.slot}.png`));
+  }
+}
+
+console.log('\nframes: { ' + summary.map(s => `${s.slot}: ${s.n}`).join(', ') + ' }');
+const warn = summary.filter(s => !s.slot.match(/run|jump/) && s.drift > 2);
+if (warn.length) console.log('WARNING held-pose sheets that still drift: ' +
+  warn.map(s => `${s.slot} ${s.drift}px`).join(', '));
+for (const s of summary) {
+  if (s.lowest > CH - 1) console.log(`WARNING ${s.slot}: content reaches the cell bottom`);
+  if (s.highest < 1) console.log(`WARNING ${s.slot}: content reaches the cell top`);
+}
+console.log('\nSet CFG.sprite.baseGap = ' + ENGINE_BASE_GAP +
+            ' and leave the per-frame footline correction OFF: every frame in every ' +
+            'sheet is already standing on the same line.');
+if (!REPORT) await writeFile(join(ROOT, 'test-results', 'slice-char.json'),
+  JSON.stringify({ scale: K, maxW, maxH, maxAbove, maxBelow,
+                   contactRow: FOOT_ROW, engineBaseGap: ENGINE_BASE_GAP, summary }, null, 2));

@@ -1,0 +1,35 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><base href="/">
+<link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/screens.css">
+<style>body{margin:0;background:linear-gradient(180deg,#8FCFF0,#DCEEFA);font-family:'Baloo 2',system-ui}
+.row{display:flex;gap:44px;align-items:center;padding:30px 40px}
+.lab{font:700 12px monospace;color:#0B3557;padding:0 40px}
+.btn-jump,.icon-btn{position:relative!important;right:auto!important;bottom:auto!important;top:auto!important}
+.hud-controls{position:relative!important;top:auto!important;right:auto!important}</style></head><body>
+<div class="lab">TEXT BUTTONS — metallic rim, glossy pill, hard sheen &nbsp; (rest / pressed)</div>
+<div class="row">
+  <button class="btn-chunky btn-play" type="button"><span class="btn-chunky-face"><span class="btn-chunky-label">PLAY</span></span></button>
+  <button class="btn-chunky btn-play pressed" type="button"><span class="btn-chunky-face"><span class="btn-chunky-label">PLAY</span></span></button>
+  <button class="btn-chunky btn-retry" type="button"><span class="btn-chunky-face"><span class="btn-chunky-label">Try Again</span></span></button>
+  <button class="btn-chunky btn-retry pressed" type="button"><span class="btn-chunky-face"><span class="btn-chunky-label">Try Again</span></span></button>
+</div>
+<div class="lab">REPLAY</div>
+<div class="row">
+  <button class="btn-primary" type="button"><span class="btn-primary-face">Replay</span></button>
+  <button class="btn-primary pressed" type="button"><span class="btn-primary-face">Replay</span></button>
+</div>
+<div class="lab">ROUND BUTTONS — charcoal bezel, glossy amber cap, white glyph &nbsp; (rest / pressed / off / disabled)</div>
+<div class="row hud-controls">
+  <button class="icon-btn" type="button" data-icon="hint" aria-label="Hint"><span class="icon-btn-face"></span><span class="icon-btn-glyph"></span></button>
+  <button class="icon-btn pressed" type="button" data-icon="pause" aria-label="Pause"><span class="icon-btn-face"></span><span class="icon-btn-glyph"></span></button>
+  <button class="icon-btn" type="button" data-icon="play" aria-label="Resume"><span class="icon-btn-face"></span><span class="icon-btn-glyph"></span></button>
+  <button class="icon-btn" type="button" data-icon="restart" aria-label="Restart"><span class="icon-btn-face"></span><span class="icon-btn-glyph"></span></button>
+  <button class="icon-btn" type="button" data-icon="sound-on" aria-pressed="true" aria-label="Sound on"><span class="icon-btn-face"></span><span class="icon-btn-glyph"></span></button>
+  <button class="icon-btn" type="button" data-icon="sound-off" aria-pressed="false" aria-label="Sound off"><span class="icon-btn-face"></span><span class="icon-btn-glyph"></span></button>
+  <button class="icon-btn" type="button" data-icon="hint" aria-label="Hint" disabled><span class="icon-btn-face"></span><span class="icon-btn-glyph"></span></button>
+</div>
+<div class="lab">JUMP — the one control used during play</div>
+<div class="row">
+  <button class="btn-jump" type="button"><span class="btn-jump-face"><span class="btn-jump-label">JUMP</span></span></button>
+  <button class="btn-jump pressed" type="button"><span class="btn-jump-face"><span class="btn-jump-label">JUMP</span></span></button>
+</div>
+</body></html>

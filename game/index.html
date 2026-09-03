@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Ice Age Mammoth Runner</title>
+<meta name="description" content="A 2D Ice Age runner where geometry repairs the broken ice path." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/screens.css" />
+</head>
+<body>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <canvas id="game-canvas" aria-label="Ice Age mammoth runner game"></canvas>
+
+      <div class="hud">
+        <!-- The hint / sound / pause cluster that used to sit top-right has been
+             removed on request. Nothing replaces it: the stage is now entirely
+             gameplay apart from the instruction card and the jump button.
+
+             What went with it, so it is on the record: there is no in-game mute, no
+             pause, and no way to bring the instruction back. Sound and motion can
+             still be set from the URL (?sound=0, ?reduced=1) and the pause panel below
+             is still wired, but nothing opens it any more. -->
+
+        <!-- how far through the six repairs: diamonds only, no captions -->
+
+        <div class="instruction" id="instruction" hidden>
+          <div class="instruction-pill" id="instruction-pill">
+            <!-- The sentence, and only the sentence. It used to be paired with a
+                 drawn polygon; that was removed on request, so the words carry the
+                 whole instruction and are set large enough to be the thing you look
+                 at. Still the only learner-facing text in a phase. -->
+            <span class="instruction-text" id="instruction-text" aria-live="polite"></span>
+          </div>
+        </div>
+
+        <button class="btn-jump" id="btn-jump" type="button" aria-label="Jump" hidden>
+          <span class="btn-jump-face"><span class="btn-jump-label">JUMP</span></span>
+        </button>
+
+        <!-- a brief mark over the crossing: cause and effect, without a modal -->
+        <div class="verdict" id="verdict" aria-hidden="true" hidden></div>
+
+        <!-- shown only after a long idle: demonstrates the cut, never performs it -->
+        <div class="hand-hint" id="hand-hint" aria-hidden="true" hidden></div>
+
+        <div class="overlay pause-panel" id="paused" hidden>
+          <div class="card">
+            <h1>Paused</h1>
+            <div class="pause-row">
+              <button class="icon-btn" id="btn-restart" type="button" aria-label="Start over" data-icon="restart">
+                <span class="icon-btn-face"></span><span class="icon-btn-glyph"></span>
+              </button>
+              <button class="icon-btn" id="btn-sound2" type="button" aria-label="Sound" aria-pressed="true" data-icon="sound-on">
+                <span class="icon-btn-face"></span><span class="icon-btn-glyph"></span>
+              </button>
+            </div>
+            <button class="btn-chunky btn-resume" id="btn-resume" type="button">
+              <span class="btn-chunky-face"><span class="btn-chunky-label">Resume</span></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="overlay" id="oops" hidden>
+          <div class="card">
+            <div class="card-hero" id="oops-hero" aria-hidden="true"></div>
+            <h1>Ouch!</h1>
+            <button class="btn-chunky btn-retry" id="btn-retry" type="button">
+              <span class="btn-chunky-face"><span class="btn-chunky-label">Try Again</span></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="overlay" id="complete" hidden>
+          <div class="card">
+            <h1>Journey Complete</h1>
+            <p>Seven crossings repaired. The mammoth made it to nightfall.</p>
+            <button class="btn-primary" id="btn-replay" type="button"><span class="btn-primary-face">Replay</span></button>
+          </div>
+        </div>
+
+        <div class="overlay rotate" id="rotate" hidden>
+          <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <rect x="15" y="6" width="18" height="30" rx="3.5" stroke="#A9E7FA" stroke-width="2.6" />
+            <path d="M10 40 A16 16 0 0 0 38 40" stroke="#A9E7FA" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M34 36 L38 40 L34 44" stroke="#A9E7FA" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <p>Rotate your device</p>
+        </div>
+
+        <!-- Cover: the supplied FROZEN RUSH banner, with drifting snow and a PLAY button -->
+        <div class="screen cover" id="cover" hidden>
+          <div class="cover-art" aria-hidden="true"></div>
+          <div class="cover-snow" aria-hidden="true"></div>
+          <button class="btn-chunky btn-play" id="btn-play" type="button">
+            <span class="btn-chunky-face"><span class="btn-chunky-label">PLAY</span></span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+  <noscript>
+    <p style="color:#EAF9FF;font:16px system-ui;text-align:center;padding:24px">
+      This game needs JavaScript enabled.
+    </p>
+  </noscript>
+</body>
+</html>

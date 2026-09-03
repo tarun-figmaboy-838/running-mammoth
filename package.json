@@ -1,0 +1,16 @@
+{
+  "name": "ice-age-mammoth-runner",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A 2D Ice Age runner where geometry repairs the broken ice path.",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "sharp": "^0.35.4"
+  }
+}

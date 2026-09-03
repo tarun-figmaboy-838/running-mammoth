@@ -1,0 +1,27 @@
+# Only game/ is the site. This matters when Vercel's Root Directory is left as the
+# repo root; with Root Directory set to `game` (see DEPLOY.md) it is redundant but
+# harmless.
+art-source
+node_modules
+tests
+tools
+test-results
+playwright-report
+game/assets/GIF
+game/assets/char/*-gif.png
+game/assets/option-shape/*.png
+game/assets/ui/icons/NORMAL-BUTTON.png
+game/assets/ui/icons/PRESSED-BUTTON.png
+game/assets/ui/icons/image.png
+game/assets/art/cover.png
+game/assets/art/image.png
+game/drafts
+game/qa
+
+# Dead since the rope overhang became procedural fog. Kept on disk in case the shelf
+# is ever wanted back; no reason to upload 1.1MB of it.
+game/assets/env/hang-stone.webp
+game/assets/env/hs.webp
+
+# Unidentified wide panels dropped into the icons folder — not wired to anything.
+game/assets/ui/icons/ChatGPT*

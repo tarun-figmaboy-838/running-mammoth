@@ -1,0 +1,56 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><base href="/"><title>UI shot</title></head>
+<body style="margin:0"><div id="mount"></div>
+<script>
+/* Headless has no compositor, so rAF never fires: drive the engine's own loop. */
+let vnow = 0; const q = [];
+window.requestAnimationFrame = fn => { q.push(fn); return q.length; };
+window.cancelAnimationFrame = () => {};
+performance.now = () => vnow;
+window.__step = () => { vnow += 16; const b = q.splice(0, q.length); for (const f of b) { try { f(vnow); } catch (e) { console.error(e); } } };
+</script>
+<script type="module">
+const html = await (await fetch('/index.html')).text();
+const doc = new DOMParser().parseFromString(html, 'text/html');
+for (const l of doc.querySelectorAll('link[rel=stylesheet]')) document.head.appendChild(l.cloneNode());
+document.getElementById('mount').appendChild(doc.querySelector('.stage-wrap'));
+const { createGame } = await import('/js/engine.js');
+const { Hud } = await import('/js/hud.js');
+const hud = new Hud(document);
+const P = new URLSearchParams(location.search);
+const game = createGame(document.getElementById('game-canvas'), {
+  onReady: () => Promise.resolve().then(run),
+  onHud: s => hud.update(s)
+});
+hud.bind({ onJump: () => game.jump(), onPause: p => game.setPaused(p),
+  onReplay: () => game.restart(), onRetry: () => game.retryObstacle(),
+  onSound: () => game.toggleSound(), onHint: () => game.replayInstruction() });
+
+function run() {
+  game.setOptions({ sound: false, speed: 900 });
+  game.begin();
+  const G = game.debug();
+  G.phase = Number(P.get('phase') || 2);
+  const at = P.get('at') || 'active';
+  game._force('GLACIER_BREAK_1');
+  let hold = -1;
+  for (let i = 0; i < 4000; i++) {
+    window.__step();
+    if (G.state === 'PHASE_ACTIVE' && hold < 0) {
+      if (at === 'idle') G.idle = 99;
+      if (at === 'wrong') {
+        const bad = G.l1.shapes.find(s => s.state === 'hang' &&
+          !G.l1.targets.some(t => !t.filled && t.kind === s.kind));
+        if (bad) game._cut(bad.kind);
+      }
+      if (at === 'filled') {
+        const t = G.l1.targets.find(x => !x.filled);
+        if (t) game._cut(t.kind);
+      }
+      if (at === 'paused') { game.setPaused(true); hud.update(Object.assign(game.debug(), { paused: true })); document.getElementById('paused').hidden = false; }
+      hold = i + (at === 'wrong' ? 6 : at === 'filled' ? 150 : 30);
+    }
+    if (hold >= 0 && i >= hold) break;
+  }
+  document.title = 'DONE ' + G.state;
+}
+</script></body></html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Cut the Polygon</title>
+<meta name="description" content="Seven levels of polygon recognition: read the question, cut the shape that matches." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/cutgame.css" />
+<style>
+  /* The page shell only. Everything the learner sees is built by the game. */
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Baloo 2', 'Segoe UI', system-ui, sans-serif;
+    background: #0E2C45;
+    overflow: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+  /* A 16:9 stage, letterboxed and centred, so the layout keeps its proportions at any
+     window size and no polygon is ever clipped by an edge. */
+  .stage-wrap { position: fixed; inset: 0; display: grid; place-items: center; }
+  .stage {
+    position: relative;
+    width: min(100vw, calc(100vh * 16 / 9));
+    height: min(100vh, calc(100vw * 9 / 16));
+    overflow: hidden;
+  }
+</style>
+</head>
+<body>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <!-- The one shared paint for every polygon in the game. Declared once, so the
+           shapes cannot drift apart visually: §33 asks for one visual language, and the
+           surest way to get it is one definition. -->
+      <svg width="0" height="0" aria-hidden="true" focusable="false"
+           style="position:absolute;width:0;height:0;overflow:hidden">
+        <defs>
+          <linearGradient id="polyFace" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#FFFFFF" />
+            <stop offset="0.52" stop-color="#E8F6FE" />
+            <stop offset="1" stop-color="#C9E8FB" />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <!-- the game mounts here: a question, and the polygons -->
+      <main class="cut-stage" id="game" aria-labelledby="question"></main>
+    </div>
+  </div>
+
+  <!-- Classic scripts in dependency order, NOT modules: a browser will not load an ES
+       module over file://, so a module build shows a blank page when the HTML file is
+       opened directly. Geometry, then levels, then the game, then the entry point. -->
+  <script src="js/polygons.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/cutgame.js"></script>
+  <script src="js/cutmain.js"></script>
+  <noscript>
+    <p style="color:#fff;font:600 16px system-ui;padding:24px">
+      This game needs JavaScript.
+    </p>
+  </noscript>
+</body>
+</html>

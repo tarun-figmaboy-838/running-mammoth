@@ -1,0 +1,546 @@
+/* Ice Age Mammoth Runner — shell + HUD.
+   The game world itself is drawn on <canvas>; everything here is chrome.
+   All sizes are viewport-relative so the HUD keeps its proportions from a
+   phone in landscape up to a 4K display. */
+
+:root {
+  --ice-pale: #DDF7FF;
+  --ice-light: #A9E7FA;
+  --ice-cyan: #68C9EE;
+  --ice-edge: #2D82B5;
+  --ice-edge-deep: #1B5E8C;
+  --deep-1: #123B68;
+  --deep-2: #082B52;
+  --night: #061a38;
+  --frost: #EAF9FF;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--night);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: 'Baloo 2', 'Trebuchet MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a { color: var(--ice-light); text-decoration: none; }
+a:hover { color: var(--ice-pale); }
+
+/* ---------- stage: locked 16:9, letterboxed, never stretched ---------- */
+.stage-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(120% 120% at 50% 0%, var(--deep-1) 0%, var(--night) 70%);
+  overflow: hidden;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  max-width: calc(100vh * 16 / 9);
+  max-height: 100vh;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #0a2450;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.45);
+}
+
+#game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;          /* swipe gestures belong to the game, not the browser */
+  cursor: crosshair;
+}
+
+/* ---------- HUD ---------- */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;        /* only interactive children opt back in */
+  user-select: none;
+}
+
+.hud button { pointer-events: auto; font-family: inherit; cursor: pointer; }
+
+/* Pause and Replay are styled with the rest of the button family in screens.css */
+
+/* ---------- instruction panel ----------
+   Moved to the top LEFT. Centred, it sat directly on top of the hanging rig: the
+   ropes and their anchors run down the middle and right of the screen, while the
+   left third above the character is genuinely empty because no option may hang
+   where a cut chunk could land on them. Putting the panel in that real empty space
+   means it never covers gameplay and never has to fight for the same band as the
+   progress track (top centre) or the controls (top right).
+
+   It is also SHRINK TO FIT. As a centred fixed-width pill it carried a pool of dead
+   space around a short sentence, and the empty shape slot padded it further. */
+/* CENTRED, and large enough to be the thing you look at. The sequence gives it the
+   stage alone — the options are held above the screen until it leaves — so it covers
+   nothing while it is up, and it never takes a pointer event either way. */
+.instruction {
+  position: absolute;
+  /* HIGH. It sat at 12%, which put it down among the ropes; up here it has the top
+     band of the sky to itself and the chunks hang well clear below it. The controls
+     are top-RIGHT and the card is centred, so the two never meet. */
+  top: 3.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 92%;
+  pointer-events: none;
+  transition: opacity 280ms ease, transform 280ms ease;
+}
+.instruction[hidden] { display: none; }
+.instruction.leaving {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-18px) scale(0.97);
+}
+
+/* A carved ice sign, not a button: a frosted slab with a bright rim, a top gloss and
+   a scalloped underside. Buttons in this game are domed and travel when pressed, so
+   the instruction must not look like one — nothing here is tappable. */
+/* THE SIGN. The supplied snowy plank, as a THREE-SLICE border image.
+
+   Why three-slice and not a stretched background: the plank has rope lashings and
+   bolts at both ends and a snowflake near the right one. Scaling the whole picture to
+   fit a sentence squashes those — a rope stretched to 1.6x reads as a smear — while
+   the wood grain in the middle can be stretched as far as you like and nobody can
+   tell. So the two ends are pinned at their natural size and only the middle gives.
+
+   EVERY NUMBER IS IN ART PIXELS, measured off the trimmed image (2122 x 473):
+
+     the plank's wood      y 126..434
+     deepest snow overhang y 187   (it dips further on the left and right than the middle)
+     rope + bolts          x 0..244 on the left, x 1874..2122 on the right
+     SAFE TEXT BOX         x 244..1874, y 206..416
+
+   --k converts those to screen: one scale for the caps and the padding both, so the
+   ends are never distorted and the text cannot drift off the wood at any size. The
+   panel then grows with the sentence, because that is all the middle slice does. */
+.instruction-pill {
+  /* Sized to be readable without dominating. It is on screen for the WHOLE of every
+     phase now rather than for a few seconds, so it has to sit alongside the gameplay
+     instead of announcing itself over it. Everything on the plank scales from here
+     through --k. */
+  --sign-h: clamp(72px, 7.6vw, 146px);    /* rendered height of the trimmed art */
+  --k: calc(var(--sign-h) / 473);         /* art pixels -> screen */
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: var(--sign-h);
+
+  /* the two ends, held at their natural size; only the middle stretches */
+  border-style: solid;
+  border-color: transparent;
+  border-width: 0 calc(248 * var(--k)) 0 calc(244 * var(--k));
+  border-image: url("../assets/ui/sign.webp") 0 248 0 244 fill stretch;
+
+  /* CENTRED ON THE WOOD, both ways. Two things were off before:
+
+     SIDEWAYS. The left inset was 244 (cap) + 30 (padding) = 274 art-px and the right
+     was 248 + 76 = 324, so the text sat 25 art-px left of the plank's middle. The caps
+     are near enough equal, so the paddings have to be equal too — 60 each, which still
+     leaves the text 60px clear of the right cap and so clear of the snowflake painted
+     into it.
+
+     VERTICALLY. The box ran y 206..416, centred on 311. But the plank's wood runs
+     126..434, centred on 280 — so the words sat 31px low. The box is now 214..346,
+     centred on 280 exactly. 214 still clears the snow, which reaches down to about
+     213 in the middle columns where the text actually is (it dips to 187 only at the
+     two ends, under the caps). */
+  padding: calc(214 * var(--k)) calc(60 * var(--k))
+           calc(127 * var(--k)) calc(60 * var(--k));
+
+  animation: pillIn 240ms cubic-bezier(.2,1.3,.4,1) both;
+}
+
+/* THE SENTENCE. It is the whole instruction, and it has to sit inside the plank's safe
+   box — so it is sized off the SAME --k the panel is built from rather than off the
+   viewport. At 118 art-pixels against a 210-pixel-tall box it cannot touch the snow
+   above or the wood's edge below, whatever the stage size, and `nowrap` keeps the
+   panel growing sideways instead of the text wrapping onto the rope. */
+.instruction-text {
+  /* 120 art-px, not 132. The content box is centred on the wood at art-y 280 and
+     the snow reaches down to about 213, so a 132px line left 0.3px of clearance —
+     within font-metric noise of touching the snow. 120 keeps the same centre and
+     gives 7px of air. */
+  font-size: calc(120 * var(--k));
+  line-height: 1;
+  font-weight: 800;
+  /* dark warm brown, which is what reads on pale timber; the old deep blue was chosen
+     against a white ice card and goes muddy on wood */
+  color: #5A3617;
+  letter-spacing: -0.005em;
+  text-align: center;
+  white-space: nowrap;
+  /* a touch of relief, so the words look burnt into the plank rather than laid on it */
+  text-shadow: 0 calc(3 * var(--k)) 0 rgba(255, 246, 224, 0.55);
+}
+
+/* THE JUMP BUTTON — the supplied art, in two states.
+
+   It was built out of CSS before: a slate bezel with an amber cap that travelled
+   downward when pressed. That is now two pictures, and the important thing about them
+   is that THE PRESS IS ALREADY IN THE ART. Measured, the pressed file's opaque bounds
+   are 1223x1200 inset at 15,9 where the normal file's are 1250x1209 at 1,4 — the
+   button is drawn smaller and shifted down-right, which is the travel. So swapping the
+   image IS the press, and adding a transform on top would double it into a lurch.
+
+   What the tap gets instead is an EFFECT that does not move the button: a ring that
+   expands out of it and fades. A thumb covers the button at the moment it would
+   travel, so something that reads from outside the thumb is what actually tells the
+   player the tap landed. */
+.btn-jump {
+  position: absolute;
+  right: 3%;
+  bottom: 3.5%;
+  width: clamp(96px, 9.4vw, 180px);
+  height: clamp(96px, 9.4vw, 180px);
+  padding: 0;
+  border: none;
+  background: url("../assets/ui/btn-normal.webp") center / contain no-repeat;
+  -webkit-tap-highlight-color: transparent;
+  /* the art carries its own rim and shading, so all this adds is separation from a
+     pale sky and the button's own light */
+  filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(30, 6, 70, 0.42));
+  transition: filter 120ms ease;
+}
+.btn-jump[hidden] { display: none; }
+
+/* the pressed picture, swapped straight in */
+.btn-jump:active,
+.btn-jump.pressed {
+  background-image: url("../assets/ui/btn-pressed.webp");
+  filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(3px, 0.31vw, 6px) rgba(30, 6, 70, 0.5));
+}
+.btn-jump:hover { filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(10px, 1vw, 20px) rgba(120, 60, 250, 0.55)); }
+
+/* The face inside the art is pale, so the label is deep violet with a light halo —
+   the old cream-on-amber lettering was chosen for a cap that is no longer there. */
+.btn-jump-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+/* NO LETTERING. The supplied button art is the whole control — the word was there for
+   a CSS-built cap that no longer exists, and a five-year-old who cannot read "cut the
+   pentagon" cannot read "JUMP" either. The element stays in the markup so the button
+   keeps its accessible name from aria-label. */
+.btn-jump-label { display: none; }
+
+/* THE TAP RING. Drawn outside the button and expanding away from it, so it is visible
+   past a thumb. Keyed off the .pressed class the HUD already sets, and re-triggered by
+   the HUD removing and re-adding it. */
+.btn-jump::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: clamp(3px, 0.31vw, 6px) solid rgba(168, 120, 255, 0.9);
+  opacity: 0;
+  pointer-events: none;
+}
+.btn-jump.pressed::after { animation: jumpTapRing 460ms cubic-bezier(.2, .7, .3, 1) 1; }
+@keyframes jumpTapRing {
+  from { opacity: 0.85; transform: scale(1); }
+  to   { opacity: 0;    transform: scale(1.55); }
+}
+
+.btn-jump:focus-visible {
+  outline: clamp(3px, 0.31vw, 5px) solid #C9A6FF;
+  outline-offset: clamp(5px, 0.52vw, 10px);
+}
+.btn-jump.pulse { animation: iceJumpPulse 1100ms ease-in-out 2; }
+
+/* ---------- overlays ---------- */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: rgba(8, 43, 82, 0.42);
+  backdrop-filter: blur(3px);
+}
+.overlay[hidden] { display: none; }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(11px, 1.15vw, 22px);
+  padding: clamp(24px, 2.4vw, 46px) clamp(32px, 3.44vw, 66px);
+  border-radius: clamp(18px, 1.77vw, 34px);
+  background: linear-gradient(180deg, rgba(234, 249, 255, 0.97), rgba(169, 231, 250, 0.94));
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 30px 70px rgba(6, 26, 56, 0.5);
+  text-align: center;
+}
+.card h1 {
+  margin: 0;
+  font-size: clamp(26px, 2.7vw, 52px);
+  font-weight: 800;
+  color: var(--deep-1);
+  letter-spacing: -0.01em;
+}
+.card p {
+  margin: 0;
+  font-size: clamp(13px, 1.25vw, 24px);
+  font-weight: 600;
+  color: var(--ice-edge);
+}
+
+.card-icon {
+  width: clamp(38px, 3.6vw, 68px);
+  height: clamp(38px, 3.6vw, 68px);
+  filter: drop-shadow(0 4px 10px rgba(6, 26, 56, 0.28));
+  animation: oopsPop 420ms cubic-bezier(.34, 1.56, .64, 1) both;
+}
+
+@keyframes oopsPop {
+  from { opacity: 0; transform: scale(.55) rotate(-16deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+.rotate {
+  flex-direction: column;
+  gap: 24px;
+  background: #0a2450;
+  backdrop-filter: none;
+}
+.rotate svg { width: 96px; height: 96px; }
+.rotate p {
+  margin: 0;
+  font-size: clamp(18px, 1.56vw, 30px);
+  font-weight: 700;
+  color: var(--frost);
+}
+
+/* ---------- motion ---------- */
+@keyframes pillIn {
+  from { opacity: 0; transform: translateY(-11px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes iceJumpPulse {
+  0%, 100% { filter: drop-shadow(0 4px 10px rgba(30, 6, 70, 0.42)); }
+  50%      { filter: drop-shadow(0 4px 10px rgba(30, 6, 70, 0.42))
+                     drop-shadow(0 0 22px rgba(150, 100, 255, 0.95)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .instruction-pill, .btn-jump.pulse { animation: none; }
+}
+
+/* ---------- the idle hand ----------
+   Shown only after a long idle, on the middle rope: a position, never an answer. It
+   demonstrates the GESTURE — "ropes are cut like this" — and leaves the instant
+   anything is touched.
+
+   It is small by rule: the test that guards this asserts under 9% of the stage width,
+   because a teaching hand that covers the thing it is pointing at teaches nothing. The
+   engine places it in stage percentages so it lands on the rope at any viewport size.
+
+   This block was missing entirely for a while. The element existed, the engine
+   positioned it, the art existed — but with no rule anywhere it was 0x0, which from
+   the outside is indistinguishable from a hint that never fires. */
+.hand-hint {
+  position: absolute;
+  width: clamp(50px, 5vw, 96px);
+  /* the supplied hand is 300x360, so it is not square */
+  aspect-ratio: 300 / 360;
+  /* centred on the point the engine gives, which is ON the rope */
+  transform: translate(-50%, -50%);
+  background: url("../assets/ui/icons/touch.png") center / contain no-repeat;
+  pointer-events: none;
+  z-index: 5;
+  filter: drop-shadow(0 clamp(2px, 0.21vw, 4px) clamp(4px, 0.42vw, 8px) rgba(6, 26, 56, 0.45));
+  animation: handSwipe 1.8s cubic-bezier(.4, 0, .3, 1) infinite;
+}
+.hand-hint[hidden] { display: none; }
+/* Across the rope, not along it: the swipe has to read as the cut it is teaching.
+   Translate is composed after the centring transform, so both survive. */
+@keyframes handSwipe {
+  0%      { transform: translate(-50%, -50%) translate(-46%, 0) rotate(-9deg); opacity: 0; }
+  16%     { transform: translate(-50%, -50%) translate(-40%, 0) rotate(-9deg); opacity: 1; }
+  62%     { transform: translate(-50%, -50%) translate(40%, 0)  rotate(7deg);  opacity: 1; }
+  80%     { transform: translate(-50%, -50%) translate(46%, 0)  rotate(7deg);  opacity: 0; }
+  100%    { transform: translate(-50%, -50%) translate(-46%, 0) rotate(-9deg); opacity: 0; }
+}
+/* With motion off it still has to be VISIBLE and still has to say "swipe", so it
+   holds mid-gesture rather than being parked at the opacity 0 the animation starts
+   from — an element whose only visible state is inside a keyframe disappears the
+   moment the animation does. */
+@media (prefers-reduced-motion: reduce) {
+  .hand-hint {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ---------- circular icon button ----------
+   Built to the supplied reference set: a THICK CHARCOAL BEZEL around a glossy AMBER
+   face carrying a solid white glyph.
+
+     .btn (the button)  the bezel — a dark ring with a lit top edge and a shaded
+                        bottom, so it reads as moulded plastic rather than as an
+                        outline drawn around a circle
+     .icon-btn-face     the amber cap, with a broad radial gloss up and left
+     .icon-btn-glyph    a flat white silhouette, masked so one file serves any colour
+
+   Amber, not ice blue: these controls sit over a blue-white world and have to be
+   found instantly. The reference set makes the same call for the same reason. */
+.icon-btn {
+  --size: clamp(38px, 3.9vw, 74px);
+  --cap: clamp(3px, 0.31vw, 6px);
+  /* A brighter amber with a wider value range: the old set spanned too little from
+     lit to bottom and read as flat. --halo is the button's own light. */
+  --face-lit: #FFF3C4;
+  --face-top: #FFD24E;
+  --face-mid: #FFA808;
+  --face-bot: #DB7A00;
+  --halo: rgba(255, 168, 8, 0.5);
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  /* The bezel. Slate-blue rather than charcoal: over an ice world a neutral dark ring
+     reads as a hole punched in the screen, and it was draining the amber it holds. The
+     last shadow is the button's own light — the cue that the control is live. */
+  background: linear-gradient(180deg, #6E7C93 0%, #45526A 52%, #2E3949 100%);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    inset 0 clamp(1px, 0.1vw, 2px) 0 rgba(255, 255, 255, 0.42),
+    inset 0 clamp(-3px, -0.31vw, -2px) 0 rgba(0, 0, 0, 0.45),
+    0 0 0 clamp(2px, 0.21vw, 4px) #14496F,
+    0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(4, 18, 40, 0.42),
+    0 0 clamp(10px, 1.05vw, 20px) var(--halo, transparent);
+  transition: filter 160ms ease, box-shadow 160ms ease;
+}
+.icon-btn-face {
+  position: absolute;
+  /* the bezel thickness: about 14% of the button, as in the reference */
+  inset: 14%;
+  border-radius: 50%;
+  background:
+    radial-gradient(62% 48% at 34% 22%, rgba(255,255,255,.85) 0%, rgba(255,255,255,.16) 58%, rgba(255,255,255,0) 82%),
+    linear-gradient(180deg, var(--face-lit) 0%, var(--face-top) 34%, var(--face-mid) 72%, var(--face-bot) 100%);
+  box-shadow:
+    inset 0 clamp(1px, 0.1vw, 2px) 0 rgba(255, 255, 255, 0.7),
+    inset 0 clamp(-5px, -0.5vw, -3px) 0 rgba(150, 82, 0, 0.34);
+  /* hover invites slowly, the press answers fast */
+  transition: filter 110ms ease, box-shadow 110ms ease;
+}
+.icon-btn-glyph {
+  position: absolute;
+  inset: 27%;
+  background: #FFFFFF;
+  -webkit-mask-repeat: no-repeat;  -webkit-mask-position: center;  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;  mask-position: center;  mask-size: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) 0 rgba(160, 84, 0, 0.55));
+}
+
+/* ---- states ---- */
+.icon-btn:hover .icon-btn-face { filter: brightness(1.12) saturate(1.08); }
+.icon-btn:hover {
+  box-shadow:
+    inset 0 clamp(1px, 0.1vw, 2px) 0 rgba(255, 255, 255, 0.42),
+    inset 0 clamp(-3px, -0.31vw, -2px) 0 rgba(0, 0, 0, 0.45),
+    0 0 0 clamp(2px, 0.21vw, 4px) #14496F,
+    0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(4, 18, 40, 0.42),
+    0 0 clamp(18px, 1.9vw, 36px) var(--halo, transparent);
+}
+/* pressed is a light state: see the note in screens.css */
+.icon-btn:active .icon-btn-face,
+.icon-btn.pressed .icon-btn-face {
+  filter: brightness(.8) saturate(1.14);
+  box-shadow:
+    inset 0 clamp(1px, 0.1vw, 2px) 0 rgba(255, 255, 255, 0.4),
+    inset 0 0 clamp(10px, 1.05vw, 20px) rgba(90, 48, 0, 0.5),
+    inset 0 clamp(-6px, -0.6vw, -3px) 0 rgba(150, 82, 0, 0.5);
+}
+.icon-btn:focus-visible {
+  outline: clamp(3px, 0.31vw, 5px) solid #FFD34A;
+  outline-offset: clamp(3px, 0.31vw, 6px);
+}
+.icon-btn[disabled] { filter: saturate(.24) brightness(.86); cursor: default; pointer-events: none; }
+/* OFF state, e.g. sound muted: the face goes cold so the state reads at a glance */
+.icon-btn[aria-pressed="false"] {
+  --face-lit: #E4EAEE;
+  --face-top: #BDC8D0;
+  --face-mid: #96A4AE;
+  --face-bot: #78888F;
+}
+/* asks for attention without moving off its spot: the hint, when the learner is stuck */
+.icon-btn.nudge .icon-btn-face { animation: iconNudge 1.6s ease-in-out infinite; }
+@keyframes iconNudge {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.07); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn.nudge .icon-btn-face { animation: none; }
+}
+/* ---------- glyph selection ----------
+   The mask URLs are declared HERE rather than in an inline `--glyph` custom
+   property. A url() inside a custom property is resolved relative to the stylesheet
+   that CONSUMES it, not the document, so `assets/ui/...` set inline resolved to
+   `/css/assets/ui/...` and every glyph 404'd. Declaring them in this file makes the
+   relative path correct, and a data attribute picks between them — which also means
+   the icon set is enumerable in one place. */
+.icon-btn[data-icon="hint"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/hint.svg");      mask-image: url("../assets/ui/icons/hint.svg"); }
+.icon-btn[data-icon="sound-on"]  .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/sound-on.svg");  mask-image: url("../assets/ui/icons/sound-on.svg"); }
+.icon-btn[data-icon="sound-off"] .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/sound-off.svg"); mask-image: url("../assets/ui/icons/sound-off.svg"); }
+.icon-btn[data-icon="pause"]     .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/pause.svg");     mask-image: url("../assets/ui/icons/pause.svg"); }
+.icon-btn[data-icon="play"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/play.svg");      mask-image: url("../assets/ui/icons/play.svg"); }
+.icon-btn[data-icon="restart"]   .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/restart.svg");   mask-image: url("../assets/ui/icons/restart.svg"); }
+
+.verdict[data-mark="ok"] { background-image: url("../assets/ui/icons/check.svg"); }
+.verdict[data-mark="no"] { background-image: url("../assets/ui/icons/wrong.svg"); }
+
+/* At a phone-landscape stage the panel is proportionally much wider, and at 46% it
+   reached the first rope. Narrowing it there keeps the rule "the interface never
+   covers gameplay" true at every size rather than only at the reference one. */
+/* A phone-landscape stage is proportionally much wider, so the card is trimmed rather
+   than allowed to run toward the edges. */
+/* On a phone-landscape stage everything still derives from --sign-h, so the sign only
+   needs to be told to be a little taller relative to a much smaller stage. */
+@media (max-width: 1200px) {
+  .instruction { max-width: 94%; top: 2.5%; }
+  /* MUCH smaller on a phone, and the two numbers that set it are both measured:
+     the hanging chunks start 122px down a 390px stage, so a card parked at 2.5% must
+     be under ~112px tall to clear them; and the interface has to stay under 12% of
+     the screen, which for a plank whose width runs about 2.7x its height means under
+     about 98px. 88px satisfies both with room to spare. It matters more here than on
+     desktop because the card is now on screen for the whole phase rather than a few
+     seconds. */
+  .instruction-pill { --sign-h: clamp(56px, 10.4vw, 96px); }
+}
