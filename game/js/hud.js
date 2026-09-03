@@ -68,7 +68,13 @@ export class Hud {
     const el = this.el.verdict;
     if (!el) return;
     if (!h.verdict) {
-      if (!el.hidden) { el.hidden = true; this._verdictWas = ''; }
+      /* Both, unconditionally. The reset used to sit inside a check on el.hidden, so
+         once anything else had already hidden the element — as the animationend
+         handler below now does — _verdictWas was never cleared, and the NEXT verdict
+         of the same kind was treated as a repeat and never shown. Two wrong answers
+         in a row would have marked only the first. */
+      el.hidden = true;
+      this._verdictWas = '';
       return;
     }
     if (h.verdictAt) {
@@ -175,6 +181,34 @@ export class Hud {
       this.el.retry.addEventListener('click', () => handlers.onRetry && handlers.onRetry());
     }
 
+    /* WHICH INPUT IS IN USE. Only a keyboard player benefits from the Ouch card
+       focusing Try Again on open, and for everyone else that focus is what put a
+       visible focus indicator around the button unasked. Two listeners settle it:
+       any key press means a keyboard is in play, any pointer press means it is not.
+       Capture phase, so the flag is already right by the time anything reads it. */
+    this._kbd = false;
+    this._onKey = () => { this._kbd = true; };
+    this._onPtr = () => { this._kbd = false; };
+    window.addEventListener('keydown', this._onKey, true);
+    window.addEventListener('pointerdown', this._onPtr, true);
+
+    /* THE MARK IS HIDDEN WHEN ITS ANIMATION ENDS, not when the engine's timer expires.
+       The two disagree, and on a slow machine they disagree by seconds: verdictPop runs
+       for 900ms of WALL clock and finishes at opacity 0 (fill mode "both"), while
+       G.verdictT counts down 0.9s of GAME time — and game time runs slower than wall
+       clock whenever the renderer cannot hold 30fps. On a soft renderer at ~9fps that
+       is nearly three seconds, so for two of them the element sat there present, sized
+       and completely invisible.
+
+       Nothing was visibly wrong, but "shown" and "visible" describing different things
+       is the kind of state that makes an interface impossible to reason about — and it
+       is what made tests/polish.spec.mjs fail intermittently under load, which is the
+       symptom that found it. */
+    if (this.el.verdict) {
+      this._onVerdictEnd = () => { if (this.el.verdict) this.el.verdict.hidden = true; };
+      this.el.verdict.addEventListener('animationend', this._onVerdictEnd);
+    }
+
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
     this.checkOrientation();
@@ -235,7 +269,13 @@ export class Hud {
       if (h.oops) {
         const ic = this.el.oops.querySelector('.card-icon');
         if (ic) { ic.style.animation = 'none'; void ic.offsetWidth; ic.style.animation = ''; }
-        if (this.el.retry) this.el.retry.focus({ preventScroll: true });
+        /* ONLY FOR A KEYBOARD PLAYER. Focusing this button so Space retries straight
+           away is right for someone on a keyboard and wrong for everyone else: the
+           browser treats a programmatic focus as focus-visible, so a mouse or touch
+           player got a focus indicator drawn around TRY AGAIN without ever having
+           asked for one. Tracked by modality, the affordance goes to the players who
+           can use it and is invisible to the rest. */
+        if (this.el.retry && this._kbd) this.el.retry.focus({ preventScroll: true });
       }
     }
   }
@@ -248,5 +288,10 @@ export class Hud {
     clearTimeout(this._flashT);
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('orientationchange', this._onResize);
+    if (this.el.verdict && this._onVerdictEnd) {
+      this.el.verdict.removeEventListener('animationend', this._onVerdictEnd);
+    }
+    if (this._onKey) window.removeEventListener('keydown', this._onKey, true);
+    if (this._onPtr) window.removeEventListener('pointerdown', this._onPtr, true);
   }
 }

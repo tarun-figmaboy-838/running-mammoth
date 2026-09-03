@@ -6,6 +6,37 @@
 
 export const READY = 'window.iceAgeGame && window.iceAgeGame.state() !== "BOOT"';
 
+/* WHY SO MANY OF THESE TESTS PASS ?fast, AND WHY THE WAITS ARE GENEROUS.
+ *
+ * The game's clock is driven by animation frames, and frame() caps dt at 1/30 so a
+ * slow frame cannot teleport the physics. Those two together mean GAME TIME RUNS SLOWER
+ * THAN WALL CLOCK whenever the renderer cannot hold 30fps — and a headless browser
+ * compositing a 1920x1080 canvas without a GPU cannot come close. Measured on this
+ * machine, with rendering switched off the rAF loop runs at 60fps; with the game drawing
+ * it is 9fps. So one second of game time takes about three and a half seconds of wall
+ * clock, and under several parallel workers, worse.
+ *
+ * Every beat in the game is a fixed duration in milliseconds — the collapse is ~1.4s of
+ * GAME time — so a wall-clock budget sized for a real machine measures the runner's
+ * frame rate rather than the thing under test, and fails on a loaded laptop while the
+ * game is working perfectly. Verified: the committed engine renders at 9.1fps here and
+ * the working tree at 8.8, so this is not a regression in anything.
+ *
+ * Two levers, and they are not interchangeable:
+ *
+ *   ?fast=N   steps the simulation N times per rendered frame. Physics is IDENTICAL
+ *             (see the note in engine.js frame()) — it is the same dt, applied more
+ *             often — so this is the right lever for a test that only cares about
+ *             geometry, state or logic. It is the wrong lever for a test that drives
+ *             real pointer input, because the world also animates N times faster
+ *             between reading a target position and clicking it.
+ *
+ *   a bigger wait
+ *             the right lever for the pointer tests. It weakens nothing: these
+ *             assertions are about what happens, never about how long it took. Frame
+ *             rate is covered separately by the performance test.
+ */
+
 /** Load the game and wait until the world exists and the loader is gone. */
 export async function boot(page, { skipScreens = true, sound = false, speed = 0, fast = 0 } = {}) {
   const errors = [];

@@ -20,6 +20,9 @@
      all. Preloading is 100kB and removes the flash entirely. -->
 <link rel="preload" as="image" href="assets/ui/btn-play-pressed.webp" />
 <link rel="preload" as="image" href="assets/ui/btn-pressed.webp" />
+<!-- Try Again is on a card that appears the instant the player fails, so its art has to
+     already be in hand: there is no moment to fetch it in. -->
+<link rel="preload" as="image" href="assets/ui/btn-tryagain.webp" />
 </head>
 <body>
   <div class="stage-wrap">
@@ -75,13 +78,18 @@
           </div>
         </div>
 
+        <!-- The Ouch card. `card-fun` opts it into the cartoon treatment in
+             screens.css: a warm rounded panel that bounces in, rather than the flat ice
+             slab the overlays used to share. TRY AGAIN is the supplied art and so is a
+             .btn-art like PLAY and JUMP; it came as a single take with no pressed
+             version, so its press is a darkening and a squash in CSS. -->
         <div class="overlay" id="oops" hidden>
-          <div class="card">
+          <div class="card card-fun">
             <div class="card-hero" id="oops-hero" aria-hidden="true"></div>
             <h1>Ouch!</h1>
-            <button class="btn-chunky btn-retry" id="btn-retry" type="button">
-              <span class="btn-chunky-face"><span class="btn-chunky-label">Try Again</span></span>
-            </button>
+            <!-- No inner span: it held the sheen layer, which is gone (see the note in
+                 screens.css). The supplied art carries its own gloss. -->
+            <button class="btn-art btn-retry" id="btn-retry" type="button" aria-label="Try again"></button>
           </div>
         </div>
 
@@ -113,9 +121,7 @@
                with the radius zeroed for the art, drew a hard RECTANGLE around the
                button. Overriding state by state is whack-a-mole; the fix is that the
                picture buttons are their own family. -->
-          <button class="btn-art btn-play" id="btn-play" type="button" aria-label="Play">
-            <span class="btn-art-sheen" aria-hidden="true"></span>
-          </button>
+          <button class="btn-art btn-play" id="btn-play" type="button" aria-label="Play"></button>
         </div>
 
       </div>

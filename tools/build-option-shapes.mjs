@@ -26,6 +26,13 @@ import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
+/* IN AND OUT ARE DIFFERENT FOLDERS NOW. The delivered PNGs are source art and lived
+   inside game/, which is the folder that gets deployed — 43MB of inputs no URL in the
+   game ever requests, kept out of the upload only by a pair of .vercelignore files
+   that had to list them by glob. Source art now lives in art-source/ with the rest of
+   it, so the served folder holds only what the game actually loads and the ignore
+   files no longer have to know about any of it. */
+const SRC_DIR = join(ROOT, 'art-source', 'option-shape');
 const DIR = join(ROOT, 'game', 'assets', 'option-shape');
 const CHECK = process.argv.includes('--check');
 const ALPHA = 80;
@@ -153,7 +160,7 @@ function simplify(pts, eps) {
 const problems = [], out = {};
 
 for (const [id, file] of Object.entries(MAP)) {
-  const src = join(DIR, file);
+  const src = join(SRC_DIR, file);
   const { data, info } = await sharp(src).ensureAlpha().raw()
     .toBuffer({ resolveWithObject: true });
   const { width: W, height: H, channels: C } = info;

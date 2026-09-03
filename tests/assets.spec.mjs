@@ -146,7 +146,8 @@ test.describe('assets', () => {
          exists. Everything else under assets/ui stays SVG. */
       const RASTER_OK = ['assets/ui/icons/touch.png', 'assets/ui/sign.webp',
                          'assets/ui/btn-normal.webp', 'assets/ui/btn-pressed.webp',
-                         'assets/ui/btn-play.webp', 'assets/ui/btn-play-pressed.webp'];
+                         'assets/ui/btn-play.webp', 'assets/ui/btn-play-pressed.webp',
+                         'assets/ui/btn-tryagain.webp'];
       const isUi = u.startsWith('assets/ui/');
       if (isUi && !u.endsWith('.svg') && !RASTER_OK.includes(u)) {
         bad.push(u + ' interface art should be SVG');

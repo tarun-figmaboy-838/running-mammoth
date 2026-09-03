@@ -310,21 +310,26 @@
   transition: filter 130ms ease, scale 110ms cubic-bezier(.3, 1.4, .5, 1);
 }
 .btn-art[hidden] { display: none; }
-/* the sheen layer sits inside the cap and is clipped to it */
-.btn-art-sheen {
-  position: absolute;
-  border-radius: 999px;
-  overflow: hidden;
-  pointer-events: none;
-}
-.btn-art-sheen::after {
-  content: "";
-  position: absolute;
-  top: -60%; bottom: -60%;
-  width: 30%;
-  background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,.55), rgba(255,255,255,0));
-  animation: sheen 3.4s ease-in-out infinite;
-}
+
+/* NO SHEEN LAYER. There used to be one: an absolutely positioned box per picture
+   button with a white gradient band sweeping across it on a loop, plus a warm flash
+   on the press.
+
+   It could not work, and the reason is worth keeping. A sheen has to be clipped to the
+   SHAPE of the thing it slides over, and a div can only be clipped to a rectangle with
+   a uniform radius. The art on these buttons is a pill with a thick rim, painted at
+   its own inset inside a transparent box — so the band was a straight-edged rectangle
+   lying across a rounded object, with hand-measured insets per button trying to guess
+   where the paint was. What it looked like on screen was a pale panel over one half of
+   the button, not light travelling across it.
+
+   It was also redundant. Both buttons are supplied art that already has its highlight
+   and its gloss painted in by the artist, at the right shape, in the right place. A
+   second CSS gloss on top could only ever fight it.
+
+   So the press is carried by what does follow the paint: the scale squash, the
+   brightness change, the pressed-state artwork where it exists, and the tap ring and
+   sparks, which are drawn OUTSIDE the button where a rectangle is not a problem. */
 
 /* ---------- PLAY ---------- */
 .btn-play {
@@ -348,7 +353,6 @@
   z-index: 3;
 }
 /* the amber cap's own box, measured off the normal take */
-.btn-play .btn-art-sheen { inset: 4% 4% 20% 4%; }
 .btn-play:hover {
   filter: drop-shadow(0 clamp(5px, 0.52vw, 10px) clamp(10px, 1vw, 20px) rgba(46, 12, 4, 0.5))
           drop-shadow(0 0 clamp(14px, 1.5vw, 30px) rgba(255, 176, 32, 0.9));
@@ -370,18 +374,21 @@
   scale: 1.035 0.94;
   filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(4px, 0.42vw, 8px) rgba(46, 12, 4, 0.55));
 }
-/* the sweep would be running across a cap that has moved, so it stops for the press */
-.btn-play:active .btn-art-sheen::after,
-.btn-play.pressed .btn-art-sheen::after { animation: none; opacity: 0; }
-/* one warm flash over the cap, gone in a quarter second */
-.btn-play.pressed .btn-art-sheen {
-  background: radial-gradient(70% 120% at 50% 30%, rgba(255,255,255,.9), rgba(255,236,170,0) 70%);
-  animation: playFlash 260ms ease-out 1;
-}
-@keyframes playFlash { from { opacity: 1; } to { opacity: 0; } }
+/* NO OUTLINE ON A PICTURE BUTTON. An outline traces the element's BOX, and these
+   buttons are a transparent box with a rounded painted object inside it — so a yellow
+   keyline drew a hard rectangle floating around a round button, which is exactly the
+   artefact this family was created to get rid of. border-radius does not save it
+   either: the art is a pill inset within its box, so any radius that fits the box is
+   still the wrong shape and the wrong size.
+
+   A halo does fit, because a drop-shadow follows the ALPHA of what is drawn rather
+   than the box. It hugs the painted edge at any shape, it is the same warm gold the
+   game already uses for emphasis, and it reads as the button lighting up. */
 .btn-play:focus-visible {
-  outline: clamp(3px, 0.31vw, 5px) solid #FFD34A;
-  outline-offset: clamp(4px, 0.42vw, 9px);
+  outline: none;
+  filter: drop-shadow(0 clamp(6px, 0.63vw, 12px) clamp(10px, 1vw, 20px) rgba(6, 40, 78, 0.5))
+          drop-shadow(0 0 clamp(4px, 0.42vw, 8px) rgba(255, 255, 255, 0.95))
+          drop-shadow(0 0 clamp(16px, 1.7vw, 34px) rgba(255, 196, 74, 0.9));
 }
 
 /* THE TAP RINGS, on the button's own footprint and expanding away from it so they clear
@@ -437,10 +444,93 @@
 
 @media (prefers-reduced-motion: reduce) {
   .btn-art,
-  .btn-art-sheen::after,
   .btn-play,
   .btn-play.pressed::before,
-  .btn-play.pressed::after,
-  .btn-play.pressed .btn-art-sheen { animation: none; }
+  .btn-play.pressed::after { animation: none; }
   .btn-play:active, .btn-play.pressed { scale: 1; }
+}
+
+/* ---------- TRY AGAIN ----------
+   The supplied art, and a member of the .btn-art family like PLAY and JUMP.
+
+   ONE TAKE ONLY. There is no pressed version of this one, so the press cannot be an
+   image swap — it is a darkening plus a squash instead, which is the same call the round
+   jump button makes and for the same reason. The family's rule is precisely "the press
+   is in the art WHERE THERE IS pressed art"; where there is not, CSS does it. */
+.btn-retry {
+  /* the common box the art was trimmed to */
+  aspect-ratio: 1947 / 635;
+  width: clamp(180px, 19vw, 340px);
+  background-image: url("../assets/ui/btn-tryagain.webp");
+  filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(6, 40, 78, 0.45));
+  /* it is the only thing to do on this card, so it asks */
+  animation: playBob 2.2s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+.btn-retry:hover {
+  filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(6, 40, 78, 0.45))
+          drop-shadow(0 0 clamp(12px, 1.3vw, 26px) rgba(64, 190, 255, 0.95));
+}
+.btn-retry:active,
+.btn-retry.pressed {
+  animation: none;
+  scale: 1.03 0.93;
+  filter: brightness(.86) saturate(1.1)
+          drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(3px, 0.31vw, 6px) rgba(6, 40, 78, 0.5));
+}
+/* NO RING AT ALL ON THIS ONE — see the note on .btn-play:focus-visible.
+
+   The first attempt at this gave the pill a border-radius so the outline would follow
+   it, and that is what put a gold hoop around TRY AGAIN. It was the most visible
+   instance of the problem because the HUD focuses this button the moment the card
+   opens — so it was not a keyboard affordance anybody had asked for, it was a gold
+   ring drawn around the button for every player, mouse and touch included.
+
+   Both halves are fixed. Here, the indicator is the same alpha-following halo the
+   other picture buttons use; in hud.js, the auto-focus now only happens when the
+   player is actually using a keyboard, so a touch player never sees an indicator. */
+.btn-retry { border-radius: 999px; }
+.btn-retry:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(6, 40, 78, 0.45))
+          drop-shadow(0 0 clamp(4px, 0.42vw, 8px) rgba(255, 255, 255, 0.95))
+          drop-shadow(0 0 clamp(14px, 1.5vw, 30px) rgba(255, 196, 74, 0.9));
+}
+
+/* ---------- the cartoon card ----------
+   `card-fun` is the Ouch panel's own treatment. The overlays all shared one flat pale
+   ice slab, which is a fine web modal and the wrong object for this game: the rest of
+   the screen is a warm, round, hand-painted world and the panel that interrupts it read
+   as a dialog box.
+
+   So: a warmer ground, a much rounder corner, a thick white keyline over the navy one
+   the family already carries, and a bounce on the way in. It is the one moment the
+   player has failed at something, so it is deliberately friendly rather than severe —
+   no red, no alarm, and the character sits right at the top of it. */
+.card-fun {
+  border-radius: clamp(26px, 2.8vw, 54px) !important;
+  /* warm cream into pale sky, rather than the cold ice of the other panels */
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 252, 240, 0.98), rgba(255, 252, 240, 0) 62%),
+    linear-gradient(180deg, #FFFDF6 0%, #E8F6FF 58%, #C9E9FA 100%) !important;
+  padding: clamp(18px, 2vw, 38px) clamp(28px, 3vw, 58px) clamp(22px, 2.3vw, 44px) !important;
+  animation: cardPop 420ms cubic-bezier(.2, 1.5, .4, 1) both;
+}
+/* the heading in the same cartoon lettering as the button: white with a navy stroke */
+.card-fun h1 {
+  font-size: clamp(34px, 3.9vw, 74px) !important;
+  line-height: 0.95;
+  color: #FFFFFF !important;
+  -webkit-text-stroke: clamp(3px, 0.36vw, 7px) #14496F;
+  paint-order: stroke fill;
+  text-shadow: 0 clamp(3px, 0.31vw, 6px) 0 rgba(20, 73, 111, 0.35);
+  letter-spacing: .01em;
+}
+@keyframes cardPop {
+  from { opacity: 0; scale: .72; }
+  to   { opacity: 1; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-fun { animation: none; }
+  .btn-retry { animation: none; }
+  .btn-retry:active, .btn-retry.pressed { scale: 1; }
 }

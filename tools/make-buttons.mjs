@@ -35,6 +35,16 @@ const BUTTONS = {
     outPressed: 'game/assets/ui/btn-play-pressed.webp',
     outW: 940
   },
+  /* TRY AGAIN came as a SINGLE take — there is no pressed version of it. So it has
+     no `pressed` entry, the builder just trims and scales the one image, and the press
+     is done in CSS as a darkening plus a squash. That is the same call the round jump
+     button makes for the same reason, and it is why the family's rule is "the press is
+     in the art WHERE THERE IS pressed art". */
+  tryagain: {
+    normal: 'art-source/btn-tryagain-raw.png',
+    outNormal: 'game/assets/ui/btn-tryagain.webp',
+    outW: 760
+  },
   jump: {
     normal: 'art-source/btn-jump-normal-raw.png',
     pressed: 'art-source/btn-jump-pressed-raw.png',
@@ -61,17 +71,20 @@ async function bounds(file) {
 }
 
 async function build(name, cfg) {
-  for (const f of [cfg.normal, cfg.pressed]) {
-    if (!existsSync(f)) {
-      console.log(`SKIP ${name}: ${f} is not there yet`);
+  // a single-state button (no pressed art) is fine — see the tryagain note above
+  const states = cfg.pressed ? ['normal', 'pressed'] : ['normal'];
+  for (const st of states) {
+    if (!existsSync(cfg[st])) {
+      console.log(`SKIP ${name}: ${cfg[st]} is not there yet`);
       return;
     }
   }
-  const b = { normal: await bounds(cfg.normal), pressed: await bounds(cfg.pressed) };
-  const boxW = Math.max(b.normal.width, b.pressed.width);
-  const boxH = Math.max(b.normal.height, b.pressed.height);
+  const b = { normal: await bounds(cfg.normal) };
+  if (cfg.pressed) b.pressed = await bounds(cfg.pressed);
+  const boxW = Math.max(...states.map(st => b[st].width));
+  const boxH = Math.max(...states.map(st => b[st].height));
 
-  for (const state of ['normal', 'pressed']) {
+  for (const state of states) {
     const t = b[state];
     const trimmed = await sharp(state === 'normal' ? cfg.normal : cfg.pressed)
       .extract(t).png().toBuffer();

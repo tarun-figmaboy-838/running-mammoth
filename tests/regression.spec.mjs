@@ -109,7 +109,10 @@ test.describe('the character is never hit', () => {
      clear of that. Sampled every frame rather than reasoned about, because the fall is
      real gravity plus a solved horizontal speed. */
   test('no chunk ever overlaps the character, hanging or falling', async ({ page }) => {
-    await boot(page, { speed: 900, fast: 3 });
+    /* Seven phases, every one cut to exhaustion, and the assertion is purely about
+       positions — so this is the clearest case for fast-forward. At fast: 3 it was
+       spending three minutes and still timing out on a loaded machine. */
+    await boot(page, { speed: 900, fast: 6 });
     const total = await page.evaluate(async () => {
       const m = await import('/js/engine.js');
       return m.CFG.levelOne.phases.length;

@@ -17,7 +17,8 @@ import { readdir, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const DIR = join(ROOT, 'game', 'assets', 'option-shape');
+// the delivered PNGs it renames are source art, outside the deploy root
+const DIR = join(ROOT, 'art-source', 'option-shape');
 const DO_RENAME = process.argv.includes('--rename');
 const ALPHA = 80;
 

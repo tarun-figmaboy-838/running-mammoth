@@ -3,7 +3,7 @@
  * The generator delivers each animation as a GRID of frames at whatever size and
  * layout it felt like: run is 5x4 in 1536x1024, jump is 7x2 in 2172x724, and the
  * frames float at different heights inside their cells. The engine wants something
- * much stricter (see ANIMATION.md): one horizontal strip, N cells of exactly
+ * much stricter (see docs/ANIMATION.md): one horizontal strip, N cells of exactly
  * 420x320, the character centred in its cell with its lowest pixel a shared 6px
  * above the cell bottom, and the SAME character size across every animation.
  *
@@ -45,7 +45,11 @@ import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const SRC = join(ROOT, 'game', 'assets', 'char');
+/* Reads the un-sliced sheets from art-source/ and writes the sliced .webp the game
+   loads into game/assets/char. They used to share one folder inside the deploy root,
+   which is how 10MB of source sheets ended up next to the art that ships. */
+const SRC = join(ROOT, 'art-source', 'char-sheets');
+const OUT = join(ROOT, 'game', 'assets', 'char');
 const REPORT = process.argv.includes('--report');
 const CONTACT = process.argv.includes('--contact');
 
@@ -387,7 +391,7 @@ for (const m of measured) {
   const outName = `mammoth-${m.slot}.webp`;
   if (!REPORT) {
     await strip.webp({ nearLossless: true, quality: 88, effort: 5, alphaQuality: 100 })
-      .toFile(join(SRC, outName));
+      .toFile(join(OUT, outName));
   }
 
   // where each frame's lowest pixel ended up, for the crop-safety check
@@ -430,7 +434,7 @@ for (const m of measured) {
               `${CW * n}x${CH}  -> ${REPORT ? '(not written)' : outName}`);
 
   if (CONTACT && !REPORT) {
-    await sharp(join(SRC, outName))
+    await sharp(join(OUT, outName))
       .flatten({ background: { r: 168, g: 214, b: 240 } })
       .resize({ width: Math.min(CW * n, 3600) })
       .png().toFile(join(ROOT, 'test-results', `contact-${m.slot}.png`));

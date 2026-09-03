@@ -24,11 +24,13 @@ import sharp from 'sharp';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const CHAR = join(ROOT, 'game', 'assets', 'char');
+// delivered GIFs and the sheets sliced from them are both source art, so both sides
+// of this tool now sit in art-source/ rather than inside the deployed folder
+const CHAR = join(ROOT, 'art-source', 'char-sheets');
 /* Which GIF, and where the grid goes. Both are arguments so the same conversion
    serves every animation delivered this way:
      node tools/gif-to-grid.mjs <gif under assets/GIF> <name under assets/char> */
-const GIF = join(ROOT, 'game', 'assets', 'GIF',
+const GIF = join(ROOT, 'art-source', 'gif',
   process.argv[2] || 'sprite-max-px-frames-36-rows-6-cols-6.gif');
 const OUT = join(CHAR, process.argv[3] || 'run-gif.png');
 const GUTTER = 48;

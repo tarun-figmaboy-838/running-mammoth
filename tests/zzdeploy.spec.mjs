@@ -20,10 +20,13 @@ test('the game loads and plays from a simulated Vercel deploy', async ({ page })
   await page.locator('#btn-play').click({ force: true });
   await page.waitForFunction(() => ['RUN_SEGMENT_1','JUMP_CHALLENGE_1'].includes(window.iceAgeGame.state()), null, { timeout: 20_000 });
 
-  // the character is really drawing, which a missing sheet would not
+  /* The character is really drawing, which a missing sheet would not be. ANY sheet
+     proves that — and the wait above accepts JUMP_CHALLENGE_1, where the character is
+     legitimately mid-jump, so pinning this to the run cycle made it a race that lost
+     whenever an obstacle happened to be under way. */
   const anim = await page.evaluate('window.iceAgeGame.mammothFrame()');
   console.log('  animating: ' + anim);
-  expect(anim).toMatch(/^run:\d+$/);
+  expect(anim, 'a real sheet frame').toMatch(/^(run|jump|skid|idle):\d+$/);
 
   // and one whole puzzle
   await page.evaluate(() => {

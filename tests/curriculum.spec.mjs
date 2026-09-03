@@ -42,7 +42,8 @@ async function enterPhase(page, index) {
     G.gapsThisPhase = null;
     g._force('GLACIER_BREAK_1');
   }, index);
-  await waitState(page, 'PHASE_ACTIVE', 30_000);
+  // the collapse is a fixed duration in GAME time — see the note in helpers.mjs
+  await waitState(page, 'PHASE_ACTIVE', 90_000);
   return page.evaluate(() => {
     const L = window.iceAgeGame.debug().l1;
     return {
@@ -215,10 +216,10 @@ test.describe('curriculum data', () => {
       { targets: ['regularTriangle'], distractors: ['regularPentagon', 'regularHexagon'] },
       { targets: ['regularQuadrilateral'], distractors: ['regularTriangle', 'regularPentagon'] },
       { targets: ['regularPentagon'], distractors: ['regularTriangle', 'regularOctagon'] },
-      { targets: ['irregularConvexHexagon'], distractors: ['regularPentagon', 'regularHeptagon'] },
-      { targets: ['concaveHeptagon'], distractors: ['irregularConvexHexagon', 'irregularConvexOctagon'] },
+      { targets: ['irregularConvexHexagon'], distractors: ['irregularPentagon', 'regularHeptagon'] },
+      { targets: ['concaveHeptagon'], distractors: ['concaveHexagon', 'irregularConvexOctagon'] },
       { targets: ['regularPentagon', 'irregularConvexPentagon', 'concavePentagon'],
-        distractors: ['irregularHexagon', 'regularQuadrilateral'] },
+        distractors: ['concaveHexagon', 'regularQuadrilateral'] },
       { targets: ['irregularConvexHexagon', 'concaveHexagon', 'regularHexagon'],
         distractors: ['concaveHeptagon', 'irregularPentagon', 'regularOctagon'] }
     ];
@@ -273,15 +274,25 @@ test.describe('single-answer phases', () => {
   test.setTimeout(180_000);
 
   /* One case per phase 1-5: the target is accepted, and each distractor is refused
-     and splashes. Phase 4 and 5 are the interesting ones — an irregular hexagon
-     among a pentagon and a heptagon, and a concave heptagon among a hexagon and an
-     octagon — because there the answer cannot be found by looking for the neat one. */
+     and splashes.
+
+     PHASES 4 AND 5 CHANGED (2026-09-04) and the reason is the point of the whole
+     curriculum. Phase 4's target is an IRREGULAR hexagon and its distractors were both
+     regular, so the target was the only irregular shape in the row and "cut the wonky
+     one" passed it every time — without counting a side. Phase 5's target is a CONCAVE
+     heptagon among two convex distractors, so "cut the dented one" always worked. Those
+     are exactly the two phases that introduce irregular and concave shapes, so each
+     shortcut defeated the lesson its own phase exists to teach.
+
+     One distractor swapped in each: an irregular pentagon in 4, a concave hexagon in 5.
+     Now neither regularity nor convexity separates the answer from the rest in any
+     phase, and only the side count can. */
   const cases = [
     { i: 0, target: 'regularTriangle', wrong: ['regularPentagon', 'regularHexagon'] },
     { i: 1, target: 'regularQuadrilateral', wrong: ['regularTriangle', 'regularPentagon'] },
     { i: 2, target: 'regularPentagon', wrong: ['regularTriangle', 'regularOctagon'] },
-    { i: 3, target: 'irregularConvexHexagon', wrong: ['regularPentagon', 'regularHeptagon'] },
-    { i: 4, target: 'concaveHeptagon', wrong: ['irregularConvexHexagon', 'irregularConvexOctagon'] }
+    { i: 3, target: 'irregularConvexHexagon', wrong: ['irregularPentagon', 'regularHeptagon'] },
+    { i: 4, target: 'concaveHeptagon', wrong: ['concaveHexagon', 'irregularConvexOctagon'] }
   ];
 
   for (const c of cases) {
@@ -319,11 +330,16 @@ test.describe('multi-answer phases', () => {
      journey pacing changes — a 2.3s skid and 8s runs — made each pass through a phase
      about half again as long. They pass in a minute alone and were timing out only
      under four-way parallel load. */
-  test.setTimeout(420_000);
+  /* Three orders through a seven-phase level, at a frame rate this runner sets rather
+     than the game — see the note at the top of helpers.mjs. */
+  test.setTimeout(600_000);
 
   const MULTI = [
+    /* phase 6's irregularHexagon -> concaveHexagon: both distractors were convex while
+       one of the three targets is a concave pentagon, so concavity identified one of
+       the three answers for free. */
     { i: 5, name: 'phase 6', targets: ['regularPentagon', 'irregularConvexPentagon', 'concavePentagon'],
-      wrong: ['irregularHexagon', 'regularQuadrilateral'] },
+      wrong: ['concaveHexagon', 'regularQuadrilateral'] },
     { i: 6, name: 'phase 7', targets: ['irregularConvexHexagon', 'concaveHexagon', 'regularHexagon'],
       wrong: ['concaveHeptagon', 'irregularPentagon', 'regularOctagon'] }
   ];
@@ -423,10 +439,22 @@ test.describe('multi-answer phases', () => {
 
   /* Three answers, three repair slots, and no slot bound to a shape in advance. The
      point of the slot model is that the learner is never told which shape belongs
-     where — any answer fits the nearest free slot. The slots are also all the SAME
-     WIDTH, because a phase that mends one hole with two small plugs and another with
-     one big one shows a difference the learner cannot account for. */
-  test('the repair slots are equal and none is bound to a shape', async ({ page }) => {
+     where — any answer fits the nearest free slot.
+
+     THIS USED TO ASSERT THE SLOTS WERE THE SAME WIDTH, and the reason it gave was
+     "a phase that mends one hole with two small plugs and another with one big one
+     shows a difference the learner cannot account for". That reason is about PLUG
+     SIZE, and slot width no longer determines it: a plug is now sized from the depth
+     of the cavity, so every plug in the game comes out identical however the slots are
+     shared out. Equal slot widths had become a proxy for something it no longer
+     implied — and an expensive one, because it is what forced phases 6 and 7 down to a
+     single crevasse.
+
+     So it asserts the thing it actually cares about instead: that the PLUGS are the
+     same size. That is strictly stronger, since it checks the outcome rather than a
+     stand-in for it. Phases 6 and 7 open two crevasses again, which also widens the
+     option row and so makes every shape bigger. */
+  test('no repair slot is bound to a shape in advance', async ({ page }) => {
     test.setTimeout(180_000);
     await boot(page, { speed: 900, fast: 4 });
     await enterPhase(page, 5);
@@ -441,10 +469,6 @@ test.describe('multi-answer phases', () => {
     });
     expect(before.preBound, 'no slot expects a particular shape up front').toBe(0);
     expect(before.widths.length, 'one slot per answer').toBe(3);
-    const lo = Math.min(...before.widths), hi = Math.max(...before.widths);
-    expect(hi - lo, 'the slots differ in width: ' + JSON.stringify(before.widths))
-      .toBeLessThanOrEqual(2);
-
     /* Cut the answer hanging FURTHEST RIGHT first. If any allocation were hidden in
        the data this is where it would show up as a refusal. */
     const rightmost = await page.evaluate(() => {
@@ -456,6 +480,50 @@ test.describe('multi-answer phases', () => {
     const r = await cutAndSettle(page, rightmost);
     expect(r.accepted, rightmost + ' cut from the right').toBe(true);
     expect(r.solved, 'and it counted').toBe(1);
+  });
+
+  /* EVERY PLUG IS THE SAME SIZE — and that size is 1.0, the size the shape was cut at.
+
+     This replaces an assertion that the repair SLOTS were all the same width. The
+     reason that one gave was "a phase that mends one hole with two small plugs and
+     another with one big one shows a difference the learner cannot account for" — which
+     is about plug size, and slot width no longer determines it. A plug is sized from
+     the depth of the cavity, and CFG.levelOne.optionH is tied to that same depth, so a
+     block cannot be taller than the hole it sits in and never has to be scaled to get
+     there. Equal slot widths had become a proxy for something it no longer implied, and
+     an expensive one: it is what forced phases 6 and 7 down to a single crevasse.
+
+     Asserting the plug size directly is strictly stronger, because it checks the
+     outcome the old comment described instead of a stand-in for it. It also guards the
+     thing that actually went wrong twice: a plug scaled to fill its slot had its
+     silhouette clipped, so phase 1's triangle arrived as a trapezoid.
+
+     It is a test of its own because it FINISHES the phase, and the allocation test
+     above needs the phase still running after it. */
+  test('every repair plug lands at the size it was cut', async ({ page }) => {
+    test.setTimeout(300_000);
+    await boot(page, { speed: 900, fast: 4 });
+    for (const phase of [5, 6]) {
+      await enterPhase(page, phase);
+      const fits = await page.evaluate(async () => {
+        const g = window.iceAgeGame;
+        let guard = 0;
+        while (guard++ < 600) {
+          const G = g.debug();
+          if (!G.l1) break;
+          if (G.state === 'PHASE_ACTIVE' && G.l1.unfilled.length) g._cut(G.l1.unfilled[0]);
+          if (G.state === 'PHASE_DONE') break;
+          await new Promise(r => requestAnimationFrame(r));
+        }
+        return (g.debug().gapsThisPhase || []).flatMap(x => (x.pieces || []).map(q => q.fit));
+      });
+      const label = ' (phase ' + (phase + 1) + ')';
+      expect(fits.length, 'one plug per answer' + label).toBe(3);
+      for (const f of fits) {
+        expect(f, 'a plug was rescaled on the way in: ' + JSON.stringify(fits) + label)
+          .toBeCloseTo(1, 3);
+      }
+    }
   });
 });
 

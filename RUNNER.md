@@ -69,7 +69,7 @@ crossing:
 | field | meaning |
 |---|---|
 | `id` | 1-based. Also what `jumpBefore` refers to. |
-| `ditches` | how many crevasses open. 1 or 2. Two are narrower (`gapWMulti`). Clamped to `targets.length` — a crevasse with no slot could never be mended. |
+| `ditches` | how many crevasses open. 1 or 2 — two is the most a 1920 stage can hold (see §6). Two are narrower (`gapWMulti` 415). Clamped to `targets.length` — a crevasse with no slot could never be mended. Phases 6 and 7 use 2, which also **widens the option row** and so makes the shapes bigger: a six-option chunk goes from 127px to 142px, because the row is centred on the crevasse group. |
 | `options` | how many chunks hang. 3, 5 and 6 are all in use. Must equal `targets.length + distractors.length` to use them all. |
 | `targets` | every shape the phase wants, as an internal geometry id. **One entry per answer**, not one per ditch. |
 | `distractors` | the wrong shapes hanging alongside. |
@@ -103,27 +103,23 @@ that is irregular, 5 for a heptagon that is concave, and 6 and 7 ask for every p
 and every hexagon across regular, irregular-convex and concave examples. A brief must not
 make regularity or convexity the property that decides.
 
-> **Three phases currently break that rule**, and it is worth knowing before writing a
-> brief against this section. Audited 2026-09-04:
+> **Three phases used to break that rule and have been fixed.** Audited and corrected
+> 2026-09-04, one distractor swapped per phase, every instruction untouched:
 >
-> | phase | the shortcut that always works |
-> |---|---|
-> | 4 | the target is the **only irregular shape** in the row — "cut the wonky one" |
-> | 5 | the target is the **only concave shape** in the row — "cut the dented one" |
-> | 6 | one of the three targets is the only concave shape, giving 1 of 3 away free |
+> | phase | the shortcut that used to work | the swap that closed it |
+> |---|---|---|
+> | 4 | the target was the **only irregular shape** in the row — "cut the wonky one" | `regularPentagon` → `irregularPentagon` |
+> | 5 | the target was the **only concave shape** in the row — "cut the dented one" | `irregularConvexHexagon` → `concaveHexagon` |
+> | 6 | one of the three targets was the only concave shape, giving 1 of 3 away free | `irregularHexagon` → `concaveHexagon` |
 >
-> Phases 4 and 5 are exactly the two that introduce irregular and concave shapes, so
-> the lesson "an irregular hexagon is still a hexagon" is taught by a puzzle that can be
-> passed by spotting the irregular one. Phase 7 is built correctly — concave appears on
-> both sides — which is the pattern the others should follow.
+> Phases 4 and 5 are the two that introduce irregular and concave shapes, so those
+> shortcuts were defeating the exact lesson each phase exists to teach.
 >
-> One distractor swap per phase closes all three, using only the existing registry and
-> leaving every instruction untouched: P4 `regularPentagon`→`irregularPentagon`,
-> P5 `irregularConvexHexagon`→`concaveHexagon`, P6 `irregularHexagon`→`concaveHexagon`.
-> Verified clean, and the four already-clean phases stay clean.
->
-> **Not applied** — the curriculum is the author's, and this changes what a level
-> teaches.
+> **All seven phases now verify clean**: for every phase, neither regularity nor
+> convexity separates the targets from the distractors, and no target is the only shape
+> in its row with a given property. Only the side count decides. If you change a
+> distractor, re-check that — it is easy to reintroduce by accident, and nothing in the
+> suite catches it.
 
 ### How many answers is not how many holes
 A phase wants `targets.length` shapes and opens `ditches` crevasses, and the two are
@@ -223,15 +219,17 @@ that hung over the character dropped ice on its head.
 So more options makes the shapes smaller, never the margin thinner. Measured, at the sizes
 the game actually draws:
 
-Re-measured off the running game at `clearance` 470, with every phase opening ONE
-crevasse (phase 6 used to open two). The crevasse is centred on x 1210 in all seven, so
-the row is the same 780–1640 every time and only the chunk size changes:
+Re-measured off the running game at `clearance` 470. The row is centred on the crevasse
+GROUP, so a two-crevasse phase has a wider group, a wider row and therefore bigger
+shapes — which is a large part of why phases 6 and 7 open two:
 
 | options | crevasses | row spans | chunk |
 |---|---|---|---|
 | 3 | 1, centred on 1210 | 780–1640 | 273 × 232–272 |
-| 5 | 1, centred on 1210 | 780–1640 | 156 × 133–154 |
-| 6 | 1, centred on 1210 | 780–1640 | 127 × 108–126 |
+| 5 | 2, spanning 900–1850 | 890–1860 | 174 |
+| 6 | 2, spanning 900–1850 | 890–1860 | 142 |
+
+(Phases 1–5 open one crevasse and all use 3 options. 6 uses 5 options, 7 uses 6.)
 
 The height range is the spread across the shapes in that phase: a chunk is fitted
 UNIFORMLY, so width binds and the height follows each shape's own proportions.
@@ -267,15 +265,27 @@ segments. That is the whole interface.
 
 | | |
 |---|---|
-| Stage | 1920×1080 backbuffer, 16:9, letterboxed. `surfaceY` (the walking line) is **890**. |
+| Stage | 1920×1080 backbuffer, 16:9, letterboxed. `surfaceY` (the walking line) is **840** — raised from 890 so the crevasse is deep enough to hold a correct shape at the size it was cut. See §10. |
+| Below the shelf | open water, from where the path art's painted content ends (y 1033) to the bottom of the stage. Raising the walking line left a 47px band of flat background there; the alternative was scaling the path art 24% larger, which thickens the delivered rock strata. The world is an ice shelf over meltwater — every crevasse has a pool at the bottom — so the sea is what those pools are pools *of*. |
 | Above | a fog bank across the top ~195px (`rigY × 1.3`). There is no ice shelf and no icicle fringe any more; the ropes run off the top of the frame and the fog is what they come out of. It takes the sky's own colour, so it can never be a white bank over a violet dusk. |
-| Crevasse | 620px wide for one, 430px each for two, 150px of ice between them. Centred. |
+| Crevasse | 620px wide for one, **415px each for two, 120px** of ice between them. Phases 6 and 7 open two; 1–5 open one. Those numbers are the largest that fit: each crevasse must clear 400px or a jump carries it, the near lip must be 630px past the character, and the far lip must stay on a 1920 stage. **Three do not fit** — even at the minimum, 3 × 405 + 2 × 110 puts the far lip at 2065. |
 | Chunks | hang at y 470 from a rig at y 150, in a row centred on the crevasse. No part of one may be left of x 770 (`mammothX + clearOfPlayer`). |
 | Crevasse position | `clearance` (**470**) puts the near lip that far past the character, which is also what leaves room for a centred row. It was 340; pushing it right widens the option row on both sides, because the row is symmetric about the crevasse and cannot reach left of x 770. The character's cell is drawn 735px wide (420 × 1.75), so its right edge is near x 795 and the near lip is a clear ~100px beyond it. |
 | Cut | a swipe across a **rope**, not across the shape. The rope is really severed and the stub stays cut. |
 | Gameplay numbers | speed, gravity, jump and collider are global, not per character, so no explorer is easier to play than another. |
 | Assets | WebP. Sprites near-lossless, skies lossy. Sheets are horizontal strips of 420×320 cells. |
 | Opening it | `game/index.html` works **either way**: over http:// it loads the ES modules in `game/js`, and opened straight off the disk it loads `game/js/game.bundle.js` instead, because a browser fetches a module with CORS even from a file:// page. The bundle is generated (`node tools/build-bundle.mjs`) and a test fails if it has drifted. file:// runs with no music and the synthesised sound palette; nothing else differs. |
+
+**Getting past a beat:** a tap (or Space / ↑ / W) skips the rest of the **collapse** and
+the instruction card's **read-hold**. Measured, that takes a puzzle's pre-roll from 5.6s
+to 1.3s, and over seven puzzles it is about 30 seconds of a five-minute game. The collapse
+still happens — the clock jumps to its final frame, so the crevasses open, the character
+lands where the layout expects and the fright still fires; what is skipped is the
+watching, not the event. The card does not go away either: it stays up for the whole
+playable phase, so a learner who wants to read it still can.
+
+Deliberately **not** skippable: the run segments (they are the journey) and the wrong and
+success beats (they are the feedback — a splash cut short teaches nothing).
 
 **Playtest flags:** `?skip=1` straight into the run, `?sound=0`, `?reduced=1`,
 `?speed=300–900`, `?fast=1–8` (steps the simulation N times per rendered frame — same
@@ -393,6 +403,43 @@ Two rules this layer holds to, and a brief can rely on:
   across every option, wanted or not.
 
 `?reduced=1` (and the OS reduced-motion setting) scales all of it down.
+
+### 9a. The impact layer — hit-stop, punch, tokens
+
+Added 2026-09-04. The comedy layer above is about the CHARACTER; this is about what
+happens to the frame in the ~150ms around an impact, which is where a platformer's
+feel actually lives. Three primitives, all in `CFG.juice`:
+
+| primitive | what it does | fires on |
+|---|---|---|
+| `hitStop(ms)` | stops the simulation dead, rendering continues | wedge 62ms · splash 44ms · rock 96ms · ice breaking 110ms |
+| `punch(amp, ms, x, y)` | scale pulse about the impact point, snaps to full then eases out | wedge 1.8% · rock 2.6% · break 3.0% · crossing sealed 2.2% |
+| `particles.ring` | one expanding hoop on the impact frame | every correct answer |
+
+One new sound goes with them: `prize()`, a rising phrase ending held, when a whole
+crossing closes. It is the only place it plays.
+
+**No pickup tokens.** A spinning gold coin leaping out of each correct answer, with a
+two-note pickup ding, was built and then removed on request. Recorded here so it is not
+re-proposed: a collectable implies a score, a score implies a counter, and §5 says this
+game has no HUD to put one in — and it placed the only warm-yellow object in the world
+on top of the learner's answer at the moment the answer is the thing to look at. The
+reward beat is the glints, the frost, the thud and the sound, all of which already
+belong to the ice.
+
+**Rules for this layer.**
+
+- **`CFG.juice.stopMax` is a hard ceiling (130ms).** `hitStop` takes the max of the
+  current hold and the new one and clamps — so no caller, and no two events landing on
+  the same frame, can stall the game. A hold consumes real `dt`, so it always ends.
+- **Hit-stop is not pause.** Pause halts rendering as well and is a player control;
+  this halts only time. The gate is the first thing in `update()`.
+- **Nothing here is allowed past 3%.** Beyond that the punch pulls the world in from
+  the letterboxed frame edge and the border shows.
+- **All of it is off under `?reduced=1`.** `hitStop` and `punch` return immediately;
+  the rings are not spawned.
+- **It never decides anything.** No hold, punch or ring is conditional on which shape
+  was cut beyond right/wrong, and none of them is drawn on a hanging option.
 
 ---
 

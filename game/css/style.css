@@ -97,9 +97,12 @@ a:hover { color: var(--ice-pale); }
 .instruction {
   position: absolute;
   /* HIGH. It sat at 12%, which put it down among the ropes; up here it has the top
-     band of the sky to itself and the chunks hang well clear below it. The controls
-     are top-RIGHT and the card is centred, so the two never meet. */
-  top: 3.5%;
+     band of the sky to itself and the chunks hang well clear below it.
+
+     1.2%, not 3.5%: raised again on request. It also buys back a little of the rope —
+     the sign is centred over the rig, so every millimetre it moves up is a millimetre
+     more of the leftmost rope that the learner can actually see while cutting it. */
+  top: 1.2%;
   left: 50%;
   transform: translateX(-50%);
   max-width: 92%;
@@ -596,7 +599,7 @@ a:hover { color: var(--ice-pale); }
 /* On a phone-landscape stage everything still derives from --sign-h, so the sign only
    needs to be told to be a little taller relative to a much smaller stage. */
 @media (max-width: 1200px) {
-  .instruction { max-width: 94%; top: 2.5%; }
+  .instruction { max-width: 94%; top: 1%; }
   /* MUCH smaller on a phone, and the two numbers that set it are both measured:
      the hanging chunks start 122px down a 390px stage, so a card parked at 2.5% must
      be under ~112px tall to clear them; and the interface has to stay under 12% of

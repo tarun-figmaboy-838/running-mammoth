@@ -25,6 +25,8 @@ import { join, resolve } from 'node:path';
 import { pointsOf } from '../game/js/polygons.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
+// the delivered PNGs are source art and live outside the deploy root
+const SRC_DIR = join(ROOT, 'art-source', 'option-shape');
 const DIR = join(ROOT, 'game', 'assets', 'option-shape');
 
 const S = 1254;                    // same canvas as the delivered art

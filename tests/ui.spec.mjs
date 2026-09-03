@@ -22,12 +22,15 @@ test.describe('ui', () => {
     const svgs = await page.evaluate(async () => {
       const names = [
         'icons/sound-on', 'icons/sound-off', 'icons/pause', 'icons/play', 'icons/restart',
-        'icons/hint', 'icons/check', 'icons/wrong', 'tutorial/hand-slash',
-        /* The shape glyphs are no longer drawn on the instruction card — it is one
-           line of text now — but the files are still here and still have to be real
-           vector if anything ever puts them back. */
-        'shapes/triangle', 'shapes/square', 'shapes/quadrilateral',
-        'shapes/trapezoid', 'shapes/pentagon', 'shapes/hexagon'
+        'icons/hint', 'icons/check', 'icons/wrong', 'tutorial/hand-slash'
+        /* The six shapes/*.svg glyphs are gone from this list because the files are
+           gone. They were drawn on the instruction card until it became one line of
+           text, and were then kept "in case anything ever puts them back" — which is
+           the stale-guard pattern this repo argues against elsewhere (see the note at
+           the foot of .vercelignore). Nothing referenced them: not the engine, not the
+           stylesheets, not even a tool. A test asserting that six unused files are
+           well-formed is a test that fails when they are correctly deleted, which is
+           what happened. tools/make-ui.mjs can still regenerate them. */
       ];
       const out = [];
       for (const n of names) {
@@ -178,9 +181,10 @@ test.describe('ui', () => {
   });
 
   test('a correct answer pops a tick, a wrong one pops a cross', async ({ page }) => {
-    await boot(page);
+    // cuts through the api rather than the pointer, so fast-forward is safe here
+    await boot(page, { fast: 4 });
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, 'PHASE_ACTIVE', 30_000);
+    await waitState(page, 'PHASE_ACTIVE', 45_000);
 
     const bad = await page.evaluate(() => {
       const G = window.iceAgeGame.debug();

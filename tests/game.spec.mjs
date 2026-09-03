@@ -73,20 +73,24 @@ test.describe('the cover', () => {
 
 test.describe('controls', () => {
   test('jump fires, arcs and lands', async ({ page }) => {
-    await boot(page);
+    /* The arc is a fixed duration in GAME time, and game time runs slower than wall
+       clock on a renderer that cannot hold 30fps — see the note at the top of
+       helpers.mjs. Driven through the api, so fast-forward is safe here. */
+    await boot(page, { fast: 4 });
     await waitState(page, 'RUN_SEGMENT_1');
     await page.waitForFunction('window.iceAgeGame.debug().jumpEnabled === true');
     await page.evaluate('window.iceAgeGame.jump()');
-    await page.waitForFunction('window.iceAgeGame.mammothState() === "JUMP_AIR"', null, { timeout: 3000 });
-    await page.waitForFunction('window.iceAgeGame.mammothState() === "LAND"', null, { timeout: 3000 });
+    await page.waitForFunction('window.iceAgeGame.mammothState() === "JUMP_AIR"', null, { timeout: 20_000 });
+    await page.waitForFunction('window.iceAgeGame.mammothState() === "LAND"', null, { timeout: 20_000 });
   });
 
   test('the jump button and the space bar do the same thing', async ({ page }) => {
-    await boot(page);
+    // a key press, not a pointer drag, so the world may be fast-forwarded under it
+    await boot(page, { fast: 4 });
     await waitState(page, 'RUN_SEGMENT_1');
     await page.waitForFunction('window.iceAgeGame.debug().jumpEnabled === true');
     await page.keyboard.press('Space');
-    await page.waitForFunction('window.iceAgeGame.mammothState() !== "RUN"', null, { timeout: 3000 });
+    await page.waitForFunction('window.iceAgeGame.mammothState() !== "RUN"', null, { timeout: 20_000 });
   });
 
   test('jump is refused while the puzzle owns the screen', async ({ page }) => {
@@ -209,7 +213,8 @@ test.describe('Level 1', () => {
   });
 
   test('no hanging option can drop on the character', async ({ page }) => {
-    await boot(page);
+    // geometry only, so fast-forward it — see the note at the top of helpers.mjs
+    await boot(page, { fast: 4 });
     const nearest = await page.evaluate(async () => {
       const g = window.iceAgeGame;
       // read the phase count rather than hard-coding it, so it moves with the data
@@ -262,9 +267,11 @@ test.describe('Level 1', () => {
        it: a real drag across the rope. Everything else calls _cut() directly, which
        skips the hit test entirely — so nothing covered the case where the drawn rope
        and the cuttable line disagree. */
+    /* No fast-forward here on purpose: the drag below is read-then-move, and the row
+       animates with game time. A generous wait instead — see helpers.mjs. */
     await boot(page);
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, 'PHASE_ACTIVE', 15_000);
+    await waitState(page, 'PHASE_ACTIVE', 60_000);
 
     const aim = await page.evaluate(() => {
       const g = window.iceAgeGame;
@@ -303,9 +310,11 @@ test.describe('Level 1', () => {
   });
 
   test('a slash through empty sky cuts nothing', async ({ page }) => {
+    /* No fast-forward: this drives a real drag, and the row animates with game time.
+       A generous wait instead — see the note at the top of helpers.mjs. */
     await boot(page);
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, 'PHASE_ACTIVE', 15_000);
+    await waitState(page, 'PHASE_ACTIVE', 60_000);
     const before = await page.evaluate('window.iceAgeGame.debug().l1.shapes.length');
     const box = await page.locator('#game-canvas').boundingBox();
     // low and to the left of every rope
@@ -320,9 +329,9 @@ test.describe('Level 1', () => {
   });
 
   test('the right shape bridges the crevasse; the crossing closes', async ({ page }) => {
-    await boot(page);
+    await boot(page, { fast: 4 });
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, 'PHASE_ACTIVE', 15_000);
+    await waitState(page, 'PHASE_ACTIVE', 45_000);
     const kind = await page.evaluate('window.iceAgeGame.debug().l1.targets[0].kind');
     expect(await cut(page, kind)).toBe(true);
     await page.waitForFunction(
@@ -339,9 +348,9 @@ test.describe('Level 1', () => {
   });
 
   test('a wrong shape goes into the water and splashes', async ({ page }) => {
-    await boot(page);
+    await boot(page, { fast: 4 });
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, 'PHASE_ACTIVE', 15_000);
+    await waitState(page, 'PHASE_ACTIVE', 45_000);
     // drop it straight over the hole so it reaches the pool
     const kind = await page.evaluate(() => {
       const G = window.iceAgeGame.debug();
