@@ -17,7 +17,6 @@ export class Hud {
       paused: root.getElementById('paused'),
       verdict: root.getElementById('verdict'),
       hand: root.getElementById('hand-hint'),
-      stage: root.getElementById('stage'),
       jump: root.getElementById('btn-jump'),
       instruction: root.getElementById('instruction'),
       pill: root.getElementById('instruction-pill'),
@@ -56,13 +55,25 @@ export class Hud {
     }
   }
 
-  /** A short-lived tick or cross, positioned over the crossing being worked on. */
+  /** A short-lived tick or cross, positioned over the crossing being worked on.
+
+      IT IS NOW ACTUALLY POSITIONED. The comment above claimed it was, and it never
+      was: nothing here set left or top, and the stylesheet had no .verdict rule but
+      the two background-image lines — so the element was a 0x0 block pinned to the
+      top-left of the HUD, and the tick and the cross were invisible for every answer
+      the game has ever been given. The engine now publishes `verdictAt` in stage
+      coordinates and this converts it to percentages, exactly as the idle hand does,
+      so it lands over the crevasse at any viewport size. */
   updateVerdict(h) {
     const el = this.el.verdict;
     if (!el) return;
     if (!h.verdict) {
       if (!el.hidden) { el.hidden = true; this._verdictWas = ''; }
       return;
+    }
+    if (h.verdictAt) {
+      el.style.left = (h.verdictAt.x / 1920 * 100).toFixed(2) + '%';
+      el.style.top = (h.verdictAt.y / 1080 * 100).toFixed(2) + '%';
     }
     if (h.verdict === this._verdictWas) return;
     this._verdictWas = h.verdict;
@@ -177,14 +188,15 @@ export class Hud {
 
   /** Called by the engine only when its HUD state actually changes. */
   update(h) {
-    const message = h.helper || h.instruction || '';
+    /* `h.helper` is gone from the payload. It was a second instruction line, removed
+       on request, and G.helper had been pinned to the empty string ever since — so
+       `h.helper || h.instruction` was provably just h.instruction. */
+    const message = h.instruction || '';
     if (message !== this.lastMessage) {
       this.lastMessage = message;
       if (message) {
         clearTimeout(this._leaveT);
         this.el.text.textContent = message;
-        // re-entering: rebuild the chips so they pop again rather than being revealed
-        this._shapeKey = null;
         this.el.instruction.hidden = false;
         this.el.instruction.classList.remove('leaving');
         // restart the entrance animation on every new line

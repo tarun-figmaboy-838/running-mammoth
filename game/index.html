@@ -10,6 +10,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
 <link rel="stylesheet" href="css/screens.css" />
+<!-- THE PRESSED BUTTON ART, FETCHED UP FRONT.
+
+     For both picture buttons the press IS a different image, and a background-image
+     that no rule has yet applied is not requested until the moment it is needed. So
+     the very first tap of PLAY, and the first tap of JUMP, swapped to an image that
+     had not arrived — the button went blank for as long as the fetch took, which on a
+     phone is exactly the tap where the player is deciding whether the game responds at
+     all. Preloading is 100kB and removes the flash entirely. -->
+<link rel="preload" as="image" href="assets/ui/btn-play-pressed.webp" />
+<link rel="preload" as="image" href="assets/ui/btn-pressed.webp" />
 </head>
 <body>
   <div class="stage-wrap">
@@ -96,8 +106,15 @@
         <div class="screen cover" id="cover" hidden>
           <div class="cover-art" aria-hidden="true"></div>
           <div class="cover-snow" aria-hidden="true"></div>
-          <button class="btn-chunky btn-play" id="btn-play" type="button">
-            <span class="btn-chunky-face"><span class="btn-chunky-label">PLAY</span></span>
+          <!-- NOT a .btn-chunky. It used to carry that class to inherit the button
+               family's rim and gloss, and then override all of it — but the family's
+               HOVER rule (`.btn-chunky:hover`, specificity 0-2-0) outranks a plain
+               `.btn-play` (0-1-0), so on hover the family's navy keyline came back and,
+               with the radius zeroed for the art, drew a hard RECTANGLE around the
+               button. Overriding state by state is whack-a-mole; the fix is that the
+               picture buttons are their own family. -->
+          <button class="btn-art btn-play" id="btn-play" type="button" aria-label="Play">
+            <span class="btn-art-sheen" aria-hidden="true"></span>
           </button>
         </div>
 
@@ -105,11 +122,50 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js"></script>
+  <!-- HOW THE CODE IS LOADED, and why it is not just one script tag.
+
+       The game is written as ES modules, and a browser fetches a module with CORS even
+       from a file:// page — which file:// refuses outright:
+
+         Access to script at 'file:///.../js/main.js' from origin 'null' has been
+         blocked by CORS policy: Cross origin requests are only supported for protocol
+         schemes: chrome, chrome-untrusted, data, http, https.
+
+       So opening this file by double-clicking it used to give a permanently blank dark
+       stage, with the real reason only visible in the console. A classic <script> has
+       no such restriction, so off the disk we load the concatenated build instead.
+
+       Over http:// nothing changes: the modules are loaded, exactly as before, so the
+       files in js/ stay the source of truth and editing them takes effect immediately.
+       The bundle is a build artefact (tools/build-bundle.mjs) and a test fails if it
+       has drifted from the modules, so the two can never silently disagree.
+
+       `nomodule` is not the mechanism here — that targets browsers WITHOUT module
+       support, which is a different question from the page's origin. -->
+  <script>
+    (function () {
+      var s = document.createElement('script');
+      if (location.protocol === 'file:') {
+        s.src = 'js/game.bundle.js';
+      } else {
+        s.type = 'module';
+        s.src = 'js/main.js';
+      }
+      document.head.appendChild(s);
+    })();
+  </script>
+  <!-- POSITIONED, or nobody reads it. This paragraph used to sit in normal flow after
+       a .stage-wrap with `min-height: 100vh`, inside a body with `overflow: hidden` —
+       so it was laid out below the fold of a document that cannot scroll. A visitor
+       with JavaScript off saw a blank dark stage and no explanation at all. Fixed and
+       centred, it is the only thing on the page. -->
   <noscript>
-    <p style="color:#EAF9FF;font:16px system-ui;text-align:center;padding:24px">
-      This game needs JavaScript enabled.
-    </p>
+    <div style="position:fixed;inset:0;z-index:99;display:flex;align-items:center;
+                justify-content:center;background:#061a38;padding:24px">
+      <p style="color:#EAF9FF;font:600 18px/1.5 system-ui,sans-serif;text-align:center;margin:0">
+        This game needs JavaScript enabled.
+      </p>
+    </div>
   </noscript>
 </body>
 </html>

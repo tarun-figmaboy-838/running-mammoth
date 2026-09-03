@@ -80,10 +80,16 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') hud.flashJump();
 });
 
-// Auto-pause when the tab loses focus so the character is never mid-jump on return.
+/* Auto-pause when the tab loses focus so the character is never mid-jump on return.
+
+   AND SILENCE IT. Pausing only stopped the simulation: the AudioContext kept running
+   and the music element kept playing, so a backgrounded tab went on making noise from
+   a game that was frozen — which on a phone means the music plays over whatever the
+   child switched to, and the tab keeps a decoder alive for no reason. Both are
+   suspended here and resumed together with the simulation. */
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && !hud.paused) game.setPaused(true);
-  else if (!document.hidden && !hud.paused) game.setPaused(false);
+  if (document.hidden && !hud.paused) { game.setPaused(true); game.suspendAudio(); }
+  else if (!document.hidden && !hud.paused) { game.setPaused(false); game.resumeAudio(); }
 });
 
 window.addEventListener('beforeunload', () => {

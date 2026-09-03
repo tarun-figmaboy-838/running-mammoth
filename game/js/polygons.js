@@ -183,11 +183,10 @@ export function sidesOf(type) {
   return m ? m.sides : 0;
 }
 
-/** Vertices scaled into a box of the given size, centred on the origin. */
-export function scaled(type, size) {
-  const r = size / 2;
-  return pointsOf(type).map(p => ({ x: p.x * r, y: p.y * r }));
-}
+/* `scaled(type, size)` was removed: nothing imported it. The runner scales rings
+   itself — PolygonFactory.fitInside() fits one UNIFORMLY into the option row's box,
+   which is what keeps a regular polygon's sides equal, and a plain radial scale here
+   could not offer that guarantee. */
 
 /* ---- verification ---- */
 

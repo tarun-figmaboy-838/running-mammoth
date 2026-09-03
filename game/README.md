@@ -38,35 +38,53 @@ python3 -m http.server 8080
 game/
 ├── index.html          markup: canvas + HUD
 ├── css/
-│   └── style.css       shell, HUD, overlays, keyframes
+│   ├── style.css       shell, HUD, overlays, keyframes
+│   └── screens.css     the cover, and the whole button family
 ├── js/
-│   ├── main.js         entry point — boots the engine, wires the HUD
+│   ├── main.js         entry point — boots the engine, wires the HUD, URL flags
 │   ├── hud.js          all DOM outside the canvas
-│   └── engine.js       the game itself (canvas, no dependencies)
+│   ├── frontend.js     the cover screen, and the Ouch panel's hero
+│   ├── polygons.js     14 verified geometries — the one definition of each
+│   ├── option-shapes.js GENERATED: the traced ring + texture of each ice block
+│   ├── engine.js       the game itself (canvas, no dependencies)
+│   └── game.bundle.js  GENERATED: all of the above as one classic script, so
+│                       index.html also opens straight off the disk
 └── assets/
-    ├── bg-dawn.png … bg-night.png    8 backgrounds, dawn → night
-    ├── ice-path.png                  tiling foreground path
-    ├── ice-crystal.png               jumpable obstacle
-    ├── mammoth-run.png               12-frame run cycle (380×320 cells)
-    └── mammoth-jump.png              10-frame jump arc (380×320 cells)
+    ├── sky/01-dawn.webp … 08-night.webp   8 skies, dawn → night
+    ├── env/path.webp                      tiling foreground path
+    ├── env/rock-wide.webp, rock-tall.webp jumpable obstacles
+    ├── env/rope.webp                      the rope the chunks hang on
+    ├── char/mammoth-run.webp              36-frame run cycle (420×320 cells)
+    ├── char/mammoth-jump.webp             10-frame jump arc (420×320 cells)
+    ├── char/mammoth-skid.webp             36-frame skid to a halt (420×320 cells)
+    ├── option-shape/*.webp                one painted ice block per named shape
+    ├── ui/sign.webp                       the instruction plank
+    ├── ui/btn-play*.webp, btn-normal/pressed.webp   the picture buttons
+    └── audio/*.mp3                        one music bed, six recorded cues
 ```
+
+Everything under `assets` whose extension is `.png` or `.gif` is a BUILD INPUT, not
+part of the site — see the two `.vercelignore` files and `tools/`.
 
 `engine.js` holds the modules described below and exports two things:
 `CFG` (all tuning values) and `createGame(canvas, hooks)`.
 
 | Module | Responsibility |
 | --- | --- |
-| `GameFlowController` | the state machine (`RUN_SEGMENT_1` … `COMPLETE`) |
-| `MammothController` | sprite state → frame selection, jump physics, coyote time |
-| `WorldScroller` / `GroundManager` | path tiling, gaps, broken edges, repaired pieces |
+| `createGame()` closure | the state machine (`RUN_SEGMENT_1` … `COMPLETE`), the level-1 puzzle, input, and the renderer |
+| `PlayerController` | sprite state → frame selection, jump physics, coyote time, and the cartoon reaction layer |
+| `GroundManager` | path tiling (mirrored alternate tiles), crevasses, broken lips, repaired plugs |
 | `BackgroundTimeManager` | 8-phase day cycle with 1.5s crossfades |
-| `Atmosphere` | clouds, snowfall, interactive aurora |
-| `ObstacleController` | crystal spawn, telegraph, forgiving collisions |
-| `LevelOnePuzzle` | hanging shapes, rope cutting, fit / reject |
-| `LevelTwoCutPuzzle` + `PolygonCutManager` | vertex snapping, diagonal validation, real polygon split |
-| `FeedbackFX` / `ParticleManager` | snow puffs, ice chips, frost, camera shake |
-| `AudioManager` | procedural WebAudio (swap in real files here) |
-| `HintManager` | progressive hints, escalating only on wrong attempts |
+| `Atmosphere` | clouds, snowfall, wind, aurora, frost |
+| `ObstacleController` | rock spawn, telegraph, forgiving collisions, three-strike crumble |
+| `PolygonFactory` | rings from `polygons.js` / `option-shapes.js`, seating, uniform fitting |
+| `ParticleManager` | snow puffs, ice chips, splash, frost, sweat, sparkles |
+| `AudioManager` | a synthesised palette, with six recorded cues layered over it |
+
+`MammothController`, `WorldScroller`, `LevelOnePuzzle`, `LevelTwoCutPuzzle`,
+`PolygonCutManager`, `FeedbackFX` and `HintManager` were names in an earlier plan and
+are not classes in the file. The level-1 puzzle, the feedback and the hints all live
+inside the `createGame()` closure.
 
 ## Controls
 
@@ -74,8 +92,11 @@ game/
 | --- | --- |
 | `Space` / `↑` / `W` | jump |
 | Jump button (bottom-right) | jump |
-| Click-drag / swipe | cut a rope |
-| Pause button (top-right) | pause / resume |
+| Click-drag / swipe across a rope | cut it — the only puzzle input |
+| Tap the mammoth | he toots and bounces. Changes nothing. |
+
+There is no pause or mute control: the icon cluster that used to sit top-right was
+removed. `?sound=0` and `?reduced=1` are the only way to set either.
 
 Jumping allows ~90ms of coyote time and a ~110ms input buffer, and the
 collision box is the mammoth's footprint rather than its full sprite, so the

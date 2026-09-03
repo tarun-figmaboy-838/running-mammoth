@@ -45,6 +45,21 @@ export default defineConfig({
       url: 'http://127.0.0.1:8201/game/',
       reuseExistingServer: false,
       timeout: 30_000
+    },
+    {
+      /* The STRICT-CASE host, for zzcase.spec.mjs. That test has always fetched
+         127.0.0.1:8321 and nothing here ever listened there, so it could only fail
+         with ERR_CONNECTION_REFUSED — a missing server reported as a case bug on
+         every run. Vercel serves from case-sensitive Linux and development happens on
+         case-insensitive Windows, which makes this the one deploy fault nothing local
+         could otherwise reproduce, so the server is now part of the run.
+
+         reuseExistingServer is true, unlike the Vercel sim: this one reads no config,
+         so a leftover process cannot serve stale routing. */
+      command: 'node tools/zzcase-serve.mjs 8321',
+      url: 'http://127.0.0.1:8321/index.html',
+      reuseExistingServer: true,
+      timeout: 30_000
     }
   ]
 });

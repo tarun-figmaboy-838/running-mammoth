@@ -27,6 +27,26 @@ import { mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+/* SPENT. THIS SCRIPT HAS ALREADY RUN AND CANNOT RUN AGAIN.
+ *
+ * It was the one-time migration that turned the delivered PNGs — dropped straight into
+ * game/assets/ — into the WebP set the game loads, then moved the sources out to
+ * art-source/. That is done: SRC below is game/assets, and the PNGs it names are no
+ * longer there. Twelve of its seventeen entries now name files that exist nowhere
+ * under those names (the sky set arrived as sky-*.png and ships as 0N-*.webp; the
+ * cover arrived as cover-frozen-rush.png).
+ *
+ * It is kept, unrun, because the table below is the only remaining record of WHICH
+ * delivered file became WHICH asset. Do not try to execute it. To rebuild a single
+ * asset, convert the source in art-source/original-upload/ by hand to the output name
+ * this table gives.
+ *
+ * The pipelines that are still LIVE are elsewhere and each has its own tool:
+ *   the sprite sheets   tools/gif-to-grid.mjs  -> tools/slice-char.mjs
+ *   the option blocks   tools/build-option-shapes.mjs
+ *   the picture buttons tools/make-buttons.mjs
+ *   the vector icons    tools/make-ui.mjs
+ */
 const ROOT = resolve(import.meta.dirname, '..');
 const SRC = join(ROOT, 'game', 'assets');
 const OUT = join(ROOT, 'game', 'assets');

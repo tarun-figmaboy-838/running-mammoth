@@ -18,6 +18,11 @@
 }
 .screen[hidden] { display: none; }
 .screen.leaving { animation: screenOut 420ms ease both; }
+/* screenOut scales as well as fades, so it needs silencing too — the screen still has
+   to end up hidden, which .hidden does on its own once the timer fires. */
+@media (prefers-reduced-motion: reduce) {
+  .screen.leaving { animation: none; opacity: 0; }
+}
 @keyframes screenOut { to { opacity: 0; transform: scale(1.04); } }
 
 /* ---------- cover ----------
@@ -189,12 +194,9 @@
   outline: clamp(3px, 0.31vw, 5px) solid #FFD34A;
   outline-offset: clamp(3px, 0.31vw, 6px);
 }
-/* only the button that starts a run breathes, and only for a few beats */
-.btn-play, .btn-start { animation: playBreathe 2.6s ease-in-out 5; }
-@keyframes playBreathe {
-  0%, 100% { scale: 1; }
-  50%      { scale: 1.03; }
-}
+/* playBreathe and every .btn-start rule went with the character-select screen and the
+   CSS-built PLAY pill. The picture buttons are their own family (.btn-art, below) and
+   .btn-start has had no element in the markup for a long time. */
 
 /* Replay wears the same rim and gloss — it is the same act */
 .btn-primary { padding: clamp(3px, 0.31vw, 6px); }
@@ -233,358 +235,17 @@
     inset 0 clamp(-7px, -0.7vw, -4px) 0 rgba(0, 0, 0, 0.24),
     inset 0 0 clamp(12px, 1.25vw, 22px) rgba(0, 0, 0, 0.3);
 }
-.btn-play, .btn-start {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-.btn-play  { bottom: 9%; }
-.btn-start { bottom: 1.5%; z-index: 3; }
-/* keep the centring while pressed, or the button jumps sideways */
-.btn-play:active, .btn-play.pressed,
-/* the cap does the travelling now, so the housing must NOT move — it moving too
-   was why the press read as the whole button sliding rather than being pushed in */
-.btn-start:active, .btn-start.pressed { transform: translateX(-50%); }
+/* position lives with the rest of the .btn-play rules at the end of this file */
 
-/* ---------- character select ----------
-   A rack of explorer cards, not a form. Each card is that explorer's own object —
-   its accent colour, its portrait animating from the real run sheet, its name and
-   its stats — and choosing is simply tapping one. The chosen card lifts out of the
-   row and its colour spreads to the rest of the screen through --accent, which the
-   front end sets on #select. */
-.select {
-  --accent: #57C7F2;
-  --accent2: #1E6FA8;
-  background:
-    radial-gradient(120% 80% at 26% 22%, rgba(255,255,255,.30), rgba(255,255,255,0) 60%),
-    url("../assets/sky/02-early-morning.webp") center/cover no-repeat;
-}
-/* a cold vignette, so the lit explorer is the brightest thing on screen */
-.select::before {
-  content: "";
-  position: absolute; inset: 0;
-  z-index: 1;
-  background:
-    radial-gradient(78% 62% at 30% 52%, rgba(255,255,255,0) 46%, rgba(10,44,84,.30) 100%),
-    linear-gradient(180deg, rgba(8,38,74,.28) 0%, rgba(8,38,74,0) 24%);
-  pointer-events: none;
-}
-.select::after {      /* frost banked up at the foot of the scene */
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 16%;
-  z-index: 1;
-  background: linear-gradient(180deg,
-    rgba(255,255,255,0) 0%,
-    rgba(240,251,255,.30) 55%,
-    rgba(255,255,255,.62) 100%);
-  pointer-events: none;
-}
+/* ---------- character select: REMOVED ----------
+   The whole select screen went when the roster came down to one explorer — a screen
+   that asks a question with one answer is a tap the player has to make before the game
+   will start. Its stylesheet stayed behind: 339 lines of .select, .sel-aurora,
+   .sel-snow, .card-pick, .card-burst, .select-title and .btn-start rules for elements
+   that have not been in index.html for a long time. Deleted here.
 
-/* an aurora ribbon drifting behind everything, tinted by the current explorer */
-.sel-aurora {
-  position: absolute;
-  left: -10%; right: -10%; top: -6%;
-  height: 46%;
-  z-index: 1;
-  background:
-    radial-gradient(60% 100% at 30% 40%, var(--accent-soft, rgba(87,199,242,.5)), transparent 70%),
-    radial-gradient(45% 90% at 68% 30%, rgba(150,240,220,.34), transparent 72%);
-  filter: blur(clamp(14px, 1.6vw, 30px));
-  opacity: .55;
-  animation: auroraDrift 16s ease-in-out infinite alternate;
-  pointer-events: none;
-  transition: background 420ms ease;
-}
-@keyframes auroraDrift {
-  from { transform: translateX(-3%) scaleY(.94); opacity: .42; }
-  to   { transform: translateX(3%)  scaleY(1.06); opacity: .62; }
-}
-.sel-snow {
-  position: absolute;
-  inset: -12%;
-  z-index: 2;
-  background-image:
-    radial-gradient(2.5px 2.5px at 22% 32%, rgba(255,255,255,.85) 50%, transparent 51%),
-    radial-gradient(2px   2px   at 68% 12%, rgba(255,255,255,.65) 50%, transparent 51%),
-    radial-gradient(3px   3px   at 84% 66%, rgba(255,255,255,.75) 50%, transparent 51%),
-    radial-gradient(2px   2px   at 36% 82%, rgba(255,255,255,.60) 50%, transparent 51%);
-  background-size: 30% 40%;
-  animation: snowFall 13s linear infinite;
-  pointer-events: none;
-}
+   The one survivor is .card-hero just below, which the Ouch panel still uses. */
 
-/* ---- the explorer cards ----
-   A rack of two physical cards, not a form. The chosen card is pulled forward out of
-   the rack — larger, warmly lit in its own colour, floating a little — and the other
-   is tipped back, cooled and dimmed. That contrast is the entire interface: there is
-   nothing else on the screen to read. */
-.cards {
-  position: absolute;
-  left: 50%;
-  top: 47%;
-  transform: translate(-50%, -50%);
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(18px, 2vw, 40px);
-  width: min(84%, 1240px);
-  perspective: 1400px;
-}
-.card-pick {
-  --pc: #57C7F2;
-  --pc2: #1E6FA8;
-  position: relative;
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  padding: 0 0 clamp(9px, 0.95vw, 18px);
-  border: clamp(4px, 0.42vw, 8px) solid #FFFFFF;
-  border-radius: clamp(20px, 2.1vw, 42px);
-  background: linear-gradient(180deg, #FBFEFF 0%, #DCF0FC 62%, #C2E4F7 100%);
-  cursor: pointer;
-  overflow: hidden;
-  font-family: inherit;
-  text-align: center;
-  transform-style: preserve-3d;
-  /* the card sits on a coloured base, like a moulded plastic tile */
-  box-shadow:
-    inset 0 clamp(4px, 0.42vw, 8px) 0 rgba(255,255,255,.95),
-    inset 0 clamp(-14px, -1.5vw, -7px) 0 rgba(120,180,214,.28),
-    0 clamp(10px, 1.05vw, 20px) 0 #9FC4DC,
-    0 clamp(16px, 1.7vw, 32px) clamp(22px, 2.3vw, 44px) rgba(6,26,56,.38);
-  transition:
-    transform 260ms cubic-bezier(.25,1.3,.45,1),
-    box-shadow 260ms ease,
-    border-color 260ms ease,
-    filter 260ms ease;
-}
-
-/* ---- not chosen: tipped back into the rack ---- */
-.card-pick[aria-checked="false"] {
-  transform: perspective(1400px) rotateY(-7deg) scale(.9) translateY(clamp(6px, 0.63vw, 12px));
-  filter: saturate(.55) brightness(.9) blur(.4px);
-}
-.card-pick[aria-checked="false"]:hover {
-  transform: perspective(1400px) rotateY(-3deg) scale(.93) translateY(0);
-  filter: saturate(.8) brightness(.97);
-}
-/* the second card leans the other way, so the pair reads as a rack */
-.card-pick[aria-checked="false"]:last-child {
-  transform: perspective(1400px) rotateY(7deg) scale(.9) translateY(clamp(6px, 0.63vw, 12px));
-}
-.card-pick[aria-checked="false"]:last-child:hover {
-  transform: perspective(1400px) rotateY(3deg) scale(.93) translateY(0);
-}
-
-/* ---- chosen: pulled forward, lit, breathing ---- */
-.card-pick[aria-checked="true"] {
-  border-color: #FFFFFF;
-  transform: scale(1.06) translateY(clamp(-14px, -1.5vw, -7px));
-  box-shadow:
-    inset 0 clamp(4px, 0.42vw, 8px) 0 rgba(255,255,255,.98),
-    0 0 0 clamp(4px, 0.42vw, 8px) var(--pc),
-    0 clamp(13px, 1.35vw, 26px) 0 var(--pc2),
-    0 clamp(22px, 2.3vw, 44px) clamp(30px, 3.2vw, 62px) rgba(6,26,56,.48),
-    0 0 clamp(40px, 4.2vw, 80px) var(--pc-soft, rgba(87,199,242,.34));
-  animation: cardBreathe 3.2s ease-in-out infinite;
-}
-@keyframes cardBreathe {
-  0%, 100% { transform: scale(1.06) translateY(clamp(-14px, -1.5vw, -7px)); }
-  50%      { transform: scale(1.075) translateY(clamp(-20px, -2.1vw, -10px)); }
-}
-.card-pick.bounce { animation: cardBounce 460ms cubic-bezier(.25,1.5,.45,1); }
-@keyframes cardBounce {
-  0%   { transform: scale(.98) translateY(0); }
-  45%  { transform: scale(1.12) translateY(clamp(-24px, -2.5vw, -12px)); }
-  100% { transform: scale(1.06) translateY(clamp(-14px, -1.5vw, -7px)); }
-}
-
-/* ---- the art well: a lit alcove the explorer stands in ---- */
-.card-art {
-  position: relative;
-  height: clamp(170px, 21vw, 400px);
-  overflow: hidden;
-  background:
-    radial-gradient(96% 74% at 50% 4%, rgba(255,255,255,.98), rgba(255,255,255,0) 62%),
-    linear-gradient(180deg, var(--pc-soft, rgba(87,199,242,.34)) 0%, rgba(240,251,255,.72) 74%, #FFFFFF 100%);
-}
-/* Light falling onto the explorer, in their own colour. A clipped wedge read as a
-   grey triangle drawn on the card; a soft radial reads as light. */
-.card-art::before {
-  content: "";
-  position: absolute;
-  left: 50%; top: -30%;
-  width: 120%; height: 90%;
-  transform: translateX(-50%);
-  background: radial-gradient(closest-side,
-    var(--pc-soft, rgba(87,199,242,.34)) 0%,
-    rgba(255,255,255,0) 72%);
-  opacity: .7;
-  pointer-events: none;
-}
-.card-sprite {
-  position: absolute;
-  left: 50%;
-  bottom: 3%;
-  z-index: 1;
-  transform: translateX(-50%);
-  height: 92%;
-  aspect-ratio: 420 / 320;
-  max-width: 96%;
-  background-repeat: no-repeat;
-  background-position-x: 0%;
-  filter: drop-shadow(0 clamp(6px, 0.63vw, 12px) clamp(8px, 0.85vw, 16px) rgba(8,40,72,.4));
-}
-/* the pool of light the explorer stands in */
-.card-art::after {
-  content: "";
-  position: absolute;
-  left: 50%; bottom: 4%;
-  width: 54%; height: clamp(10px, 1.05vw, 20px);
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(22,72,120,.36), rgba(22,72,120,0) 78%);
-}
-
-/* The chosen badge. Drawn, not typed: a ✓ glyph renders differently in every font
-   and came out thin and washed out in white on the accent colour. This is a white
-   disc with a coloured ring and a navy tick built from two borders, so it is crisp
-   at any size, reads on either character's colour, and matches the outline style the
-   rest of the game is drawn in. Everything is sized in em off the name, so it scales
-   with the card. */
-/* The chosen badge.
-   A tick, and a real SVG one: the version built from two CSS borders was thin and,
-   because its box was positioned from a different edge than the disc's, it sat
-   visibly off-centre. Disc and glyph are now centred on the SAME point — one
-   --badge-r drives both — so they cannot drift apart at any card size. */
-.card-pick[aria-checked="true"] .card-name::after,
-.card-pick[aria-checked="true"] .card-name::before {
-  --badge-r: 0.56em;                 /* half the disc: the shared centre */
-  content: "";
-  position: absolute;
-  right: calc(0.34em + var(--badge-r));
-  top: 50%;
-  transform: translate(50%, -50%);   /* centre the box on that point */
-}
-.card-pick[aria-checked="true"] .card-name::after {
-  width: calc(var(--badge-r) * 2);
-  height: calc(var(--badge-r) * 2);
-  border-radius: 50%;
-  background:
-    radial-gradient(58% 42% at 38% 18%, rgba(255,255,255,.98) 0%, rgba(255,255,255,.3) 56%, rgba(255,255,255,0) 82%),
-    linear-gradient(180deg, #7FE39F 0%, #34C069 48%, #17994C 100%);
-  box-shadow:
-    0 0 0 0.09em #FFFFFF,
-    0 0 0 0.13em #14496F,
-    0 0.1em 0.2em rgba(6,26,56,.4);
-}
-.card-pick[aria-checked="true"] .card-name::before {
-  width: calc(var(--badge-r) * 1.16);
-  height: calc(var(--badge-r) * 1.16);
-  z-index: 1;
-  background: #FFFFFF;
-  -webkit-mask: url("../assets/ui/icons/tick.svg") center / contain no-repeat;
-  mask: url("../assets/ui/icons/tick.svg") center / contain no-repeat;
-  filter: drop-shadow(0 0.03em 0 rgba(9,90,44,.6));
-}
-
-/* ---- the name plate ---- */
-.card-name {
-  position: relative;
-  margin: 0;
-  padding: clamp(9px, 0.95vw, 18px) clamp(46px, 4.4vw, 84px) clamp(8px, 0.85vw, 16px);
-  font-size: clamp(21px, 2.4vw, 46px);
-  font-weight: 800;
-  letter-spacing: .06em;
-  line-height: 1.05;
-  color: #FFFFFF;
-  -webkit-text-stroke: clamp(2px, 0.26vw, 5px) #14496F;
-  paint-order: stroke fill;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,0));
-}
-
-/* ice shards thrown out of a card when it is chosen */
-.card-burst {
-  position: absolute;
-  left: 50%; top: 40%;
-  z-index: 3;
-  pointer-events: none;
-}
-.card-burst i {
-  position: absolute;
-  width: clamp(7px, 0.73vw, 14px);
-  height: clamp(7px, 0.73vw, 14px);
-  border-radius: 2px;
-  background: linear-gradient(180deg, #FFFFFF, var(--pc));
-  box-shadow: 0 0 clamp(7px, 0.73vw, 14px) rgba(255,255,255,.95);
-  opacity: 0;
-}
-.card-burst.go i { animation: shardOut 620ms cubic-bezier(.2,.9,.3,1) both; }
-@keyframes shardOut {
-  from { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
-  to   { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.3) rotate(260deg); }
-}
-
-/* ---- the title, carved rather than printed ---- */
-.select-title {
-  position: absolute;
-  top: 5.5%;
-  left: 50%;
-  z-index: 4;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 0;
-  font-size: clamp(17px, 1.85vw, 35px);
-  font-weight: 800;
-  letter-spacing: .26em;
-  color: #FFFFFF;
-  -webkit-text-stroke: clamp(2px, 0.26vw, 5px) #14496F;
-  paint-order: stroke fill;
-  text-shadow:
-    0 clamp(3px, 0.31vw, 6px) 0 rgba(12,55,95,.5),
-    0 clamp(10px, 1.05vw, 20px) clamp(16px, 1.7vw, 32px) rgba(6,26,56,.45);
-  white-space: nowrap;
-  border-bottom: none;
-}
-
-/* ---- PLAY, named after whoever is chosen ---- */
-.btn-start {
-  left: 50%;
-  right: auto;
-  bottom: 6%;
-  transform: translateX(-50%);
-  z-index: 5;
-}
-/* a shimmer sweeping the face, so the confirm button reads as the live control */
-.btn-start .btn-chunky-face { position: relative; overflow: hidden; }
-.btn-start .btn-chunky-face::after {
-  content: "";
-  position: absolute;
-  top: -60%; bottom: -60%;
-  width: 38%;
-  background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0));
-  animation: sheen 2.8s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes sheen {
-  0%       { left: -45%; }
-  55%,100% { left: 115%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cover-art, .cover-snow, .btn-chunky,
-  .sel-aurora, .sel-snow,
-  .btn-start .btn-chunky-face::after { animation: none; }
-  .card-burst.go i, .card-pick.bounce, .card-pick[aria-checked="true"] { animation: none; }
-}
 /* ---------- the Ouch panel's character hero ---------- */
 .card-hero {
   width: clamp(120px, 12vw, 230px);
@@ -614,4 +275,172 @@
   -webkit-text-stroke: clamp(2px, 0.26vw, 5px) #14496F;
   paint-order: stroke fill;
   letter-spacing: .02em;
+}
+
+
+/* ================== .btn-art — THE PICTURE BUTTONS ==================
+
+   PLAY (a wide pill) and JUMP (a round cap) are both supplied art, and both work the
+   same way, because that is how the art is drawn: THE PRESS IS ALREADY IN THE PICTURE.
+   PLAY's pressed take has the cap pushed down into its rim; JUMP's is darkened. So
+   swapping the image IS the press.
+
+   THEY ARE THEIR OWN FAMILY, and that is the fix for a real bug rather than a tidy-up.
+   PLAY used to be a `.btn-chunky` so it could inherit the CSS button family, with every
+   part of that family then overridden. But `.btn-chunky:hover` has specificity 0-2-0
+   and a plain `.btn-play` only 0-1-0 — so the moment a pointer touched the button the
+   family's navy keyline (`0 0 0 8px #14496F`) came back, and because the radius had
+   been zeroed for the artwork it drew as a HARD RECTANGLE around the pill. Overriding
+   the family state by state is whack-a-mole; not being in the family is the root fix.
+
+   Both files were padded onto ONE common box by tools/make-buttons.mjs, centred across
+   and aligned on the bottom, so the swap is registered: the rim stays exactly where it
+   is and only the cap moves. Untrimmed, the two takes differed by a few pixels and the
+   button changed size when you pressed it. */
+.btn-art {
+  position: relative;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent center / contain no-repeat;
+  box-shadow: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* the art carries its own rim, gloss, lettering and shading */
+  transition: filter 130ms ease, scale 110ms cubic-bezier(.3, 1.4, .5, 1);
+}
+.btn-art[hidden] { display: none; }
+/* the sheen layer sits inside the cap and is clipped to it */
+.btn-art-sheen {
+  position: absolute;
+  border-radius: 999px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.btn-art-sheen::after {
+  content: "";
+  position: absolute;
+  top: -60%; bottom: -60%;
+  width: 30%;
+  background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,.55), rgba(255,255,255,0));
+  animation: sheen 3.4s ease-in-out infinite;
+}
+
+/* ---------- PLAY ---------- */
+.btn-play {
+  position: absolute;
+  left: 50%;
+  /* LOW, AND CLEAR OF THE ART. At bottom 9% and 496px wide it landed across the
+     mammoth's front feet and hard against the bottom of the RUSH lettering — the
+     busiest part of the banner, so the one control on the screen was the hardest
+     thing on it to pick out. Measured on the cover: the title's letterforms end near
+     y 800 and the feet near y 830, and the flat ice ledge runs from about y 945. Down
+     here the button sits ON that ledge, clear of both, which is also where a player
+     looks for a start button. */
+  bottom: 3%;
+  transform: translateX(-50%);
+  width: clamp(190px, 22vw, 430px);
+  /* the common box the two takes were built onto */
+  aspect-ratio: 1880 / 711;
+  background-image: url("../assets/ui/btn-play.webp");
+  filter: drop-shadow(0 clamp(5px, 0.52vw, 10px) clamp(10px, 1vw, 20px) rgba(46, 12, 4, 0.5));
+  animation: playBob 2.4s cubic-bezier(.45, 0, .55, 1) infinite;
+  z-index: 3;
+}
+/* the amber cap's own box, measured off the normal take */
+.btn-play .btn-art-sheen { inset: 4% 4% 20% 4%; }
+.btn-play:hover {
+  filter: drop-shadow(0 clamp(5px, 0.52vw, 10px) clamp(10px, 1vw, 20px) rgba(46, 12, 4, 0.5))
+          drop-shadow(0 0 clamp(14px, 1.5vw, 30px) rgba(255, 176, 32, 0.9));
+}
+
+/* THE PRESS. The other picture — plus, on this one button, a real squash.
+
+   The art's own travel is the cap sinking about a fifth of the button's height, which
+   at 430px wide is legible but quiet, and the feedback was reported as not reading as a
+   tap at all. So this is the one control that also MOVES: 4% down and a shade wider, on
+   a spring curve. That is deliberate, and it is the opposite of the rule the round
+   in-game buttons follow — a thumb covers a 96px round button at the moment it would
+   travel, so movement there is invisible and a darkening is what reads. A 430px pill on
+   a menu screen is not covered by the thumb, so movement is exactly what sells it. */
+.btn-play:active,
+.btn-play.pressed {
+  background-image: url("../assets/ui/btn-play-pressed.webp");
+  animation: none;
+  scale: 1.035 0.94;
+  filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(4px, 0.42vw, 8px) rgba(46, 12, 4, 0.55));
+}
+/* the sweep would be running across a cap that has moved, so it stops for the press */
+.btn-play:active .btn-art-sheen::after,
+.btn-play.pressed .btn-art-sheen::after { animation: none; opacity: 0; }
+/* one warm flash over the cap, gone in a quarter second */
+.btn-play.pressed .btn-art-sheen {
+  background: radial-gradient(70% 120% at 50% 30%, rgba(255,255,255,.9), rgba(255,236,170,0) 70%);
+  animation: playFlash 260ms ease-out 1;
+}
+@keyframes playFlash { from { opacity: 1; } to { opacity: 0; } }
+.btn-play:focus-visible {
+  outline: clamp(3px, 0.31vw, 5px) solid #FFD34A;
+  outline-offset: clamp(4px, 0.42vw, 9px);
+}
+
+/* THE TAP RINGS, on the button's own footprint and expanding away from it so they clear
+   a thumb. Re-triggered by the front end removing and re-adding .pressed, which is what
+   makes a second tap in quick succession show a ring at all. */
+.btn-play::before {
+  content: "";
+  position: absolute;
+  inset: 6% 2%;
+  border-radius: 999px;
+  border: clamp(3px, 0.31vw, 6px) solid rgba(255, 198, 92, 0.95);
+  opacity: 0;
+  pointer-events: none;
+}
+.btn-play.pressed::before { animation: playTapRing 520ms cubic-bezier(.2, .7, .3, 1) 1; }
+@keyframes playTapRing {
+  from { opacity: .9; scale: 1; }
+  to   { opacity: 0;  scale: 1.3 1.75; }
+}
+
+/* THE SPARKS. One element, a ring of box-shadow dots, thrown outward by scaling it —
+   cheaper than ten elements and it needs no extra markup. */
+.btn-play::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: clamp(7px, 0.73vw, 14px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow:
+     92px    0px 0 0 #FFE7A8,   74px   54px 0 0 #FFC247,
+     28px   87px 0 0 #FFE7A8,  -28px   87px 0 0 #FFB01F,
+    -74px   54px 0 0 #FFE7A8,  -92px    0px 0 0 #FFC247,
+    -74px  -54px 0 0 #FFE7A8,  -28px  -87px 0 0 #FFB01F,
+     28px  -87px 0 0 #FFE7A8,   74px  -54px 0 0 #FFC247;
+}
+.btn-play.pressed::after { animation: playSparks 560ms cubic-bezier(.15, .8, .3, 1) 1; }
+@keyframes playSparks {
+  from { opacity: 1; translate: -50% -50%; scale: 0.28; }
+  60%  { opacity: 1; }
+  to   { opacity: 0; translate: -50% -50%; scale: 1.6; }
+}
+
+/* the invitation: a breath, not a bounce. `scale` rather than `transform`, because
+   transform carries the translateX(-50%) that centres the button. */
+@keyframes playBob {
+  0%, 100% { scale: 1; }
+  50%      { scale: 1.035; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-art,
+  .btn-art-sheen::after,
+  .btn-play,
+  .btn-play.pressed::before,
+  .btn-play.pressed::after,
+  .btn-play.pressed .btn-art-sheen { animation: none; }
+  .btn-play:active, .btn-play.pressed { scale: 1; }
 }

@@ -21,6 +21,19 @@ That serves `game/index.html` at `/`, the modules at `/js/…` and the art at
 uploaded, so `tools/`, `tests/`, `art-source/` and `node_modules/` are excluded by the
 root directory alone.
 
+### …but the source art INSIDE `game/` is not, and that needs its own ignore file
+
+Vercel reads `.vercelignore` from the root of the **project**, not of the repository — so
+with Root Directory set to `game`, the `.vercelignore` at the repo root is never read at
+all. Measured: that uploaded 55MB of GIFs, un-sliced sheets and option-shape PNGs that no
+URL in the game ever requests.
+
+**`game/.vercelignore` is what covers that case, and it is load-bearing.** It excludes the
+build inputs that live under `game/assets` (`assets/GIF`, `assets/char/*-gif.png`,
+`assets/option-shape/*.png`, `assets/art/cover.png`) plus `drafts` and `qa`. Both ignore
+files are needed — the root one for the repo-root arrangement below, this one for the
+recommended one — and deleting either silently starts uploading source art.
+
 There is no build step to configure. Do not set one — an empty build command is
 correct for a static folder, and adding `npm install` would only pull in Playwright and
 sharp, which are development tools.

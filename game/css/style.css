@@ -214,14 +214,24 @@ a:hover { color: var(--ice-pale); }
   right: 3%;
   bottom: 3.5%;
   width: clamp(96px, 9.4vw, 180px);
-  height: clamp(96px, 9.4vw, 180px);
+  /* THE ART'S OWN RATIO, not a square. The supplied pair's common box is 1245x1219 —
+     the button is drawn 2% wider than it is tall. Forcing a square and letting
+     `contain` fit it inside left a dead band under the button, so the control's real
+     hit area and its picture no longer agreed. tools/make-buttons.mjs prints this
+     ratio; change it here when the art changes. */
+  aspect-ratio: 1245 / 1219;
+  height: auto;
   padding: 0;
   border: none;
   background: url("../assets/ui/btn-normal.webp") center / contain no-repeat;
   -webkit-tap-highlight-color: transparent;
   /* the art carries its own rim and shading, so all this adds is separation from a
      pale sky and the button's own light */
-  filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(30, 6, 70, 0.42));
+  /* THE BUTTON'S OWN LIGHT, taken from the art. The whole set of glows, rings and
+     outlines below was built for a violet cap; the supplied button is amber, and a
+     violet halo around an orange button reads as a rendering fault rather than as the
+     control being live. Every one of them is now warm. */
+  filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(94, 30, 2, 0.42));
   transition: filter 120ms ease;
 }
 .btn-jump[hidden] { display: none; }
@@ -230,9 +240,11 @@ a:hover { color: var(--ice-pale); }
 .btn-jump:active,
 .btn-jump.pressed {
   background-image: url("../assets/ui/btn-pressed.webp");
-  filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(3px, 0.31vw, 6px) rgba(30, 6, 70, 0.5));
+  filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(3px, 0.31vw, 6px) rgba(94, 30, 2, 0.5));
 }
-.btn-jump:hover { filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(10px, 1vw, 20px) rgba(120, 60, 250, 0.55)); }
+.btn-jump:hover {
+  filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(10px, 1vw, 20px) rgba(255, 138, 20, 0.7));
+}
 
 /* The face inside the art is pale, so the label is deep violet with a light halo —
    the old cream-on-amber lettering was chosen for a cap that is no longer there. */
@@ -258,7 +270,7 @@ a:hover { color: var(--ice-pale); }
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: clamp(3px, 0.31vw, 6px) solid rgba(168, 120, 255, 0.9);
+  border: clamp(3px, 0.31vw, 6px) solid rgba(255, 176, 40, 0.95);
   opacity: 0;
   pointer-events: none;
 }
@@ -269,7 +281,7 @@ a:hover { color: var(--ice-pale); }
 }
 
 .btn-jump:focus-visible {
-  outline: clamp(3px, 0.31vw, 5px) solid #C9A6FF;
+  outline: clamp(3px, 0.31vw, 5px) solid #FFC24A;
   outline-offset: clamp(5px, 0.52vw, 10px);
 }
 .btn-jump.pulse { animation: iceJumpPulse 1100ms ease-in-out 2; }
@@ -308,9 +320,14 @@ a:hover { color: var(--ice-pale); }
 }
 .card p {
   margin: 0;
-  font-size: clamp(13px, 1.25vw, 24px);
+  /* 15px rather than 13px at the small end: this is the only body copy in the game and
+     at a phone-landscape stage it was the smallest text on screen. */
+  font-size: clamp(15px, 1.3vw, 24px);
   font-weight: 600;
-  color: var(--ice-edge);
+  /* --ice-edge (#2D82B5) against the card's pale ice gradient measures about 3.0:1,
+     which fails AA for body text. --deep-1 measures about 8:1 on the same ground and
+     is the colour the headings already use. */
+  color: var(--deep-1);
 }
 
 .card-icon {
@@ -346,13 +363,19 @@ a:hover { color: var(--ice-pale); }
 }
 
 @keyframes iceJumpPulse {
-  0%, 100% { filter: drop-shadow(0 4px 10px rgba(30, 6, 70, 0.42)); }
-  50%      { filter: drop-shadow(0 4px 10px rgba(30, 6, 70, 0.42))
-                     drop-shadow(0 0 22px rgba(150, 100, 255, 0.95)); }
+  0%, 100% { filter: drop-shadow(0 4px 10px rgba(94, 30, 2, 0.42)); }
+  50%      { filter: drop-shadow(0 4px 10px rgba(94, 30, 2, 0.42))
+                     drop-shadow(0 0 22px rgba(255, 160, 30, 0.95)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .instruction-pill, .btn-jump.pulse { animation: none; }
+  /* The tap ring and the Ouch icon's pop were the two that escaped this block. The
+     ring is pure decoration, so it goes; the icon has to stay VISIBLE, so it is held
+     at the animation's end state rather than at the opacity 0 it starts from — an
+     element whose only visible state is inside a keyframe disappears the moment the
+     animation does, which is the fault already documented on .hand-hint. */
+  .instruction-pill, .btn-jump.pulse, .btn-jump.pressed::after { animation: none; }
+  .card-icon { animation: none; opacity: 1; transform: none; }
 }
 
 /* ---------- the idle hand ----------
@@ -523,6 +546,45 @@ a:hover { color: var(--ice-pale); }
 .icon-btn[data-icon="play"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/play.svg");      mask-image: url("../assets/ui/icons/play.svg"); }
 .icon-btn[data-icon="restart"]   .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/restart.svg");   mask-image: url("../assets/ui/icons/restart.svg"); }
 
+/* ---------- the verdict mark ----------
+   A tick or a cross over the crossing, for about a second after an answer.
+
+   THIS BLOCK WAS MISSING. Only the two background-image rules below existed, so the
+   element had no position, no size and no box: a 0x0 div at the top-left of the HUD
+   with a picture set on it, which draws nothing. From the outside that is
+   indistinguishable from a verdict that never fires, and the test that guards it
+   asserts on the data-mark attribute — which was always being set correctly. The
+   exact same fault is documented on .hand-hint above; this is its twin.
+
+   It is placed by the HUD from the engine's own stage coordinates, the way the idle
+   hand is, so it lands on the crevasse at any viewport size — and it pops with a
+   springy overshoot, because a verdict should arrive rather than appear. */
+.verdict {
+  position: absolute;
+  width: clamp(52px, 5.6vw, 108px);
+  aspect-ratio: 1;
+  /* centred on the point the engine gives */
+  transform: translate(-50%, -50%);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  pointer-events: none;
+  z-index: 6;
+  filter: drop-shadow(0 clamp(3px, 0.31vw, 6px) clamp(6px, 0.63vw, 12px) rgba(6, 26, 56, 0.5));
+  animation: verdictPop 900ms cubic-bezier(.34, 1.56, .64, 1) both;
+}
+.verdict[hidden] { display: none; }
+/* in with an overshoot, held, then away upward — a stamp, not a fade */
+@keyframes verdictPop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-14deg); }
+  26%  { opacity: 1; transform: translate(-50%, -50%) scale(1.14) rotate(4deg); }
+  40%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+  76%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: translate(-50%, -58%) scale(.92) rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .verdict { animation: none; opacity: 1; transform: translate(-50%, -50%); }
+}
 .verdict[data-mark="ok"] { background-image: url("../assets/ui/icons/check.svg"); }
 .verdict[data-mark="no"] { background-image: url("../assets/ui/icons/wrong.svg"); }
 

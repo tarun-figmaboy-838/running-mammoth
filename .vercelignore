@@ -7,21 +7,27 @@ tests
 tools
 test-results
 playwright-report
-game/assets/GIF
-game/assets/char/*-gif.png
-game/assets/option-shape/*.png
-game/assets/ui/icons/NORMAL-BUTTON.png
-game/assets/ui/icons/PRESSED-BUTTON.png
-game/assets/ui/icons/image.png
-game/assets/art/cover.png
-game/assets/art/image.png
 game/drafts
 game/qa
 
-# Dead since the rope overhang became procedural fog. Kept on disk in case the shelf
-# is ever wanted back; no reason to upload 1.1MB of it.
-game/assets/env/hang-stone.webp
-game/assets/env/hs.webp
+# SOURCE ART that has to stay in the repo because it is the input to a build, but has
+# no business being uploaded. Each one is consumed by a tool and never fetched by the
+# game:
+#   assets/GIF/*.gif        -> tools/gif-to-grid.mjs   -> assets/char/*-gif.png
+#   assets/char/*-gif.png   -> tools/slice-char.mjs    -> assets/char/mammoth-*.webp
+#   assets/option-shape/*.png -> tools/build-option-shapes.mjs -> the .webp + the rings
+#   assets/art/cover.png    -> tools/assets.mjs        -> assets/art/cover.webp
+game/assets/GIF
+game/assets/char/*-gif.png
+game/assets/option-shape/*.png
+game/assets/art/cover.png
 
-# Unidentified wide panels dropped into the icons folder — not wired to anything.
-game/assets/ui/icons/ChatGPT*
+# Entries for files that have since been DELETED are deliberately not kept here. A
+# stale ignore line is not harmless: it reads as "this file exists and is excluded",
+# so the next person looking for the shelf art or the unnamed panel dumps goes hunting
+# for something that is only in git history. Removed in the same pass as the files:
+#   assets/env/hang-stone.webp, assets/env/hs.webp   dead since the overhang became fog
+#   assets/ui/icons/NORMAL-BUTTON.png, PRESSED-BUTTON.png, image.png
+#   assets/art/image.png                              unidentified duplicate renders
+#   assets/ui/icons/ChatGPT*.png                      now art-source/btn-play-*-raw.png
+#   6 unused assets/option-shape/*.png alternates     no shape in the curriculum

@@ -140,8 +140,13 @@ test.describe('assets', () => {
       /* Interface art is vector so it stays sharp at any scale and can be recoloured.
          The pointing hand is the one exception: it is a supplied raster, chosen
          deliberately over the drawn glyph it replaced. */
+      /* The supplied picture buttons and the plank are painted art, not glyphs: they
+         carry their own rim, gloss and lettering, and their pressed state is drawn
+         rather than restyled. A vector version of one of those is not a thing that
+         exists. Everything else under assets/ui stays SVG. */
       const RASTER_OK = ['assets/ui/icons/touch.png', 'assets/ui/sign.webp',
-                         'assets/ui/btn-normal.webp', 'assets/ui/btn-pressed.webp'];
+                         'assets/ui/btn-normal.webp', 'assets/ui/btn-pressed.webp',
+                         'assets/ui/btn-play.webp', 'assets/ui/btn-play-pressed.webp'];
       const isUi = u.startsWith('assets/ui/');
       if (isUi && !u.endsWith('.svg') && !RASTER_OK.includes(u)) {
         bad.push(u + ' interface art should be SVG');

@@ -1,8 +1,36 @@
 # Momo — animation sprite specification
 
-Production spec for the baby woolly mammoth's sprite sheets. Every number here is taken
-from what the engine actually loads, so a sheet built to this spec drops in without
-recropping. Companion to [RUNNER.md](RUNNER.md).
+> ### ⚠ PARTLY STALE — read this first
+>
+> This document was written against a five-sheet character and has NOT been kept in
+> step with the art that ships. Audited 2026-09-03; the numbers below that are wrong,
+> with the value the code actually uses:
+>
+> | This document says | The code does |
+> |---|---|
+> | five sheets: run, jump, skid, shake, hurt | **three**: run, jump, skid. `shake` and `hurt` were removed on request, so `SHAKE`, `LOOK_DOWN`, `HURT` and `KNOCKOUT` fall back to poses from the jump sheet |
+> | 12-frame run and skid, 5040 × 320 | **36 frames each**, 15120 × 320 |
+> | stride 540 | **1120** — the source GIF is authored at 60ms a frame, so one cycle is 2.16s of ground |
+> | foot line 28px / 54px above the cell bottom | **`CFG.sprite.baseGap` = 25** |
+> | drawn at 1.28×, about 538px tall | **1.75×, about 735px wide** |
+> | a 780ms skid | **2300ms** (`CFG.timing.breakSkid`), so 36 frames play at their authored rate |
+> | the knockout art has stars and spiral eyes drawn in | **there is no knockout sheet** |
+> | "the six repairs" | **seven** |
+> | §3/§5's 22px baseline spread "which the engine corrects" | the per-frame correction was REMOVED — `tools/slice-char.mjs` bakes every frame onto one foot line instead, so there is nothing left to correct |
+>
+> **What is still accurate and still binding:** the 420 × 320 cell, the horizontal-strip
+> layout, one shared foot line across every sheet, and the rule that a new sheet must
+> match the character already in `game/assets/char/` rather than reinterpret it.
+>
+> **The fright at the crevasse is no longer art at all.** With no shake sheet, `SHAKE`
+> used to exit on its first frame and the mammoth visibly did not react to the hole. It
+> is now animated procedurally on top of whatever frame is showing — a knock-kneed
+> tremble, a double take, a gulp and sweat — from `CFG.comedy` in
+> [engine.js](game/js/engine.js). A delivered shake sheet would layer under it, not
+> replace it.
+
+Production spec for the baby woolly mammoth's sprite sheets. Companion to
+[RUNNER.md](RUNNER.md).
 
 **Identity reference:** the mammoth art already in `game/assets/char/`. New sheets must
 match those, not a fresh interpretation of the character — consistency is with what ships.
