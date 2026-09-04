@@ -401,6 +401,8 @@ export const CFG = {
     ui:     { src: 'assets/audio/floraphonic-punchy-taps-ui-5-183901.mp3',
               mode: 'onset', dur: 0.22, gain: 0.45, rate: 0.08 }
   },
+  /* WHERE THE HITS ARE, for the build that cannot work them out for itself.
+     Filled in by tools/bake-onsets.mjs between the markers below — see SFX_HITS. */
   hint: { slotMs: 7000, idleMs: 13000, showMs: 1300 },
   cut: { vertexSnap: 34 },
 
@@ -865,6 +867,34 @@ function paintIce(ctx, pts, opt = {}) {
 
    Nothing here waits on user input except the AudioContext itself, which browsers
    will not start until a gesture — start() is called from the first tap. */
+/* THE ONSET TIMES, BAKED.
+ *
+ * A recorded cue takes a short bite out of a file that is much longer than the event —
+ * 5.2s of footsteps for one footfall — starting at a hit. AudioManager._onsets() finds
+ * those hits from the waveform's own energy, which needs the file decoded, which needs
+ * fetch + decodeAudioData.
+ *
+ * A file:// page has neither. fetch against file:// is refused outright, so opening
+ * index.html off the disk — which is the supported way to run this game — used to lose
+ * all six delivered recordings and fall back to the synthesised palette without saying
+ * so. The files never change, though, so the analysis does not have to happen at run
+ * time: tools/bake-onsets.mjs runs the game's own _onsets over http once and writes the
+ * numbers in here, and the disk build plays the same bites through <audio> elements,
+ * which need no decoding at all.
+ *
+ * Regenerate with:  node tools/bake-onsets.mjs && node tools/build-bundle.mjs
+ */
+/* BAKED-ONSETS-START */
+export const SFX_HITS = {
+  step: [0.12, 1.28, 2.67, 3.97],
+  jump: [0.2],
+  land: [0.32],
+  wedge: [0.32, 0.74],
+  rumble: [0],
+  ui: [0.01],
+};
+/* BAKED-ONSETS-END */
+
 class AudioManager {
   constructor() { this.ctx = null; this.master = null; this.duck = 1; this.enabled = true; this.streak = 0; }
   start() {
@@ -910,33 +940,45 @@ class AudioManager {
   /** The looping bed. Safe to call twice; does nothing without an AudioContext. */
   startMusic() {
     if (!this.ctx || this.music) return;
-    /* NOT OFF THE DISK. A file:// page is an opaque origin, so routing a media element
-       through the Web Audio graph needs CORS the file scheme cannot satisfy — the
-       element fails with "blocked by CORS policy" and the request shows as
-       net::ERR_FAILED. The try/catch below would swallow it, but the browser has
-       already logged two console errors and burned a request on a 5.5MB file that was
-       never going to arrive.
-
-       There is no fallback for a music bed and none is wanted: the file:// build runs
-       on the synthesised palette with no music, quietly. Served over http:// this
-       branch is never taken. */
-    if (typeof location !== 'undefined' && location.protocol === 'file:') return;
     const M = CFG.music;
     if (!M || !M.src) return;
+
+    /* TWO WAYS TO PLAY THE BED, because off the disk only one of them works.
+     *
+     * The version before this one gave up entirely on file:// and the reasoning was
+     * half right. It IS true that ctx.createMediaElementSource() needs CORS a file://
+     * page cannot satisfy — that call taints the graph and the element goes silent. It
+     * does NOT follow that the music cannot play, and that is the step that was missed:
+     * the AudioContext is only there to give the bed its own fader. An <audio> element
+     * loading a file next to the page plays perfectly well on its own.
+     *
+     * The cost of the shortcut was the whole soundtrack. Anyone opening index.html by
+     * double-clicking it — which is the supported way to run this game — got silence,
+     * with nothing logged to say why.
+     *
+     * So: routed through the graph where that is allowed, and played directly where it
+     * is not. Everything downstream reads this.music.gain being null as "this one is
+     * driven by element volume", so ducking and fading work either way. */
+    const direct = typeof location !== 'undefined' && location.protocol === 'file:';
     try {
       const el = new Audio(M.src);
       el.loop = true;
       el.preload = 'auto';
-      el.crossOrigin = 'anonymous';
-      const src = this.ctx.createMediaElementSource(el);
-      const g = this.ctx.createGain();
-      g.gain.value = 0;                       // faded in below
-      src.connect(g); g.connect(this.master);
-      this.music = { el, gain: g };
+      if (direct) {
+        el.volume = 0;                        // faded in below
+        this.music = { el, gain: null };
+      } else {
+        el.crossOrigin = 'anonymous';
+        const src = this.ctx.createMediaElementSource(el);
+        const g = this.ctx.createGain();
+        g.gain.value = 0;                     // faded in below
+        src.connect(g); g.connect(this.master);
+        this.music = { el, gain: g };
+      }
       // a browser will refuse this until a gesture; start() is called from the first tap
       const p = el.play();
       if (p && p.catch) p.catch(() => {});
-      g.gain.setTargetAtTime(M.gain, this.ctx.currentTime, M.fadeMs / 3000);
+      this._musicTo(M.gain, M.fadeMs);
     } catch (e) {
       this.music = null;                      // never let the bed break the game
     }
@@ -953,7 +995,32 @@ class AudioManager {
        behaviour here; this just stops the game asking for something it cannot have and
        filling the console on the way. */
     if (typeof location !== 'undefined' && location.protocol === 'file:') {
+      /* OFF THE DISK THE RECORDINGS STILL PLAY — they just cannot go through the graph.
+         fetch + decodeAudioData are both refused here, so instead each cue gets a small
+         pool of <audio> elements, which load a neighbouring file perfectly well. A play
+         seeks to a baked hit and stops after the cue's own duration, which is the same
+         bite the decoded path takes; the pool is what lets two footfalls overlap.
+
+         ONE ELEMENT PER CUE, not a pool. A pool of three was tried first, so that two
+         footfalls could overlap — and three elements pointed at the same src start three
+         concurrent loads of the same file, which the browser resolves by ABORTING the
+         redundant ones. That is a real failed request each time, and the disk-build test
+         rightly refuses to pass with any. Overlap is worth very little here anyway: the
+         cues that repeat quickly are footsteps, which are sequential by nature, and a
+         re-triggered footstep restarting is indistinguishable from a new one.
+
+         What is lost against the http build: the per-play pitch jitter (an element has
+         playbackRate but shifting pitch with it is a different effect), sample-accurate
+         scheduling, and overlapping repeats. What is gained is the delivered sound
+         instead of none. */
       this.sfxLoading = true;
+      this.sfxEl = {};
+      for (const [name, cue] of Object.entries(CFG.sfx || {})) {
+        const el = new Audio(cue.src);
+        el.preload = 'auto';
+        el.volume = Math.min(1, cue.gain || 0.5);
+        this.sfxEl[name] = { cue, hits: SFX_HITS[name] || [cue.at || 0], el, next: 0 };
+      }
       return;
     }
     this.sfxLoading = true;
@@ -1012,6 +1079,7 @@ class AudioManager {
 
   /** Play a cue from its file. Returns false if there is no sample for it. */
   _play(name) {
+    if (this.sfxEl && this.sfxEl[name]) return this._playEl(name);
     const s = this.sfx && this.sfx[name];
     if (!s || !this.ctx) return false;
     const { cue, buf, hits } = s;
@@ -1036,6 +1104,29 @@ class AudioManager {
     return true;
   }
 
+  /* One bite from the cue's element. The HIT still round-robins, so a run cycle uses
+     each of the four recorded footsteps in turn rather than the same one over and over —
+     which is most of what the onset slicing was for. */
+  _playEl(name) {
+    const s = this.sfxEl[name];
+    if (!s || !this.enabled) return false;
+    const el = s.el;
+    const at = s.hits[s.next % s.hits.length];
+    s.next++;
+    try {
+      el.currentTime = at;
+      el.volume = Math.min(1, (s.cue.gain || 0.5) * this.duck);
+      const p = el.play();
+      if (p && p.catch) p.catch(() => {});
+      clearTimeout(el.__stop);
+      el.__stop = setTimeout(() => { try { el.pause(); } catch (e) { /* detached */ } },
+                             Math.max(40, s.cue.dur * 1000));
+    } catch (e) {
+      return false;                            // a cue that will not play is not fatal
+    }
+    return true;
+  }
+
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     if (this.music && this.music.el.paused && this.enabled) {
@@ -1043,6 +1134,28 @@ class AudioManager {
       if (p && p.catch) p.catch(() => {});
     }
   }
+  /* THE BED'S LEVEL, for both kinds of music handle. With a gain node it is a smooth
+     ramp on the audio thread; without one there is no such thing for element volume, so
+     it is stepped on a timer — 20 steps is well under what anyone hears as a stair, and
+     the timer is replaced rather than stacked so two overlapping fades cannot fight. */
+  _musicTo(target, ms) {
+    const m = this.music;
+    if (!m) return;
+    if (m.gain) {
+      m.gain.gain.setTargetAtTime(target, this.ctx.currentTime, Math.max(0.02, ms / 3000));
+      return;
+    }
+    clearInterval(this._musicFade);
+    const from = m.el.volume, steps = 20, dt = Math.max(16, ms / steps);
+    let i = 0;
+    this._musicFade = setInterval(() => {
+      i++;
+      const u = i / steps;
+      try { m.el.volume = Math.max(0, Math.min(1, from + (target - from) * u)); } catch (e) { /* detached */ }
+      if (i >= steps) clearInterval(this._musicFade);
+    }, dt);
+  }
+
   setDuck(v) {
     if (!this.master) return;
     const t = this.ctx.currentTime;
@@ -1053,7 +1166,7 @@ class AudioManager {
     if (this.music) {
       const M = CFG.music;
       const want = v >= 1 ? M.gain : M.gain * (M.duck + (1 - M.duck) * v);
-      this.music.gain.gain.setTargetAtTime(want, t, 0.2);
+      this._musicTo(want, 200);
     }
     this.duck = v;
   }
@@ -1099,6 +1212,44 @@ class AudioManager {
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  /* A WOBBLING VOICE — the one thing the palette had no way to make, and the thing
+     cartoon sound is built out of. A second oscillator drives the first one's FREQUENCY
+     rather than its volume, so the pitch itself shakes: that is a boing, a sproing, a
+     rubbery wobble, depending only on how fast and how deep.
+
+     depth is in Hz of swing, rate in Hz of shake. A slide can run underneath it, which
+     is what turns a wobble into a spring landing or a spring launching. */
+  _warble(freq, dur, gain, type, slide, depth, rate, delay) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + (delay || 0);
+    const o = this.ctx.createOscillator(); o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, slide), t + dur);
+    // the shake, decaying with the note so it does not buzz on the tail
+    const lfo = this.ctx.createOscillator(); lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(rate || 14, t);
+    const lg = this.ctx.createGain();
+    lg.gain.setValueAtTime(depth || 40, t);
+    lg.gain.exponentialRampToValueAtTime(0.5, t + dur);
+    lfo.connect(lg); lg.connect(o.frequency);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.05);
+    lfo.start(t); lfo.stop(t + dur + 0.05);
+  }
+
+  /* A SLIDE WHISTLE. A pure tone gliding between two pitches with a breath of noise
+     tracking it — the noise is most of why it reads as a whistle and not as a synth
+     sweep. Up is anticipation, down is something on its way to a comic landing. */
+  _slide(from, to, dur, gain, delay) {
+    this._tone(from, dur, gain, 'sine', to, delay);
+    this._tone(from * 2, dur, gain * 0.18, 'sine', to * 2, delay);   // a little air on top
+    this._noise(dur, from * 1.4, 'bandpass', gain * 0.30, 6, delay, to * 1.4);
+  }
+
   /** A note on the scale, optionally after a delay. Used for every reward. */
   _note(step, dur, gain, type, delay) {
     this._tone(this._hz(step), dur, gain, type || 'triangle', 0, delay);
@@ -1114,11 +1265,16 @@ class AudioManager {
     this._noise(0.075, this._alt ? 1250 : 880, 'bandpass', 0.055, 2.4);
   }
   jump() {
-    if (this._play('jump')) { this._tone(330, 0.17, 0.03, 'triangle', 700); return; }
+    /* The delivered whoosh is the weight and the boing is the comedy; they layer
+       rather than replace, so the jump still sounds like a heavy animal leaving the
+       ground and also like a cartoon. */
+    this.boing();
+    if (this._play('jump')) return;
     this._noise(0.22, 700, 'bandpass', 0.075, 0.9, 0, 2600);   // whoosh up
     this._tone(330, 0.17, 0.05, 'triangle', 700);              // the little "hup"
   }
   land() {
+    this.boingDown();
     if (this._play('land')) return;
     this._noise(0.2, 420, 'lowpass', 0.13, 0.7, 0, 150);
     this._tone(150, 0.13, 0.05, 'sine', 90);
@@ -1132,6 +1288,7 @@ class AudioManager {
     this._tone(190, 0.24, 0.11, 'sine', 84);
     this._tone(96, 0.3, 0.07, 'square', 60);
     this._noise(0.14, 520, 'bandpass', 0.06, 1.1);
+    this.sproing();                       // and it bounces off, because it is a cartoon
   }
   rumble() {
     if (this._play('rumble')) return;
@@ -1182,7 +1339,7 @@ class AudioManager {
   plop() { this.splash(); }
   clunk() { this.wedge(); }
   /** A chunk arriving on its stem. */
-  pop() { this._tone(880, 0.08, 0.03, 'sine', 1320); this._noise(0.07, 2400, 'bandpass', 0.03, 2); }
+  pop() { this.bloop(); }
 
   /* ---- rewards and refusals ---- */
   /** Phase cleared. Climbs the scale on a streak, so getting further sounds better. */
@@ -1218,6 +1375,7 @@ class AudioManager {
   /** The fright, on the frame he sees the hole: a comical woodblock knock plus a
       swallowed squeak sliding DOWN, which is what reads as "oh no" rather than "ta-da". */
   gasp() {
+    this.wobble();                                         // the knees going
     this._tone(880, 0.1, 0.05, 'triangle', 300);           // the squeak, sliding down
     this._noise(0.14, 1600, 'bandpass', 0.05, 3.4);         // the intake of breath
     this._tone(196, 0.16, 0.05, 'sine', 130, 0.05);
@@ -1251,6 +1409,46 @@ class AudioManager {
       this._tone(this._hz(iv + 12), 0.14, 0.038, 'square', 0, i * 0.062);
     });
     this._tone(this._hz(19), 0.42, 0.03, 'triangle', 0, 0.25);
+  }
+  /* ---- the cartoon layer ----
+
+     A note on where these are ALLOWED to fire, because it is a design rule and not a
+     preference: the comedy lands on the WORLD and on the CHARACTER — jumps, bumps,
+     wobbles, things falling in water — and never on the learner being wrong. A sad
+     trombone on a wrong answer is the obvious cartoon joke and it is the one cue this
+     game must not have: the child is the one who was wrong, and a laugh at that moment
+     is a laugh at them. reject() stays the soft two-note nudge it has always been. */
+
+  /** The spring in a cartoon jump: pitch shooting up while it shakes. */
+  boing() {
+    this._warble(210, 0.26, 0.055, 'triangle', 660, 90, 17);
+  }
+  /** Coming down: the same spring, compressing. Under the recorded impact, not over. */
+  boingDown() {
+    this._warble(540, 0.2, 0.04, 'triangle', 170, 70, 19);
+  }
+  /** Bouncing off the rock. A springier, sillier bonk than the thud alone. */
+  sproing() {
+    this._warble(330, 0.42, 0.06, 'triangle', 118, 130, 13);
+    this._warble(660, 0.3, 0.022, 'sine', 240, 80, 21, 0.04);
+  }
+  /** Something on its way down to a comic landing. */
+  slideDown() {
+    this._slide(1250, 250, 0.42, 0.05);
+  }
+  /** A bubble surfacing: the chunk arriving on its rope. */
+  bloop() {
+    this._tone(320, 0.13, 0.05, 'sine', 900);
+    this._noise(0.05, 1800, 'bandpass', 0.025, 3, 0.01);
+  }
+  /** Rubbery: the character wobbling on the spot when the ground scares it. */
+  wobble() {
+    this._warble(150, 0.5, 0.038, 'sine', 128, 26, 8);
+  }
+  /** Skidding to a halt at the edge, feet going nowhere. */
+  skid() {
+    this._noise(0.5, 1750, 'bandpass', 0.06, 9, 0, 620);
+    this._warble(760, 0.46, 0.03, 'sawtooth', 300, 55, 24);
   }
   /** A glint of light, for the sparkle burst. */
   twinkle() {
@@ -3139,7 +3337,7 @@ export function createGame(canvas, hooks = {}) {
     quake(reduced ? 4 : 10, T.breakSkid, BREAK_CRACK);
     const dist = CFG.runSpeed * (BREAK_HOLD + BREAK_SLIDE / (BREAK_K + 1)) / 1000;
     const targetWorldX = G.worldX + dist;
-    brk = { cracked: false, targetWorldX };
+    brk = { cracked: false, skidded: false, targetWorldX };
     // The phase decides how many crevasses open and where. Laying them out here —
     // before the ground gives way — means the collapse drama opens exactly the holes
     // the puzzle is about to ask about, and every one is far too wide to jump.
@@ -3159,6 +3357,7 @@ export function createGame(canvas, hooks = {}) {
     } else {
       const u = clamp((G.st - BREAK_HOLD) / BREAK_SLIDE, 0, 1);
       G.speedFactor = Math.pow(1 - u, BREAK_K);
+      if (!brk.skidded) { brk.skidded = true; audio.skid(); }
       mammoth.setState('SKID_STOP');
       mammoth.setSkidProgress(u);
     }
@@ -3574,6 +3773,7 @@ export function createGame(canvas, hooks = {}) {
     sh.vx = clamp((sh.socket.x - sh.x) / Math.sqrt(2 * drop / L1_GRAV), -1400, 1400);
     // correct: fall -> wedge.  wrong: fall -> splash -> gone
     sh.phaseName = 'fall';
+    if (!sh.correct) audio.slideDown();
     G.attempts++;
     if (sh.correct) setState('PHASE_SUCCESS');
     else setState('PHASE_WRONG');
@@ -6061,6 +6261,9 @@ export function createGame(canvas, hooks = {}) {
        that can stall the game rather than merely look wrong, so its tests have to be
        able to fire a hold and a punch directly — including several on one frame —
        instead of waiting for an impact to happen and hoping to catch the frame. */
+    /* The decoded sfx table, so tools/bake-onsets.mjs can read the hit times the
+       waveform analysis found and write them into the config — see that file. */
+    _sfxTable: () => audio.sfx,
     _hitStop: ms => hitStop(ms),
     _punch: (amp, ms, x, y) => punch(amp, ms, x, y),
     _juice: () => CFG.juice,

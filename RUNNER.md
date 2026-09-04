@@ -404,6 +404,79 @@ Two rules this layer holds to, and a brief can rely on:
 
 `?reduced=1` (and the OS reduced-motion setting) scales all of it down.
 
+### 9b. The cartoon sound layer
+
+Added 2026-09-04. Two new synth voices, and seven cues built on them. All synthesised —
+nothing new to download, and the file:// build keeps every one of them.
+
+| voice | what it does |
+|---|---|
+| `_warble(freq, dur, gain, type, slide, depth, rate)` | a second oscillator drives the first one's FREQUENCY, so the pitch itself shakes. This is what a boing is. |
+| `_slide(from, to, dur, gain)` | a tone gliding between two pitches with a breath of noise tracking it — the noise is most of why it reads as a whistle rather than a synth sweep. |
+
+| cue | where |
+|---|---|
+| `boing` / `boingDown` | under the delivered whoosh on take-off, under the delivered impact on landing |
+| `sproing` | after `bonk` — it bounces off the rock |
+| `skid` | the frame the feet start losing the fight at the edge |
+| `slideDown` | a WRONG chunk beginning its fall |
+| `bloop` | a chunk arriving on its rope (`pop` is now this) |
+| `wobble` | folded into `gasp` — the knees going when the ground fails |
+
+**The rule that decides where a comedy cue may fire.** It lands on the WORLD and on the
+CHARACTER — jumps, bumps, wobbles, things falling in water — and **never on the learner
+being wrong**. A sad trombone on a wrong answer is the obvious cartoon joke and it is the
+one cue this game must not have: the child is the one who was wrong, and a laugh at that
+moment is a laugh at them. `reject()` stays the soft two-note nudge it has always been,
+and `slideDown` is a joke about a lump of ice belly-flopping, not about the answer.
+
+**Layered, never substituted.** Every delivered recording still plays. `jump()` fires the
+boing and then the whoosh, so the jump sounds like a heavy animal leaving the ground AND
+like a cartoon. The one replacement is `pop` → `bloop`, both synthesised.
+
+Measured live with the audio graph tapped: 28 cues, none silent, no errors; the music bed
+running and looping.
+
+---
+
+### 9c. Sound off the disk
+
+The game is meant to run by opening `index.html`, and until now that build had **no music
+and none of the six delivered recordings** — silently, with nothing logged to say why.
+
+Both came from the same assumption. `ctx.createMediaElementSource()` and
+`fetch` + `decodeAudioData` genuinely do not work on a `file://` page, so both were
+skipped there. But neither is required to play a sound: an `<audio>` element loading a
+file next to the page plays perfectly well. The AudioContext was only ever there to give
+the bed its own fader and to let a cue be sliced sample-accurately.
+
+| | over `http://` | off the disk |
+|---|---|---|
+| music | routed through a gain node on the master bus | the element plays directly; `_musicTo()` steps `el.volume` instead |
+| recordings | decoded once, sliced with `start(t, at, dur)` | one `<audio>` per cue, seeking to a baked hit, stopped on a timer |
+| onsets | found at load from the waveform's energy | read from `SFX_HITS`, baked by `tools/bake-onsets.mjs` |
+
+`SFX_HITS` sits between `/* BAKED-ONSETS-START */` and `/* BAKED-ONSETS-END */`.
+Regenerate it whenever an audio file changes:
+
+    node tools/bake-onsets.mjs && node tools/build-bundle.mjs
+
+**One element per cue, not a pool.** Three elements pointed at one `src` start three
+concurrent loads of the same file, and the browser resolves that by ABORTING the
+redundant ones — a real failed request each time, which the disk-build test rightly
+refuses to pass with. Overlap is worth little here: the cue that repeats quickly is
+footsteps, which are sequential anyway.
+
+**What the disk build gives up:** per-play pitch jitter (an element's `playbackRate`
+shifts pitch, which is a different effect), sample-accurate scheduling, and overlapping
+repeats. What it gains is the delivered sound instead of none.
+
+Verified off the disk: music playing at 0.17, all six recordings seeking to their baked
+hits, no page or console errors. Verified over http: all six still decoded and played
+through the graph, unchanged.
+
+---
+
 ### 9a. The impact layer — hit-stop, punch, tokens
 
 Added 2026-09-04. The comedy layer above is about the CHARACTER; this is about what
