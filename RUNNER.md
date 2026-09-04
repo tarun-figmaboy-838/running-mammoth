@@ -910,3 +910,9 @@ once from one place; kit cues fall back to the local palette only when the kit i
 - **Day to night.** `light()` lit the scene from the *destination* sky on the first frame of
   a crossfade (it read `index`, which moves at fade start) — a visible pop at dusk→night.
   It now lights from the outgoing sky and crosses with the picture; the fade is 4.2 s.
+
+**The fit chord is one sound in every level.** `audio.fit()` fires on every right landing:
+the kit's `correct` at pitch 1 with jitter off, under the kit's thud (also jitter off). The
+phase-done moment is `levelUp` and the journey's end `powerUp`, so neither is mistaken for
+the fit. Before: the chord fired only at phase-done, rose in pitch with the phase number,
+and carried the kit's ±5 % jitter — three reasons it was heard as different per level.

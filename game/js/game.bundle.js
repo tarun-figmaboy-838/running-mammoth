@@ -2383,7 +2383,7 @@ class AudioManager {
 
   /* ---- the puzzle ---- */
   slice() {
-    if (this.kit('slice')) return;
+    if (this.kit('slice', { vary: 0 })) return;          // the same snip every time
     // cutting the icicle stem: a bright shing, then the stem giving way
     this._noise(0.1, 6200, 'highpass', 0.11, 0.9);
     this._tone(1560, 0.09, 0.04, 'triangle', 2400);
@@ -2398,10 +2398,8 @@ class AudioManager {
        of a session often sounded different from the second, reported as the fit sound
        'not being constant'. The kit's thud is synthesised, so it is always there and
        always the same; the recording is layered under it when it is ready, for body. */
-    this.kit('land', { pitch: 0.72, volume: 0.9 });
+    this.kit('land', { pitch: 0.72, volume: 0.9, vary: 0 });   // vary 0: identical every time
     this._play('wedge');
-    this._note(0, 0.2, 0.05);
-    this._note(4, 0.24, 0.045, 'triangle', 0.09);
   }
   /** The ice bridging out and closing over: a rising frost shimmer. */
   seal() {
@@ -2427,8 +2425,18 @@ class AudioManager {
 
   /* ---- rewards and refusals ---- */
   /** Phase cleared. Climbs the scale on a streak, so getting further sounds better. */
-  success(streak) {
-    if (this.kit('correct', { pitch: 1 + Math.min(4, streak || 0) * 0.06 })) return;
+  /* THE FIT — the right answer landing. ONE sound, IDENTICAL in every phase: the kit's
+     'correct' at a fixed pitch with the jitter off. It used to be the phase-done chord
+     with a pitch that rose with the phase number and the kit's +/-5% jitter on top, and
+     in the three-answer phases the first two fits got no chord at all — three reasons the
+     fit did not sound the same from level to level. */
+  fit() {
+    if (this.kit('correct', { pitch: 1, vary: 0 })) return;
+    this._note(0, 0.2, 0.05); this._note(4, 0.24, 0.045, 'triangle', 0.09);
+  }
+  /** The whole phase mended: a level-up, distinct from the per-fit chord. */
+  success(streak = 0) {
+    if (this.kit('levelUp', { vary: 0 })) return;
     const s = clamp(streak === undefined ? this.streak : streak, 0, 5);
     this.streak = s + 1;
     const base = s;
@@ -2452,7 +2460,7 @@ class AudioManager {
     this._noise(0.05, 3000, 'bandpass', 0.03, 2);
   }
   swap() { this._noise(0.24, 900, 'bandpass', 0.06, 0.9, 0, 3200); this._note(5, 0.18, 0.04); }
-  fanfare() { if (this.kit('levelUp')) return; [0, 4, 7, 9, 12].forEach((iv, i) => this._note(iv, 0.4, 0.05, 'triangle', i * 0.08)); }
+  fanfare() { if (this.kit('powerUp', { vary: 0 })) return; [0, 4, 7, 9, 12].forEach((iv, i) => this._note(iv, 0.4, 0.05, 'triangle', i * 0.08)); }
 
   /* ---- the comedy ----
      Four cues for the cartoon reactions. All synthesised: they are small, they have
@@ -5645,6 +5653,7 @@ function createGame(canvas, hooks = {}) {
     sh.rot = 0;
     sh.phaseName = 'settle'; sh.impact = 1;
     audio.wedge();
+    audio.fit();                        // the same chord for every right answer, in every level
     L.filled = sh; L.sealT = 0;
     particles.frost(sh.x, CFG.surfaceY, 6);
     particles.poof(sh.x, CFG.surfaceY, 6, 1.25);
@@ -6150,20 +6159,20 @@ function createGame(canvas, hooks = {}) {
   function drawDazeStars(ctx) {
     if (!mammoth.koStars || mammoth.state !== 'KNOCKOUT') return;
     const t = mammoth.t;
-    const u = clamp((t - 1.0) * 3, 0, 1);
+    const u = clamp((t - 0.55) * 2.6, 0, 1);            // from the tumble, so they are seen at once
     if (u <= 0.01) return;
-    const pop = 1 + Math.sin(u * Math.PI) * 0.35;
+    const pop = 1 + Math.sin(u * Math.PI) * 0.5;
     const cx = CFG.mammothX - (mammoth.knock || 0) - 60;
-    const cy = CFG.surfaceY - 310 + Math.sin(t * 2.2) * 4;   // the loop hovers over his crown, clear of his eyes
-    const RX = 96, RY = 26, STARS = 4, spin = t * 3.2;
+    const cy = CFG.surfaceY - 345 + Math.sin(t * 2.2) * 4;   // the loop hovers over his crown, clear of his eyes
+    const RX = 112, RY = 30, STARS = 5, spin = t * 3.8;
     ctx.save();
     ctx.globalAlpha = u;
     // the loop itself, dashed and running, tilted a touch like a halo knocked askew
     ctx.save();
     ctx.translate(cx, cy); ctx.rotate(-0.12);
     ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 140;
-    ctx.shadowColor = 'rgba(255,204,84,0.95)'; ctx.shadowBlur = 14;
-    ctx.lineCap = 'round'; ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(255,232,150,0.95)';
+    ctx.shadowColor = 'rgba(255,204,84,1)'; ctx.shadowBlur = 22;
+    ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(255,236,160,0.98)';
     ctx.beginPath(); ctx.ellipse(0, 0, RX, RY, 0, 0, 6.2832); ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.setLineDash([]);
@@ -6172,20 +6181,20 @@ function createGame(canvas, hooks = {}) {
       const a = spin + (i / STARS) * 6.2832;
       const x = cx + Math.cos(a) * RX, y = cy + Math.sin(a) * RY;
       const depth = (Math.sin(a) + 1) / 2;                 // 1 at the front of the loop
-      const sc = (0.68 + 0.5 * depth) * pop;
+      const sc = (0.8 + 0.6 * depth) * pop;
       ctx.save();
-      ctx.translate(x, y); ctx.scale(sc, sc); ctx.rotate(a * 0.8);
+      ctx.translate(x, y); ctx.scale(sc, sc); ctx.rotate(t * 2.6 + i);   // each star spins on its own
       ctx.beginPath();
       for (let k = 0; k < 5; k++) {
         const o = (k / 5) * 6.2832 - Math.PI / 2, i2 = o + 6.2832 / 10;
-        ctx.lineTo(Math.cos(o) * 26, Math.sin(o) * 26);
-        ctx.lineTo(Math.cos(i2) * 11, Math.sin(i2) * 11);
+        ctx.lineTo(Math.cos(o) * 32, Math.sin(o) * 32);
+        ctx.lineTo(Math.cos(i2) * 14, Math.sin(i2) * 14);
       }
       ctx.closePath();
-      const g = ctx.createLinearGradient(0, -26, 0, 26);
+      const g = ctx.createLinearGradient(0, -32, 0, 32);
       g.addColorStop(0, '#FFF6C4'); g.addColorStop(1, '#F7B733');
       // the glow: the star's own light, drawn twice so the halo is wide and the core bright
-      ctx.shadowColor = 'rgba(255,196,64,0.9)'; ctx.shadowBlur = 26; ctx.fillStyle = g; ctx.fill();
+      ctx.shadowColor = 'rgba(255,190,50,1)'; ctx.shadowBlur = 38; ctx.fillStyle = g; ctx.fill();
       ctx.shadowBlur = 9; ctx.fill();
       ctx.shadowBlur = 0;
       ctx.restore();
