@@ -269,14 +269,33 @@ test('tapping the mammoth reacts, and changes nothing', async ({ page }) => {
     const r = document.querySelector('#game-canvas').getBoundingClientRect();
     return { x: r.x + 430 / 1920 * r.width, y: r.y + 700 / 1080 * r.height };
   });
+  /* THE PEAK, NOT A SNAPSHOT — and stop fast-forwarding first.
+   *
+   * hop and scare are both DECAYING values, so what is being asserted is that they
+   * were raised at all. Reading them once after a fixed 60ms wall-clock wait measured
+   * something else entirely: with ?fast=4 each rendered frame advances four capped dt
+   * steps, so on a slow renderer a single frame burns ~130ms of GAME time and the whole
+   * reaction can be over before the read. It passed for months and then failed under
+   * parallel load, reporting that the character had not reacted when it plainly had.
+   *
+   * So: back to real time for the poke, because the decay is the thing being watched
+   * and fast-forwarding it is actively wrong here; and take the maximum over a few
+   * frames rather than one sample, which is what "he reacted" actually means. */
+  await page.evaluate(() => window.iceAgeGame.setOptions({ fast: 1 }));
   await page.mouse.click(pt.x, pt.y);
-  await page.waitForTimeout(60);
-  const after = await page.evaluate(() => {
-    const G = window.iceAgeGame.debug();
-    const p = window.iceAgeGame._player();
+  const after = await page.evaluate(async () => {
+    const g = window.iceAgeGame;
+    let hop = 0, scare = 0;
+    for (let i = 0; i < 8; i++) {
+      const p = g._player();
+      hop = Math.max(hop, p.hop);
+      scare = Math.max(scare, p.scare);
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    const G = g.debug();
     return {
       state: G.state, phase: G.phase, unfilled: G.l1.unfilled.length,
-      hop: +p.hop.toFixed(2), scare: +p.scare.toFixed(3)
+      hop: +hop.toFixed(2), scare: +scare.toFixed(3)
     };
   });
   console.log('POKE', JSON.stringify(before), '->', JSON.stringify(after));
