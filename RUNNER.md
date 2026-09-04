@@ -891,3 +891,22 @@ Every cue was traced from its trigger to the speaker. Two faults, both fixed:
 Checked and sound: `bonk()` has two call sites but they are mutually exclusive (the
 three-strike branch returns); jump/land/step/skid/slice/reject/splash/success each fire
 once from one place; kit cues fall back to the local palette only when the kit is absent.
+
+### The undercut, the far wall, the swirl, the sky
+
+- **The crevasse is undercut.** The opening at the surface — the neck — is exactly the plug's
+  width (`g.throat`); from `throatDepth` the walls curl out to the void, 1.6× wider. So the
+  gap reads big (a wide dark chasm under overhanging lips) and the answer's flat edge spans
+  the opening exactly, resting on the lips, seated 9 px proud (`PLUG_SINK = -9`) so its edge
+  covers the neck's shallow chew (`-9..-2`). Nothing is drawn over or around it: the deck,
+  the snow band, the ice collar and the shoulder rubble are all gone. The caps stand at the
+  neck lips.
+- **The interior has a far wall.** The rock band is tiled across the whole hole
+  (`_backArt`), pulled back into the blue and darkening with depth, under the snow
+  overhang's shadow, with mist off the water; the side walls sit in front, brighter. A flat
+  gradient between the walls was the "cut-out" look.
+- **The dizzy swirl** is a running dashed loop over the crown with four fat keylined gold
+  stars, riding it bigger in front and smaller behind, popping in once he is sitting.
+- **Day to night.** `light()` lit the scene from the *destination* sky on the first frame of
+  a crossfade (it read `index`, which moves at fade start) — a visible pop at dusk→night.
+  It now lights from the outgoing sky and crosses with the picture; the fade is 4.2 s.

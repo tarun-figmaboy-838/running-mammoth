@@ -290,7 +290,7 @@ export const CFG = {
        has. curriculum.spec asserts that clearance directly. */
     breakSkid: 1400, levelIntro: 420, shapeDrop: 560,
     focus: 500, split: 280, fly: 820,
-    celebrate: 700, holdRepair: 500, crossfade: 1500,
+    celebrate: 700, holdRepair: 500, crossfade: 4200,   // a sky change is a slow thing; 1500 read as a cut
     // the instruction holds the stage alone before the options come down
     /* HOW LONG THE SENTENCE OWNS THE STAGE, and it is a reading time rather than a
        beat. "Cut the shape with 5 sides" is six words; a child reading at two to three
@@ -422,9 +422,9 @@ export const CFG = {
        and what the platform art is cut back to, is `mouth` times the plug width; the
        THROAT, `throatDepth` below the walking line, is plug width minus the bearing,
        and that is where the answer wedges. The deck then closes the mouth over it.
-       1.6 takes a 3-option phase from 229 to about 366px across. The wedge between mouth
-       and throat on each side is closed, once mended, by an ice collar drawn BEHIND the
-       plug (drawCrossingCollar) — the slab's own flared shoulders, nothing laid over it. */
+       1.6 makes the VOID under a 3-option crossing about 366px across under a 229px neck. The rest
+       of the shape is the overhang: from throatDepth the walls curl out to the void.
+       Nothing is drawn around the plug; its flat edge spans the neck (see _ditchPath). */
     mouth: 1.6,
     throatDepth: 36,
     /* How far past the character the near lip opens — and, because the option row is
@@ -2129,7 +2129,14 @@ class BackgroundTimeManager {
   /** The colour and strength of the sky's light right now, crossfade included, so
       anything drawn over the sky can be lit by it instead of guessing. */
   light() {
-    const A = CFG.phases[this.index];
+    /* LIT FROM THE SKY THAT IS STILL SHOWING. `index` is moved to the NEW phase the moment
+       a crossfade begins, so reading A off it lit everything with the destination sky's
+       light on the first frame of the fade — at dusk->night the fog, clouds and frost
+       dropped to night's 0.34 dim in one frame while the picture behind them was still
+       dusk, then the two lerp arguments were identical for the rest of the fade. That
+       was the pop in the day-to-night change. A is the OUTGOING sky (`this.a`); B the
+       incoming; the light crosses with the picture. */
+    const A = CFG.phases.find(q => q.key === this.a) || CFG.phases[this.index];
     const B = this.b ? CFG.phases.find(q => q.key === this.b) : null;
     const la = A.light || [255, 255, 255], da = A.dim === undefined ? 1 : A.dim;
     if (!B) return { c: la, dim: da };
@@ -3020,7 +3027,10 @@ class GroundManager {
          The old range was -9..+21, so most of the span sat below the line. Now it is
          -15..-2: always above it, so the fringe is always clipped away, and the lip
          still varies enough to read as broken rather than as a ruled edge. */
-      return { u, dy: edge < 0.05 ? -3 - rnd() * 4 : -15 + rnd() * 13 };
+      /* -9..-2 across the neck (was -15..-2): the plug now seats 9px proud of the walking
+         line so its own edge covers this chew — a deeper bite showed as a dark sliver
+         above the answer. Still always ABOVE surfaceY, which is load-bearing: see above. */
+      return { u, dy: edge < 0.05 ? -3 - rnd() * 4 : -9 + rnd() * 7 };
     });
     /* THIRTEEN POINTS WITH ROCK-SCALE JITTER, not seven on a smooth curve. The wall is
        stacked boulders now, and a boulder wall has no smooth line down it: each course
@@ -3040,36 +3050,39 @@ class GroundManager {
     const pr = this._profile(g);
     const w = x1 - x0, y0 = CFG.surfaceY, yB = CFG.H + 80, span = yB - y0;
     const p = new Path2D();
-    p.moveTo(x0, y0 + pr.top[0].dy);
-    /* THE TOP EDGE IS CURVED, not a polyline. Twenty-two straight segments with up to
-       30px of vertical jitter drew a hard zigzag — the mouth of the crevasse read as a
-       low-poly mountain range, which is the one silhouette in the game that had to look
-       like BROKEN ICE. Running a quadratic through the midpoints keeps exactly the same
-       profile data and the same lips, and turns every corner into a rounded bite. */
+    /* AN UNDERCUT, which is the one shape that lets the gap be BIG and the plug fit it
+       with nothing added. The plug cannot be wider than about 243 (see §10), so the
+       OPENING at the surface is plug-wide — the neck, `g.throat` — and the size lives
+       BELOW: from `throatDepth` down the walls flare out to the full width of the
+       record (the void), so the lips overhang a wide dark chasm. The plug's flat edge
+       spans the neck exactly, resting on the lips by the bearing, and nothing has to
+       be drawn over it. A wide MOUTH with the plug in a narrower throat was the
+       previous shape; it needed an ice collar to close the shoulders, and the collar
+       read as snow laid over the answer. */
+    const mk = g && g.throat ? (g.x1 - g.x0) / g.throat : 1;
+    const ins = mk > 1 ? w * (1 - 1 / mk) / 2 : 0;          // half the overhang, each side
+    const T = CFG.levelOne.throatDepth || 0, tv = span > 0 ? (T + 60) / span : 0;
+    const nx0 = x0 + ins, nx1 = x1 - ins, nw = nx1 - nx0;     // the neck
+    p.moveTo(nx0, y0 + pr.top[0].dy);
+    /* THE TOP EDGE IS CURVED, not a polyline — a quadratic through the midpoints of the
+       chewed profile turns every corner into a rounded bite. It runs across the neck. */
     for (let i = 0; i < pr.top.length - 1; i++) {
       const a = pr.top[i], b = pr.top[i + 1];
-      const ax = x0 + w * a.u, bx = x0 + w * b.u;
+      const ax = nx0 + nw * a.u, bx = nx0 + nw * b.u;
       p.quadraticCurveTo(ax, y0 + a.dy, (ax + bx) / 2, y0 + (a.dy + b.dy) / 2);
     }
-    {
-      const last = pr.top[pr.top.length - 1];
-      p.lineTo(x0 + w * last.u, y0 + last.dy);
-    }
-    /* THE WALLS STEP IN. From the lip the wall runs down a short shoulder to the
-       throat, `ins` inside the mouth on each side, and only then follows the old
-       pinch profile down to the water. `ins` is a fraction of the animated width, so
-       the throat opens with the mouth as the crevasse cracks open. */
-    const mk = g && g.throat ? (g.x1 - g.x0) / g.throat : 1;
-    const ins = mk > 1 ? w * (1 - 1 / mk) / 2 : 0;
-    const T = CFG.levelOne.throatDepth || 0, tv = span > 0 ? T / span : 0;   // module scope: L1 lives inside createGame
-    p.lineTo(x1, y0);
-    if (ins > 0) p.quadraticCurveTo(x1 - ins * 0.1, y0 + T * 0.95, x1 - ins, y0 + T);   // a rounded shoulder, not a step
-    for (const q of pr.R) if (q.v > tv) p.lineTo(x1 - ins - w * q.f, y0 + span * q.v);
-    p.lineTo(x1 - ins, yB);
-    p.lineTo(x0 + ins, yB);
-    for (let i = pr.L.length - 1; i >= 0; i--) { const q = pr.L[i]; if (q.v > tv) p.lineTo(x0 + ins + w * q.f, y0 + span * q.v); }
-    if (ins > 0) { p.lineTo(x0 + ins, y0 + T); p.quadraticCurveTo(x0 + ins * 0.1, y0 + T * 0.95, x0, y0); }
-    else p.lineTo(x0, y0);
+    { const last = pr.top[pr.top.length - 1]; p.lineTo(nx0 + nw * last.u, y0 + last.dy); }
+    // right side: down the neck, then the overhang curls out to the void wall
+    p.lineTo(nx1, y0);
+    p.lineTo(nx1, y0 + T);
+    if (ins > 0) p.quadraticCurveTo(nx1 + ins * 0.15, y0 + T + 52, x1, y0 + T + 60);
+    for (const q of pr.R) if (q.v > tv) p.lineTo(x1 - w * q.f, y0 + span * q.v);
+    p.lineTo(x1, yB);
+    p.lineTo(x0, yB);
+    for (let i = pr.L.length - 1; i >= 0; i--) { const q = pr.L[i]; if (q.v > tv) p.lineTo(x0 + w * q.f, y0 + span * q.v); }
+    if (ins > 0) p.quadraticCurveTo(nx0 - ins * 0.15, y0 + T + 52, nx0, y0 + T);
+    else p.lineTo(nx0, y0 + T);
+    p.lineTo(nx0, y0);
     p.closePath();
     return p;
   }
@@ -3128,6 +3141,20 @@ class GroundManager {
          something, and the something has to be visible in its walls. Each wall takes
          at most 38% of the width, so the middle stays dark and deep; its inner edge is
          the boulders' own silhouettes, not a straight line. */
+      /* THE FAR WALL. Between the two side walls there used to be nothing but the
+         gradient above — most of the mouth was one flat colour, and a flat colour with
+         soft edges is exactly what a hole cut out of a picture looks like. A crack has
+         a back: you look INTO it and see stone all the way across. So the same rock
+         band is tiled across the whole interior first, smaller and pulled toward the
+         dark so it reads as farther away, with the shadow of the snow overhang laid
+         under the lip. The side walls then sit in front of it, brighter and closer. */
+      const back = this._backArt(Math.round(w / 24) * 24);
+      if (back) {
+        ctx.drawImage(back.canvas, 0, 0, back.w, back.h, Math.round(x0 - 8), CFG.surfaceY - 24, Math.round(w + 16), back.h);
+        const sh = ctx.createLinearGradient(0, CFG.surfaceY - 24, 0, CFG.surfaceY + 70);
+        sh.addColorStop(0, 'rgba(3,16,38,0.72)'); sh.addColorStop(1, 'rgba(3,16,38,0)');
+        ctx.fillStyle = sh; ctx.fillRect(x0 - 8, CFG.surfaceY - 24, w + 16, 94);
+      }
       const wallW = Math.round(Math.min(150, Math.max(56, w * 0.38)));
       const wl = this._wallArt('l', wallW), wr = this._wallArt('r', wallW);
       if (wl && wr) {
@@ -3139,25 +3166,12 @@ class GroundManager {
         ctx.drawImage(wr.canvas, 0, top);
         ctx.restore();
       }
-      /* RUBBLE ON THE SHOULDERS — a small snow-capped chunk from the same sheet on each
-         shelf between the mouth and the throat, so the shelf reads as broken ice that
-         fell in rather than as a cut step. Inside the clip, so nothing shows outside the
-         hole; mirrored on the right. Picked by the gap's position so it never flickers. */
-      const rb = this.rubble || [];
-      const mkR = s.g.throat ? (s.x1 - s.x0) / s.g.throat : 1;
-      const insR = mkR > 1 ? w * (1 - 1 / mkR) / 2 : 0;
-      if (rb.length && insR > 22) {
-        const T = CFG.levelOne.throatDepth || 30;
-        for (let side = 0; side < 2; side++) {
-          const img = rb[(side + Math.abs(Math.round(s.g.x0 / 97))) % rb.length];
-          const rw = Math.min(insR * 1.3, 110), rh = rw * img.height / img.width;
-          const lipX = side === 0 ? x0 : x1;
-          ctx.save();
-          if (side === 1) { ctx.translate(lipX, 0); ctx.scale(-1, 1); ctx.translate(-lipX, 0); }
-          ctx.drawImage(img, lipX - rw * 0.12, CFG.surfaceY + T - rh * 0.9, rw, rh);
-          ctx.restore();
-        }
-      }
+      /* MIST off the melt water, thickening toward the bottom. Depth reads as loss of
+         contrast with distance; the stone lower down fades into cold haze the way the
+         bottom of a real crevasse does, and it is what makes the drop read as deep. */
+      const mist = ctx.createLinearGradient(0, wy - 150, 0, wy + 10);
+      mist.addColorStop(0, 'rgba(176,222,246,0)'); mist.addColorStop(0.7, 'rgba(176,222,246,0.28)'); mist.addColorStop(1, 'rgba(196,232,250,0.5)');
+      ctx.fillStyle = mist; ctx.fillRect(x0 - 8, wy - 150, w + 16, 160);
 
       /* THE FAR WALL — FEWER, BIGGER, SOFTER.
 
@@ -3545,8 +3559,11 @@ class GroundManager {
       if (w <= 1) continue;
       const cx = (s.x0 + s.x1) / 2;
       if (!this.caps || !this.caps.l || !this.caps.r) continue;   // art is awaited before play; this is belt and braces
-      this.drawCap(ctx, cx - w / 2, 1, s.g.open);
-      this.drawCap(ctx, cx + w / 2, -1, s.g.open);
+      // at the NECK — the opening the plug fits — not at the extent of the void beneath
+      const mk = s.g.throat ? (s.x1 - s.x0) / s.g.throat : 1;
+      const ins = mk > 1 ? w * (1 - 1 / mk) / 2 : 0;
+      this.drawCap(ctx, cx - w / 2 + ins, 1, s.g.open);
+      this.drawCap(ctx, cx + w / 2 - ins, -1, s.g.open);
     }
   }
 
@@ -3576,6 +3593,44 @@ class GroundManager {
      never a straight cut: a straight inner edge was the cut-out look this replaces.
      Built for the LEFT wall; the right wall is a second seed drawn mirrored. Keyed on
      width so every mouth size gets its own column. */
+  /* THE FAR WALL, cached per mouth width: the rock band tiled across the whole interior
+     at 0.72 of the caps' scale (farther away), rows shifted and alternately mirrored,
+     then pulled toward the crevasse's dark blue so the side walls in front read as
+     nearer. Darker toward the bottom, where the mist takes over. */
+  _backArt(ww) {
+    const band = this.rockBand;
+    if (!band || ww < 8) return null;
+    const H = Math.round(CFG.H + 60 - CFG.surfaceY);
+    const key = 'back:' + ww;
+    this._wallCache = this._wallCache || {};
+    if (this._wallCache[key]) return this._wallCache[key];
+    const c = document.createElement('canvas');
+    c.width = ww + 16; c.height = H;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    let seed = 4241;
+    const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const C = GroundManager.CAP;
+    const k = 0.72 * (this.contentY - CFG.surfaceY) / (C.rockEnd - C.snowTop);
+    const rowH = Math.max(20, Math.round(band.height * k)), rowW = Math.round(band.width * k);
+    for (let y = -Math.round(rnd() * rowH), row = 0; y < H; y += rowH - 4, row++) {
+      for (let x = -Math.round(rnd() * rowW); x < c.width; x += rowW - 4) {
+        g.save();
+        if (row & 1) { g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(band, c.width - x - rowW, y, rowW, rowH); }
+        else g.drawImage(band, x, y, rowW, rowH);
+        g.restore();
+      }
+    }
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(12,44,80,0.78)'; g.fillRect(0, 0, c.width, H);      // pushed well back into the blue: it is the FAR wall
+    const dk = g.createLinearGradient(0, 0, 0, H);
+    dk.addColorStop(0, 'rgba(4,18,40,0.3)'); dk.addColorStop(0.55, 'rgba(4,18,40,0.6)'); dk.addColorStop(1, 'rgba(4,18,40,0.9)');
+    g.fillStyle = dk; g.fillRect(0, 0, c.width, H);
+    g.globalCompositeOperation = 'source-over';
+    const art = { canvas: c, w: c.width, h: H };
+    this._wallCache[key] = art;
+    return art;
+  }
   _wallArt(side, ww) {
     const band = this.rockBand;
     if (!band) return null;
@@ -4073,8 +4128,7 @@ export function createGame(canvas, hooks = {}) {
     jobs.push(loadImg('assets/env/cap-r.webp').then(i => { images.capR = i; }));
     // the platform's own stone base, cut from the same sheet: the crevasse walls are tiled from it
     jobs.push(loadImg('assets/env/rock-band.webp').then(i => { images.rockBand = i; }));
-    // two small snow-capped chunks off the same sheet: the rubble on a crevasse's shoulders
-    for (let r = 1; r <= 2; r++) jobs.push(loadImg('assets/env/rubble-' + r + '.webp').then(img => { (images.rubble = images.rubble || [])[r - 1] = img; }));
+
     /* THE FRIEND AT THE END. Loaded with the world rather than with the character
        sheets: he is scenery that happens to be a character, he has no animation and no
        states, and putting him in CFG.characters would make him look like something the
@@ -5166,45 +5220,12 @@ export function createGame(canvas, hooks = {}) {
      slab's own flared ends, so nothing is laid over the answer. A 30px sink with a deck
      and a snow band on top was tried and asked to go: it hid the top of the shape and
      the snow strip read as interface. */
-  const PLUG_SINK = 0;
+  /* -9: the plug seats a little PROUD of the walking line, so its flat edge covers the
+     chewed top edge of the neck (which reaches 9px above the line — see _profile). At 0
+     a dark sliver of hole showed between the snow and the answer. A wedged slab standing
+     a hair above the ice is also what a wedged slab looks like. */
+  const PLUG_SINK = -9;
 
-  /* THE COLLAR — the flared shoulders of the wedged slab. The hole's mouth is wider than
-     its throat (L1.mouth); once the crossing is mended, the wedge between each lip and
-     the throat wall is ice, grown in from the lip as the bridge closes (g.bridge), in the
-     plug's own colours — so the whole thing reads as one slab flaring out to meet the
-     cliffs. Drawn BEFORE the keystones, so the shape the learner cut sits on top, whole
-     and countable. It reaches only a few pixels past the throat depth: below that the
-     region beside the throat is platform, already painted. */
-  function drawCrossingCollar(ctx, g) {
-    const e = easeOut(g.bridge);
-    if (e <= 0.01) return;
-    const gx0 = g.x0 - G.worldX, gx1 = g.x1 - G.worldX;
-    const mouth = gx1 - gx0, th = g.throat || mouth;
-    if (mouth - th < 2) return;
-    const T = L1.throatDepth || 0, y = CFG.surfaceY;
-    ctx.save();
-    /* ONLY INSIDE THE HOLE. Clipped to the crevasse outline, so the collar can never
-       show on the platform — the first version reached 6px onto the snow at each lip
-       and read as two little tabs stuck to the edge. Inside the clip it fills the whole
-       strip between the chewed top edge and the throat, which also closes the dark
-       band that showed above the plug's top edge. */
-    ctx.clip(ground._ditchPath(gx0, gx1, g));
-    const fill = ctx.createLinearGradient(0, y - 20, 0, y + T + 8);
-    fill.addColorStop(0, '#DDF4FF'); fill.addColorStop(0.45, '#A6DFF8');
-    fill.addColorStop(0.85, '#62BBE6'); fill.addColorStop(1, '#2F86B8');
-    ctx.fillStyle = fill;
-    // grown in from both lips; at e = 1 the two halves meet under the plug
-    const half = (mouth / 2) * e;
-    ctx.fillRect(gx0 - 10, y - 30, half + 10, T + 36);
-    ctx.fillRect(gx1 - half, y - 30, half + 10, T + 36);
-    // a cold line along the underside, where the ice shelf meets the dark
-    ctx.strokeStyle = 'rgba(24,96,148,0.5)'; ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(gx0 - 10, y + T + 5); ctx.lineTo(gx0 + half, y + T + 5);
-    ctx.moveTo(gx1 + 10, y + T + 5); ctx.lineTo(gx1 - half, y + T + 5);
-    ctx.stroke();
-    ctx.restore();
-  }
 
   /* How fast a landed plug settles: grow is the swell easing to rest, impact the squash
      recovering. Per second of game time. (These sat beside the old deck code and were
@@ -5338,51 +5359,54 @@ export function createGame(canvas, hooks = {}) {
   /* Stars circling a knocked-out head. Only for a character whose knockout art does
      not already have them drawn in — the cub's does, the mammoth's does not, and two
      sets at once looks like a mistake. */
+  /* THE DIZZY SWIRL. The classic scribble round a knocked-out head: a dashed loop that
+     runs, and four fat gold stars riding it, bigger in front and smaller behind, each
+     with the navy keyline everything cartoon in this game has. It arrives with a bounce
+     once he is sitting (the sheet takes ~1.1s to tumble into the sit). Three small
+     outline-less stars were here first and did not read at stage size. */
   function drawDazeStars(ctx) {
     if (!mammoth.koStars || mammoth.state !== 'KNOCKOUT') return;
     const t = mammoth.t;
-    /* ONLY ONCE HE IS SITTING. The sheet runs clash -> tumble -> dazed sit over about 1.1s
-       (frames 18..35 at 15fps); stars circling a head that is still tumbling land on his
-       back or his feet. They fade in as the sit settles. */
-    const fade = clamp((t - 1.0) * 3, 0, 1);
-    if (fade <= 0.01) return;
-    /* ON HIS HEAD IN THE SITTING POSE, which leans back and to the LEFT: measured off the
-       held frame at about 70px left of his standing x and 210px above the snow. The old
-       point (+46, -168) was his tusk. */
-    const cx = CFG.mammothX - (mammoth.knock || 0) - 60, cy = CFG.surfaceY - 268;   // over his crown, wherever the recoil put him
+    const u = clamp((t - 1.0) * 3, 0, 1);
+    if (u <= 0.01) return;
+    const pop = 1 + Math.sin(u * Math.PI) * 0.35;
+    const cx = CFG.mammothX - (mammoth.knock || 0) - 60;
+    const cy = CFG.surfaceY - 310 + Math.sin(t * 2.2) * 4;   // the loop hovers over his crown, clear of his eyes
+    const RX = 96, RY = 26, STARS = 4, spin = t * 3.2;
     ctx.save();
-    ctx.globalAlpha = fade;
-    for (let i = 0; i < 3; i++) {
-      const a = t * 3.4 + (i / 3) * 6.2832;
-      const x = cx + Math.cos(a) * 78;
-      const y = cy + Math.sin(a) * 22 - Math.sin(t * 2) * 3;
-      const sc = 0.72 + 0.32 * Math.sin(a);          // the far star reads smaller
+    ctx.globalAlpha = u;
+    // the loop itself, dashed and running, tilted a touch like a halo knocked askew
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(-0.12);
+    ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 140;
+    ctx.lineCap = 'round'; ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(255,226,130,0.9)';
+    ctx.beginPath(); ctx.ellipse(0, 0, RX, RY, 0, 0, 6.2832); ctx.stroke();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(12,51,82,0.45)'; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    for (let i = 0; i < STARS; i++) {
+      const a = spin + (i / STARS) * 6.2832;
+      const x = cx + Math.cos(a) * RX, y = cy + Math.sin(a) * RY;
+      const depth = (Math.sin(a) + 1) / 2;                 // 1 at the front of the loop
+      const sc = (0.68 + 0.5 * depth) * pop;
       ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(sc, sc);
-      ctx.rotate(a * 0.6);
+      ctx.translate(x, y); ctx.scale(sc, sc); ctx.rotate(a * 0.8);
       ctx.beginPath();
       for (let k = 0; k < 5; k++) {
-        const o = (k / 5) * 6.2832 - Math.PI / 2;
-        const i2 = o + 6.2832 / 10;
-        ctx.lineTo(Math.cos(o) * 21, Math.sin(o) * 21);
-        ctx.lineTo(Math.cos(i2) * 9, Math.sin(i2) * 9);
+        const o = (k / 5) * 6.2832 - Math.PI / 2, i2 = o + 6.2832 / 10;
+        ctx.lineTo(Math.cos(o) * 26, Math.sin(o) * 26);
+        ctx.lineTo(Math.cos(i2) * 11, Math.sin(i2) * 11);
       }
       ctx.closePath();
-      const g = ctx.createLinearGradient(0, -21, 0, 21);
-      g.addColorStop(0, '#FFF3B0');
-      g.addColorStop(1, '#F5B93C');
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(150,92,10,0.55)';
-      ctx.lineWidth = 2.4;
-      ctx.stroke();
+      const g = ctx.createLinearGradient(0, -26, 0, 26);
+      g.addColorStop(0, '#FFF6C4'); g.addColorStop(1, '#F7B733');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#0C3352'; ctx.stroke();
       ctx.restore();
     }
     ctx.restore();
     ctx.globalAlpha = 1;
   }
-
   /* ---- impact burst drawn at the point of collision ---- */
   function drawHitFx(ctx) {
     if (G.hitFx <= 0) return;
@@ -6951,13 +6975,10 @@ export function createGame(canvas, hooks = {}) {
          — that is what makes a half-answered "cut all the pentagons" read as progress.
          The snow waits for the crossing to be complete, so it is the seal that says
          "done" rather than each individual piece. */
-      /* THE COLLAR GOES BEHIND THE PLUG. It is the slab's flared shoulders — the wedge
-         between the mouth and the throat on each side — so the walking surface runs lip
-         to plug to lip with nothing laid OVER the answer. There used to be a deck across
-         the top and a band of snow on it (drawCrossingDeck, drawCrossingSnow); both hid
-         the top of the shape the learner had just cut, and the snow strip read as a
-         piece of interface stuck on the scene. The slab is the walkway now. */
-      if (g.repaired) drawCrossingCollar(ctx, g);
+      /* NOTHING IS DRAWN OVER OR AROUND THE PLUG. The opening is plug-wide (the neck of
+         an undercut crevasse — see _ditchPath), so the shape's flat edge spans it exactly
+         and rests on the lips; the slab is the walkway. A deck, a snow band and an ice
+         collar were each tried here and each read as something added to the answer. */
       for (const p of g.pieces) drawKeystone(ctx, g, p);
     }
   }
@@ -7288,7 +7309,6 @@ export function createGame(canvas, hooks = {}) {
     ground = new GroundManager(images.path);
     ground.caps = { l: images.capL || null, r: images.capR || null };
     ground.rockBand = images.rockBand || null;
-    ground.rubble = (images.rubble || []).filter(Boolean);
     obstacles = new ObstacleController(
       [images.rockWide, images.rockTall, ...OBSTACLE_ART.map(k => images['obs:' + k])],
       audio, particles);
