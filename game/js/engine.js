@@ -5366,7 +5366,8 @@ export function createGame(canvas, hooks = {}) {
      sets at once looks like a mistake. */
   /* THE DIZZY SWIRL. The classic scribble round a knocked-out head: a dashed loop that
      runs, and four fat gold stars riding it, bigger in front and smaller behind, each
-     with the navy keyline everything cartoon in this game has. It arrives with a bounce
+     GLOWING — a soft gold light off each star and the loop, no keyline: a drawn outline
+     read as a sticker on the picture, light reads as light. It arrives with a bounce
      once he is sitting (the sheet takes ~1.1s to tumble into the sit). Three small
      outline-less stars were here first and did not read at stage size. */
   function drawDazeStars(ctx) {
@@ -5384,9 +5385,10 @@ export function createGame(canvas, hooks = {}) {
     ctx.save();
     ctx.translate(cx, cy); ctx.rotate(-0.12);
     ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 140;
-    ctx.lineCap = 'round'; ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(255,226,130,0.9)';
+    ctx.shadowColor = 'rgba(255,204,84,0.95)'; ctx.shadowBlur = 14;
+    ctx.lineCap = 'round'; ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(255,232,150,0.95)';
     ctx.beginPath(); ctx.ellipse(0, 0, RX, RY, 0, 0, 6.2832); ctx.stroke();
-    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(12,51,82,0.45)'; ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.setLineDash([]);
     ctx.restore();
     for (let i = 0; i < STARS; i++) {
@@ -5405,8 +5407,10 @@ export function createGame(canvas, hooks = {}) {
       ctx.closePath();
       const g = ctx.createLinearGradient(0, -26, 0, 26);
       g.addColorStop(0, '#FFF6C4'); g.addColorStop(1, '#F7B733');
-      ctx.fillStyle = g; ctx.fill();
-      ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#0C3352'; ctx.stroke();
+      // the glow: the star's own light, drawn twice so the halo is wide and the core bright
+      ctx.shadowColor = 'rgba(255,196,64,0.9)'; ctx.shadowBlur = 26; ctx.fillStyle = g; ctx.fill();
+      ctx.shadowBlur = 9; ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.restore();
     }
     ctx.restore();
