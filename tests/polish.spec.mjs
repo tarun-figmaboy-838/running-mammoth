@@ -335,7 +335,11 @@ test('shots of every beat', async ({ page }, info) => {
   await page.waitForTimeout(500); await shot('01-run');
   await waitState(page, 'GLACIER_BREAK_1', 90000);
   await page.waitForTimeout(900); await shot('02-break');
-  await waitState(page, 'PHASE_INTRO', 30000);
+  /* EITHER the intro or the puzzle. The intro is 1.4s of game time now (introRead), which
+     at fast=3 is under half a second of wall clock — less than the screenshot pause above
+     — so waiting for PHASE_INTRO alone missed it and sat out the 30s while the game idled
+     in PHASE_ACTIVE. The shots still capture whichever beat is up. */
+  await waitState(page, ['PHASE_INTRO', 'PHASE_ACTIVE'], 30000);
   await page.waitForTimeout(220); await shot('03-fright');
   await page.waitForTimeout(800); await shot('04-peer');
   await waitState(page, 'PHASE_ACTIVE', 30000);

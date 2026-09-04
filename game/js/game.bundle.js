@@ -5278,7 +5278,12 @@ function createGame(canvas, hooks = {}) {
 
     ground.gaps = ground.gaps.filter(g => g.repaired);
     const gaps = [], slots = [];
-    let x = originX + lead;
+    /* THE NEAR LIP OF THE OPENING lands where the character stops. The record's x0 is the
+       edge of the VOID beneath (the undercut), which is inside the platform; the opening
+       — the neck — starts half an overhang further in. Without this shift he stopped an
+       overhang short of the edge he is supposed to be standing at. */
+    const ins0 = (mouthOf(share[0]) - throatW * share[0]) / 2;
+    let x = originX + lead - ins0;
     for (let i = 0; i < n; i++) {
       const k = share[i];
       const th = throatW * k, gw = mouthOf(k), ins = (gw - th) / 2;
