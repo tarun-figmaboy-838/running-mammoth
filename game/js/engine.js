@@ -230,9 +230,11 @@ export const CFG = {
          cycle is distance-driven, so it is simply smoother; nothing else changes. */
       frames: { run: 36, jump: 10, skid: 36, shake: 36, hurt: 36, idle: 36 },
       /* The knockout art has a ring of stars and spiral eyes DRAWN IN. The engine's
-         own circling stars would be a second set, which is the exact fault docs/ANIMATION.md
-         warns about, so they stay off for this character. */
-      koStars: false,
+         own circling stars would be a second set — the fault docs/ANIMATION.md warns
+         about. They were off for that reason, and then asked for by name: the sheet's
+         spiral eyes read at this size as a squint, and the circling stars are the
+         cartoon shorthand a child knows. On, as requested. */
+      koStars: true,
       // named poses inside the jump sheet
       jumpMap: { idle: 0, crouch: 1, launch: 2, rise: 3, apex: 4, fall: 5, preLand: 6, land: 7, absorb: 8, alert: 9 },
       /* Drawn at 1.75x. The slicer's scale came down when the cell had to reserve room
@@ -420,11 +422,11 @@ export const CFG = {
        and what the platform art is cut back to, is `mouth` times the plug width; the
        THROAT, `throatDepth` below the walking line, is plug width minus the bearing,
        and that is where the answer wedges. The deck then closes the mouth over it.
-       1.3 takes a 3-option phase from 229 to about 298px across. The wedge between mouth
+       1.6 takes a 3-option phase from 229 to about 366px across. The wedge between mouth
        and throat on each side is closed, once mended, by an ice collar drawn BEHIND the
        plug (drawCrossingCollar) — the slab's own flared shoulders, nothing laid over it. */
-    mouth: 1.3,
-    throatDepth: 30,
+    mouth: 1.6,
+    throatDepth: 36,
     /* How far past the character the near lip opens — and, because the option row is
        centred on the crevasse, what decides how BIG an option can be.
 
@@ -1191,7 +1193,10 @@ class AudioManager {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) { this.enabled = false; return; }
     this.ctx = new AC();
-    this.master = this.ctx.createGain(); this.master.gain.value = 0.5;
+    /* 0.7, from 0.5: the six recordings carry gains of 0.42-0.62 and sat under the kit
+       (master 0.85) so far that a footfall or the whoosh barely registered next to a boing.
+       The compressor below is what keeps a hot master from clipping. */
+    this.master = this.ctx.createGain(); this.master.gain.value = 0.7;
 
     // A gentle limiter on the bus. Several ice chips plus a splash plus a reward
     // arpeggio can land in the same 200ms, and without this they add up and clip.
@@ -1405,7 +1410,7 @@ class AudioManager {
     s.next++;
     try {
       el.currentTime = at;
-      el.volume = Math.min(1, (s.cue.gain || 0.5) * this.duck);
+      el.volume = Math.min(1, s.cue.gain || 0.5);   // effects are never ducked; only the bed is
       const p = el.play();
       if (p && p.catch) p.catch(() => {});
       clearTimeout(el.__stop);
@@ -1448,8 +1453,12 @@ class AudioManager {
 
   setDuck(v) {
     if (!this.master) return;
-    const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(0.5 * v, t, 0.15);
+    /* THE MUSIC DUCKS; THE EFFECTS DO NOT. This used to scale the master (0.5 * v) as well,
+       which pulled every recorded and synthesised cue down to 80% for the whole of a
+       puzzle while the kit — in its own context — stayed at full. The fit sound, played
+       during a puzzle, therefore sat at a different level from the same sound elsewhere:
+       one of the two causes of it being heard as inconsistent. The note below already
+       said the effects should stay where they are; now they do. */
     /* The music drops FURTHER than the bus does. Ducking everything equally just makes
        the whole mix quieter; pulling the bed down and leaving the sound effects where
        they are is what clears space for the ice cracking. */
@@ -1607,10 +1616,13 @@ class AudioManager {
       notes on the scale stay even when the recorded thud plays: the thud is the weight
       and the notes are what say it was the RIGHT answer. */
   wedge() {
-    if (!this._play('wedge')) {
-      this._noise(0.24, 300, 'lowpass', 0.15, 0.7, 0, 120);
-      this._tone(120, 0.34, 0.1, 'sine', 76);
-    }
+    /* CONSTANT EVERY TIME. This used to be the recorded boulder thud once it had
+       finished decoding and a synth stand-in until then — so the first right answer
+       of a session often sounded different from the second, reported as the fit sound
+       'not being constant'. The kit's thud is synthesised, so it is always there and
+       always the same; the recording is layered under it when it is ready, for body. */
+    this.kit('land', { pitch: 0.72, volume: 0.9 });
+    this._play('wedge');
     this._note(0, 0.2, 0.05);
     this._note(4, 0.24, 0.045, 'triangle', 0.09);
   }
@@ -1797,6 +1809,21 @@ class AudioManager {
 class ParticleManager {
   constructor() { this.list = []; }
   spawn(n, fn) { for (let i = 0; i < n; i++) { const p = this.list.find(q => q.dead) || (this.list.push({ dead: true }), this.list[this.list.length - 1]); Object.assign(p, { dead: false, life: 1, t: 0 }, fn(i)); } }
+  /* A CARTOON POOF. Four overlapping white discs with a soft blue rim, thrown up and out
+     from the feet, swelling as they thin and drifting UP — a cloud, not a spray of dots.
+     This is the dust every cartoon impact has: the skid, the landing, the crash, the
+     plug arriving, a footfall. `size` scales the whole cloud. */
+  poof(x, y, n = 5, size = 1) {
+    this.spawn(n, i => {
+      const a = -Math.PI / 2 + (i / Math.max(1, n - 1) - 0.5) * 2.4 + rand(-0.25, 0.25);
+      const v = rand(70, 160) * size;
+      return {
+        x: x + rand(-16, 16) * size, y: y + rand(-6, 2),
+        vx: Math.cos(a) * v * 1.5, vy: Math.sin(a) * v * 0.5 - 24,
+        r: rand(10, 19) * size, dur: rand(0.5, 0.9), kind: 'puff', swell: rand(1.5, 2.2)
+      };
+    });
+  }
   snowPuff(x, y, n = 6, spread = 1) {
     this.spawn(n, () => ({ x: x + rand(-16, 16), y: y + rand(-8, 4), vx: rand(-90, 90) * spread, vy: rand(-160, -50) * spread, r: rand(5, 13), dur: rand(0.45, 0.8), kind: 'snow' }));
   }
@@ -1931,6 +1958,13 @@ class ParticleManager {
       /* A staggered start. The piece exists from the beginning — so it is counted and
          pooled like everything else — but does not move or draw until its delay is up,
          which is what turns one sheet of confetti into a shower. */
+      if (p.kind === 'puff') {
+        // a poof slows, drifts up and swells as it thins; it never falls
+        p.vx *= (1 - 2.6 * dt); p.vy = p.vy * (1 - 2.6 * dt) - 34 * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.life = 1 - p.t / p.dur;
+        continue;
+      }
       if (p.kind === 'confetti') {
         if (p.delay > 0) { p.delay -= dt; p.life = 1; continue; }
         p.vy += 190 * dt;                    // light: it drifts down, it does not drop
@@ -1955,6 +1989,20 @@ class ParticleManager {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0);
         ctx.fillStyle = C.lightIce; ctx.beginPath();
         ctx.moveTo(0, -p.r); ctx.lineTo(p.r * 0.8, 0); ctx.lineTo(0, p.r); ctx.lineTo(-p.r * 0.8, 0); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      } else if (p.kind === 'puff') {
+        /* Rim first as larger discs, then the white on top, so the outline wraps the
+           UNION of the lobes with no lines through the cloud. */
+        const k = 1 + (1 - p.life) * (p.swell || 1.6), R = p.r * k;
+        ctx.globalAlpha = clamp(p.life * 1.15, 0, 1) * 0.94;
+        ctx.save(); ctx.translate(p.x, p.y);
+        const lobes = [[0, 0, 1], [-0.74, 0.2, 0.74], [0.76, 0.16, 0.7], [0.06, -0.52, 0.66]];
+        ctx.fillStyle = 'rgba(112,168,218,0.7)'; ctx.beginPath();
+        for (const [ox, oy, rr] of lobes) { ctx.moveTo(ox * R + rr * R + 2.4, oy * R); ctx.arc(ox * R, oy * R, rr * R + 2.4, 0, 6.2832); }
+        ctx.fill();
+        ctx.fillStyle = '#FFFFFF'; ctx.beginPath();
+        for (const [ox, oy, rr] of lobes) { ctx.moveTo(ox * R + rr * R, oy * R); ctx.arc(ox * R, oy * R, rr * R, 0, 6.2832); }
+        ctx.fill();
         ctx.restore();
       } else if (p.kind === 'water') {
         /* FOAM IS ROUND AND WATER IS A DROPLET. The stretch is capped at 0.55 of the
@@ -2420,7 +2468,8 @@ const CM_KNOCK = 34;
  * character has ALREADY hit the rock, so the approach is in the past. Starting at the
  * clash is not trimming the animation, it is starting it in the right place. */
 const KO_CLASH = 18;
-const KO_LAST = 35;         // the dazed sit, held
+const KO_LAST = 35;
+const KO_KNOCK = 150;       // px he is thrown back by a knockout, so the sit clears the rock         // the dazed sit, held
 
 /* ---------------- PlayerController ---------------- */
 /* Drives whichever character the player picked. Sheets and frame counts come from
@@ -2533,7 +2582,7 @@ class PlayerController {
        read as either. The crouch is already in the art (J.crouch); what the launch
        needs is the stretch that follows it. */
     this.squash = 1.13; this.audio.jump();
-    this.particles.snowPuff(CFG.mammothX - 10, CFG.surfaceY, 5, 0.7);
+    this.particles.poof(CFG.mammothX - 10, CFG.surfaceY, 4, 0.8);
   }
   update(dt, now, moving, speed) {
     this.t += dt;
@@ -2569,7 +2618,7 @@ class PlayerController {
           // a real squash on arrival: with volume preserved on X this is the weight
           this.setState('LAND'); this.squash = 0.82;
         }
-        this.audio.land(); this.particles.snowPuff(CFG.mammothX, CFG.surfaceY, 7);
+        this.audio.land(); this.particles.poof(CFG.mammothX, CFG.surfaceY, 6, 1.15);
       }
     } else {
       if (this.bufferedJump > 0 && now - this.bufferedJump < CFG.bufferMs &&
@@ -2600,7 +2649,11 @@ class PlayerController {
     // spray is time-based, not per-frame, so a 144Hz display gets the same amount as a 60Hz one
     if (this.state === 'SKID_STOP') {
       this.sprayClock += dt;
-      while (this.sprayClock > 0.06) { this.sprayClock -= 0.06; this.particles.skid(CFG.mammothX - 60, CFG.surfaceY, 1); }
+      while (this.sprayClock > 0.06) {
+        this.sprayClock -= 0.06;
+        this.particles.skid(CFG.mammothX - 60, CFG.surfaceY, 1);
+        this.particles.poof(CFG.mammothX - 74, CFG.surfaceY, 1, 0.75);   // a trail of little clouds behind the skidding feet
+      }
     } else this.sprayClock = 0;
     /* Once the tremble has played out, settle into peering into the crevasse.
 
@@ -2640,7 +2693,9 @@ class PlayerController {
        of this did — cancels the recoil on the very next frame after the hit, so the
        displacement is set and then thrown away before it is ever drawn. It eases out
        over about a third of a second instead. */
-    if (this.knock > 0) this.knock = Math.max(0, this.knock - dt * CM_KNOCK * 3.1);
+    // held while he is down, so the knocked-out pose stays clear of the rock; eases back after
+    const down = this.state === 'KNOCKOUT' || this.state === 'HURT';
+    if (this.knock > 0 && !down) this.knock = Math.max(0, this.knock - dt * CM_KNOCK * 3.1);
 
     /* AND NO PROCEDURAL DOUBLE TAKE while the fright is playing, for the same reason:
        the delivered animation already recoils and settles, so sliding the sprite
@@ -3084,6 +3139,25 @@ class GroundManager {
         ctx.drawImage(wr.canvas, 0, top);
         ctx.restore();
       }
+      /* RUBBLE ON THE SHOULDERS — a small snow-capped chunk from the same sheet on each
+         shelf between the mouth and the throat, so the shelf reads as broken ice that
+         fell in rather than as a cut step. Inside the clip, so nothing shows outside the
+         hole; mirrored on the right. Picked by the gap's position so it never flickers. */
+      const rb = this.rubble || [];
+      const mkR = s.g.throat ? (s.x1 - s.x0) / s.g.throat : 1;
+      const insR = mkR > 1 ? w * (1 - 1 / mkR) / 2 : 0;
+      if (rb.length && insR > 22) {
+        const T = CFG.levelOne.throatDepth || 30;
+        for (let side = 0; side < 2; side++) {
+          const img = rb[(side + Math.abs(Math.round(s.g.x0 / 97))) % rb.length];
+          const rw = Math.min(insR * 1.3, 110), rh = rw * img.height / img.width;
+          const lipX = side === 0 ? x0 : x1;
+          ctx.save();
+          if (side === 1) { ctx.translate(lipX, 0); ctx.scale(-1, 1); ctx.translate(-lipX, 0); }
+          ctx.drawImage(img, lipX - rw * 0.12, CFG.surfaceY + T - rh * 0.9, rw, rh);
+          ctx.restore();
+        }
+      }
 
       /* THE FAR WALL — FEWER, BIGGER, SOFTER.
 
@@ -3525,12 +3599,22 @@ class GroundManager {
       g.drawImage(band, -sx, y, rowW, rowH);
       g.restore();
     }
-    // the inner edge: broken stone, wandering between 62% and 100% of the width
+    /* THE INNER EDGE WANDERS, IT DOES NOT SAW. Straight segments between jittered points
+       drew sharp triangular teeth down the wall; running a curve through the midpoints
+       (the same trick as the crevasse's top edge) keeps the same wander and rounds every
+       turn into a bulge of stone. Between 70% and 100% of the width. */
     g.globalCompositeOperation = 'destination-in';
     g.beginPath();
-    g.moveTo(0, 0);
-    for (let y = 0; y <= H + 36; y += 36) g.lineTo(ww * (0.62 + 0.38 * rnd()), y);
-    g.lineTo(0, H + 36);
+    g.moveTo(0, -60);
+    let px = ww * (0.7 + 0.3 * rnd()), py = -60;
+    g.lineTo(px, py);
+    for (let y = 0; y <= H + 60; y += 56) {
+      const nx = ww * (0.7 + 0.3 * rnd());
+      g.quadraticCurveTo(px, (py + y) / 2, (px + nx) / 2, y);
+      px = nx; py = y;
+    }
+    g.lineTo(px, H + 60);
+    g.lineTo(0, H + 60);
     g.closePath();
     g.fill();
     // the deeper the darker: stone fading into the depth
@@ -3989,6 +4073,8 @@ export function createGame(canvas, hooks = {}) {
     jobs.push(loadImg('assets/env/cap-r.webp').then(i => { images.capR = i; }));
     // the platform's own stone base, cut from the same sheet: the crevasse walls are tiled from it
     jobs.push(loadImg('assets/env/rock-band.webp').then(i => { images.rockBand = i; }));
+    // two small snow-capped chunks off the same sheet: the rubble on a crevasse's shoulders
+    for (let r = 1; r <= 2; r++) jobs.push(loadImg('assets/env/rubble-' + r + '.webp').then(img => { (images.rubble = images.rubble || [])[r - 1] = img; }));
     /* THE FRIEND AT THE END. Loaded with the world rather than with the character
        sheets: he is scenery that happens to be a character, he has no animation and no
        states, and putting him in CFG.characters would make him look like something the
@@ -4065,7 +4151,7 @@ export function createGame(canvas, hooks = {}) {
            The fright is cleared at the same time: he is done being scared of this one. */
         mammoth.scare = 0;
         if (!reduced) particles.confetti(CFG.W, 110);   // confetti, not stars: the whole phase is done
-        particles.snowPuff(CFG.mammothX, CFG.surfaceY, reduced ? 4 : 9, 1.1);
+        particles.poof(CFG.mammothX, CFG.surfaceY, reduced ? 3 : 6, 1.1);
         break;
       // Level 2 is parked (drafts/level-2.draft.js), so the last repaired crossing
       // leads straight into the run home.
@@ -4079,7 +4165,7 @@ export function createGame(canvas, hooks = {}) {
         audio.setDuck(1); mammoth.setState('RUN'); break;
       case 'COMPLETE':
         G.moving = false; G.complete = true; G.jumpEnabled = false; G.instruction = ''; G.drizzleAt = 0;
-        mammoth.setState('CELEBRATE'); particles.snowPuff(CFG.mammothX, CFG.surfaceY, 8);
+        mammoth.setState('CELEBRATE'); particles.poof(CFG.mammothX, CFG.surfaceY, 6, 1.1);
         /* CONFETTI, from above the whole stage rather than from the character. A burst
            thrown off one point reads as an impact; confetti has to fall on everything,
            which is what makes it a celebration rather than another particle effect. */
@@ -4725,7 +4811,7 @@ export function createGame(canvas, hooks = {}) {
     audio.wedge();
     L.filled = sh; L.sealT = 0;
     particles.frost(sh.x, CFG.surfaceY, 6);
-    particles.snowPuff(sh.x, CFG.surfaceY, 6, 0.9);
+    particles.poof(sh.x, CFG.surfaceY, 6, 1.25);
     particles.chips(sh.x, CFG.surfaceY + 10, 6, -150);
     /* THE REWARD BEAT. Ice chips say 'something heavy landed'; a ring of glints says
        'that was RIGHT'. The two are different messages and the second one was missing,
@@ -5094,30 +5180,29 @@ export function createGame(canvas, hooks = {}) {
     if (e <= 0.01) return;
     const gx0 = g.x0 - G.worldX, gx1 = g.x1 - G.worldX;
     const mouth = gx1 - gx0, th = g.throat || mouth;
-    const ins = Math.max(0, (mouth - th) / 2);
-    if (ins < 1) return;
+    if (mouth - th < 2) return;
     const T = L1.throatDepth || 0, y = CFG.surfaceY;
-    const reach = ins * e;
     ctx.save();
-    const fill = ctx.createLinearGradient(0, y - 6, 0, y + T + 10);
-    // the plug's own ice, not the platform's snow: a paler collar read as a slab of its own
-    fill.addColorStop(0, '#CBEEFF'); fill.addColorStop(0.4, '#9BDBF7');
-    fill.addColorStop(0.8, '#62BBE6'); fill.addColorStop(1, '#2F86B8');
+    /* ONLY INSIDE THE HOLE. Clipped to the crevasse outline, so the collar can never
+       show on the platform — the first version reached 6px onto the snow at each lip
+       and read as two little tabs stuck to the edge. Inside the clip it fills the whole
+       strip between the chewed top edge and the throat, which also closes the dark
+       band that showed above the plug's top edge. */
+    ctx.clip(ground._ditchPath(gx0, gx1, g));
+    const fill = ctx.createLinearGradient(0, y - 20, 0, y + T + 8);
+    fill.addColorStop(0, '#DDF4FF'); fill.addColorStop(0.45, '#A6DFF8');
+    fill.addColorStop(0.85, '#62BBE6'); fill.addColorStop(1, '#2F86B8');
     ctx.fillStyle = fill;
-    for (const side of [1, -1]) {
-      const lip = side === 1 ? gx0 : gx1;
-      ctx.beginPath();
-      ctx.moveTo(lip - side * 6, y - 3);                 // a hair onto the platform: no daylight at the join
-      ctx.lineTo(lip + side * (reach + 5), y - 3);
-      ctx.lineTo(lip + side * (reach + 5), y + T + 6);
-      ctx.lineTo(lip - side * 6, y + T + 6);
-      ctx.closePath();
-      ctx.fill();
-    }
-    // a cold line along the underside of the shoulders, where the ice meets the dark
-    ctx.strokeStyle = 'rgba(24,96,148,0.45)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(gx0 - 6, y + T + 5); ctx.lineTo(gx0 + reach + 5, y + T + 5); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(gx1 + 6, y + T + 5); ctx.lineTo(gx1 - reach - 5, y + T + 5); ctx.stroke();
+    // grown in from both lips; at e = 1 the two halves meet under the plug
+    const half = (mouth / 2) * e;
+    ctx.fillRect(gx0 - 10, y - 30, half + 10, T + 36);
+    ctx.fillRect(gx1 - half, y - 30, half + 10, T + 36);
+    // a cold line along the underside, where the ice shelf meets the dark
+    ctx.strokeStyle = 'rgba(24,96,148,0.5)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(gx0 - 10, y + T + 5); ctx.lineTo(gx0 + half, y + T + 5);
+    ctx.moveTo(gx1 + 10, y + T + 5); ctx.lineTo(gx1 - half, y + T + 5);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -5256,15 +5341,21 @@ export function createGame(canvas, hooks = {}) {
   function drawDazeStars(ctx) {
     if (!mammoth.koStars || mammoth.state !== 'KNOCKOUT') return;
     const t = mammoth.t;
-    const fade = clamp(t * 3, 0, 1) * clamp(1.2, 0, 1);
+    /* ONLY ONCE HE IS SITTING. The sheet runs clash -> tumble -> dazed sit over about 1.1s
+       (frames 18..35 at 15fps); stars circling a head that is still tumbling land on his
+       back or his feet. They fade in as the sit settles. */
+    const fade = clamp((t - 1.0) * 3, 0, 1);
     if (fade <= 0.01) return;
-    const cx = CFG.mammothX + 46, cy = CFG.surfaceY - 168;
+    /* ON HIS HEAD IN THE SITTING POSE, which leans back and to the LEFT: measured off the
+       held frame at about 70px left of his standing x and 210px above the snow. The old
+       point (+46, -168) was his tusk. */
+    const cx = CFG.mammothX - (mammoth.knock || 0) - 60, cy = CFG.surfaceY - 268;   // over his crown, wherever the recoil put him
     ctx.save();
     ctx.globalAlpha = fade;
     for (let i = 0; i < 3; i++) {
       const a = t * 3.4 + (i / 3) * 6.2832;
-      const x = cx + Math.cos(a) * 62;
-      const y = cy + Math.sin(a) * 17 - Math.sin(t * 2) * 3;
+      const x = cx + Math.cos(a) * 78;
+      const y = cy + Math.sin(a) * 22 - Math.sin(t * 2) * 3;
       const sc = 0.72 + 0.32 * Math.sin(a);          // the far star reads smaller
       ctx.save();
       ctx.translate(x, y);
@@ -5274,11 +5365,11 @@ export function createGame(canvas, hooks = {}) {
       for (let k = 0; k < 5; k++) {
         const o = (k / 5) * 6.2832 - Math.PI / 2;
         const i2 = o + 6.2832 / 10;
-        ctx.lineTo(Math.cos(o) * 15, Math.sin(o) * 15);
-        ctx.lineTo(Math.cos(i2) * 6.4, Math.sin(i2) * 6.4);
+        ctx.lineTo(Math.cos(o) * 21, Math.sin(o) * 21);
+        ctx.lineTo(Math.cos(i2) * 9, Math.sin(i2) * 9);
       }
       ctx.closePath();
-      const g = ctx.createLinearGradient(0, -15, 0, 15);
+      const g = ctx.createLinearGradient(0, -21, 0, 21);
       g.addColorStop(0, '#FFF3B0');
       g.addColorStop(1, '#F5B93C');
       ctx.fillStyle = g;
@@ -5383,7 +5474,7 @@ export function createGame(canvas, hooks = {}) {
     mammoth.hop = Math.max(mammoth.hop, 16);
     mammoth.squash = 0.9;
     mammoth.jolt(0.34);
-    particles.snowPuff(CFG.mammothX - 10, CFG.surfaceY, reduced ? 3 : 6, 0.8);
+    particles.poof(CFG.mammothX - 10, CFG.surfaceY, reduced ? 2 : 5, 1.3);
     particles.sparkle(CFG.mammothX + 30, CFG.surfaceY - 300, reduced ? 2 : 5, 120);
     return true;
   }
@@ -5680,7 +5771,7 @@ export function createGame(canvas, hooks = {}) {
       if (G.quakeRoll > 0.09 && G.quakeAt > 1) {
         G.quakeRoll = 0;
         particles.chips(rand(60, CFG.W - 60), CFG.surfaceY - 4, 1, -120 - G.quakeAt * 14);
-        particles.snowPuff(CFG.mammothX + rand(-80, 80), CFG.surfaceY, 1, 0.5);
+        particles.poof(CFG.mammothX - 34, CFG.surfaceY, 1, 0.42);   // a little puff behind each footfall
       }
     } else {
       G.quakeAt = 0;
@@ -5897,7 +5988,7 @@ export function createGame(canvas, hooks = {}) {
     G.hitCount = (G.hitCount || 0) + 1;
     if (G.hitCount >= 3) {
       audio.bonk();
-      particles.snowPuff(CFG.mammothX + 50, CFG.surfaceY - 30, 7);
+      particles.poof(CFG.mammothX + 50, CFG.surfaceY - 16, 8, 1.7);   // the crash: a big cloud
       particles.chips(sx, CFG.surfaceY - 20, 8, -240);
       shake(reduced ? 1.5 : 3, 220);
       hitStop(CFG.juice.stopHit * 0.7);
@@ -5905,10 +5996,11 @@ export function createGame(canvas, hooks = {}) {
       G.hitFx = 1;
       o.hits = 3; o.crumble = 0;          // stops colliding and crumbles away
       mammoth.setState('HURT');            // auto-returns to RUN while moving
+      mammoth.knock = Math.max(mammoth.knock || 0, KO_KNOCK);
       return;                              // no panel, no stop: progress is guaranteed
     }
     audio.bonk();
-    particles.snowPuff(CFG.mammothX + 50, CFG.surfaceY - 30, 7);
+    particles.poof(CFG.mammothX + 50, CFG.surfaceY - 16, 8, 1.7);   // the crash: a big cloud
     particles.chips(CFG.mammothX + 60, CFG.surfaceY - 40, 5, -200);
     shake(reduced ? 2 : 4, 260);
     // the hardest hold in the game: the character has physically stopped, and the
@@ -5917,6 +6009,12 @@ export function createGame(canvas, hooks = {}) {
     punch(CFG.juice.punchHit, 340, CFG.mammothX + 60, CFG.surfaceY - 60);
     if (!reduced) particles.ring(CFG.mammothX + 60, CFG.surfaceY - 70, 22, 170);
     mammoth.setState('KNOCKOUT');
+    /* KNOCKED BACK CLEAR OF THE ROCK. The dazed sit leans back and stretches his feet
+       about 130px forward of his running x, and the rock he hit stands right there — so
+       he sat THROUGH it. The impact recoil was 34px, tuned for a bump he runs on from.
+       A knockout throws him back far enough that the pose clears the stone, and the
+       recoil holds while he is down (see the decay) and eases back as he gets up. */
+    mammoth.knock = Math.max(mammoth.knock || 0, KO_KNOCK);
     mammoth.squash = 0.86;
     mammoth.jolt(reduced ? 0.45 : 1);      // the wince carries on shaking after the hit
     G.hitFx = 1;                      // drives the impact spark burst + warm vignette
@@ -7099,7 +7197,7 @@ export function createGame(canvas, hooks = {}) {
     toggleSound() {
       audio.start(); audio.resume();
       audio.enabled = !audio.enabled;
-      if (audio.master) audio.master.gain.setTargetAtTime(audio.enabled ? 0.5 : 0, audio.ctx.currentTime, 0.05);
+      if (audio.master) audio.master.gain.setTargetAtTime(audio.enabled ? 0.7 : 0, audio.ctx.currentTime, 0.05);
       audio.kitMute(!audio.enabled);
       /* The bed is PAUSED, not just turned down. Muting the bus silences it, but a
          five-megabyte track left running is still being decoded for nothing. */
@@ -7122,7 +7220,7 @@ export function createGame(canvas, hooks = {}) {
     setOptions(o) {
       if (o.sound !== undefined) {
         audio.enabled = !!o.sound;
-        if (audio.master) audio.master.gain.value = o.sound ? 0.5 : 0;
+        if (audio.master) audio.master.gain.value = o.sound ? 0.7 : 0;
         audio.kitMute(!o.sound);
         if (audio.music && !o.sound) audio.music.el.pause();
       }
@@ -7150,6 +7248,9 @@ export function createGame(canvas, hooks = {}) {
     mammothState: () => mammoth && mammoth.state,
     mammothFrame: () => mammoth ? mammoth.lastSheet + ':' + mammoth.lastFrame : '-',
     debug: () => G,
+    /** Create the audio graph and start decoding the recordings BEFORE the first gesture,
+        so no cue is ever caught half-loaded. Nothing plays until a real tap resumes it. */
+    warmAudio() { try { audio.start(); } catch (e) { /* no audio here */ } },
     /** Draw one tutorial subject alone onto `target` (a 1920x1080 canvas): 'mammoth',
         'rock', 'gap', 'blocks', or null to clear. See renderFocus. */
     renderFocus(target, kind) { renderFocus(target, kind); },
@@ -7187,6 +7288,7 @@ export function createGame(canvas, hooks = {}) {
     ground = new GroundManager(images.path);
     ground.caps = { l: images.capL || null, r: images.capR || null };
     ground.rockBand = images.rockBand || null;
+    ground.rubble = (images.rubble || []).filter(Boolean);
     obstacles = new ObstacleController(
       [images.rockWide, images.rockTall, ...OBSTACLE_ART.map(k => images['obs:' + k])],
       audio, particles);

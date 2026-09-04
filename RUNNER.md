@@ -775,13 +775,13 @@ No star glints in a celebration either: confetti was the ask.
 - **The hole has a mouth and a throat.** The plug is capped by the cavity (a piece lands
   at the size it was cut, see §10, and the cavity is 234 px), so a straight-walled hole
   could never be wider than ~243. The walls now step in: the MOUTH — the visible cut in
-  the platform — is `L1.mouth` (1.3) times the plug width, and `L1.throatDepth` (30 px)
+  the platform — is `L1.mouth` (1.6) times the plug width, and `L1.throatDepth` (36 px)
   below the walking line the walls reach the THROAT, plug width minus `bearing` (0.03),
   where the answer wedges — its top FLUSH with the platforms. The shoulders between mouth
   and throat are closed by an ice collar drawn behind the plug (`drawCrossingCollar`);
   there is no deck and no snow band over the answer any more. Phase 1: throat 229, mouth
   ~298. The curriculum test asserts the piece spans its share of the throat and the mouth
-  is wider than it.
+  is wider than it. Phase 1 now: throat 229, mouth ~366.
 - **Two polygons in one ditch.** Phases 6 and 7 have three answers and two ditches: the
   extra answer goes to the last ditch, which is twice as wide at the throat and bridged
   by two pieces side by side (`share` in `layoutPhase`).
@@ -860,3 +860,34 @@ re-blurring 1920×1080 of alpha every frame; on a software renderer the whole ga
 1.7 fps while a tutorial step was up (found by the file:// test, which drives the game
 with the tutorial on). The glow is static now — 29.9 fps on the same renderer. Rule: never
 animate a filter on a stage-sized element; animate filters only on small ones.
+
+### Impacts, stars, rubble, a constant thud
+
+- **Poofs.** Every impact throws a cartoon cloud (`particles.poof`): four overlapping white
+  discs with a soft blue rim, swelling as they thin, drifting up. Take-off, landing, skid
+  stop, the plug arriving, the crash (big), each footfall (tiny). `snowPuff` remains for
+  actual snow.
+- **Dizzy stars** circle the head in the knockout (`koStars: true`, `drawDazeStars`) — the
+  drawing was there; the character config had it off.
+- **The fit sound is the same every time.** `wedge()` leads with the kit's synthesised thud
+  and layers the recording under it when decoded; before, a half-loaded recording fell
+  back to a different synth sound. `game.warmAudio()` starts decoding at boot.
+- **Rubble** from the sheet sits on each shoulder of an open crevasse (`rubble-1/2.webp`).
+
+### The SFX audit (asked for twice)
+
+Every cue was traced from its trigger to the speaker. Two faults, both fixed:
+
+1. **The fit sound swapped voices.** `wedge()` played the recorded thud once decoded and a
+   synth stand-in before that, so the first right answer of a session sounded different
+   from the rest. It now leads with the kit's synthesised thud every time and layers the
+   recording under it when ready; `game.warmAudio()` starts decoding at boot.
+2. **`setDuck` ducked the effects, not just the bed.** It scaled the master to 80% for the
+   whole of a puzzle while the kit stayed at 100%, so the same cue sat at two levels in
+   two states. The master is fixed at 0.7 now (up from 0.5, so the recordings sit under
+   the kit's 0.85 rather than vanishing) and only the music ducks; disk-build cue elements
+   no longer multiply by the duck either.
+
+Checked and sound: `bonk()` has two call sites but they are mutually exclusive (the
+three-strike branch returns); jump/land/step/skid/slice/reject/splash/success each fire
+once from one place; kit cues fall back to the local palette only when the kit is absent.

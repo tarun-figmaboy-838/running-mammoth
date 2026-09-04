@@ -150,6 +150,9 @@ function startTutorial() {
 }
 
 game.setOptions(options);
+// decode the recordings now, not on the first tap: a cue that is still loading when it is
+// first needed falls back to a different sound, which is what made the fit sound vary
+game.warmAudio();
 
 hud.bind({
   onJump: () => game.jump(),
