@@ -246,14 +246,485 @@
 
    The one survivor is .card-hero just below, which the Ouch panel still uses. */
 
+/* ================== THE TUTORIAL LAYER ==================
+
+   A spotlight, a dialogue box and a Skip, positioned by js/tutorial.js in percentages
+   of the stage so one set of stage coordinates is correct at every viewport size.
+
+   EVERY ELEMENT HERE HAS A REAL BOX, and that is not a throwaway remark: this file was
+   written, the markup was added, the script was wired, and the stylesheet was missed
+   because an earlier edit script died before it got here. The result would have been a
+   tutorial that was present, unhidden, correctly positioned and 0x0 — indistinguishable
+   from logic that never fires, which is the most expensive kind of bug available here.
+   The verdict mark in style.css had exactly that fault and was invisible for months.
+*/
+.tutorial {
+  position: absolute;
+  inset: 0;
+  /* 40: over the canvas and the jump button, and deliberately BELOW the .overlay
+     panels at 45. The tutorial ending with the game (see tutorial.js) is what stops
+     the two coexisting at all, but relying on DOM order for that was luck — the panels
+     happen to be declared after this element, and moving either in the markup would
+     have put a blur sheet over the ending card. */
+  z-index: 40;
+  overflow: hidden;
+}
+.tutorial[hidden] { display: none; }
+
+/* THE VEIL — a pulled focus, not a spotlight.
+
+   backdrop-filter blurs and darkens whatever is behind this element, and the mask
+   punches a soft hole in it where the tutorial is pointing. Inside the hole the veil
+   is fully transparent, so the game is sharp and at full brightness; outside it the
+   picture is blurred and dimmed. Nothing is drawn ON the artwork at all — no ring, no
+   outline, no hard edge anywhere.
+
+   The hole is an ellipse whose centre and radii come from four custom properties the
+   script sets. A mask gradient is the only way to do this in one element: a hole built
+   from four surrounding panels needs all four kept in step as it moves, and they show
+   their seams the moment they are blurred.
+
+   NOTE the mask polarity. Where the mask is OPAQUE the veil is painted; where it is
+   transparent the veil is not. So the gradient runs transparent in the middle to black
+   outside — the opposite of what it looks like it should be, and getting it backwards
+   blurs only the thing you are pointing at.
+
+   If backdrop-filter is unsupported the element still paints its own background, so
+   the fallback is a plain dark veil with the same hole: dimmer, not broken. */
+.tut-veil {
+  position: absolute;
+  inset: 0;
+  /* THE WHOLE SCREEN, with no hole in it. A masked hole was tried first and it is the
+     wrong shape of solution: the hole has to be kept in step with a moving target, its
+     soft rim needs inflating to keep the object out of the blur, and the mask polarity
+     is inverted from what it reads as — all of that to end up with a lit circle again.
+     Blurring everything and drawing the focus back on top is one instruction each way
+     and cannot drift. */
+  /* 30% and a light blur. It was 50% with brightness(0.6) on top, which is nearly a
+     black screen: the game behind was barely legible, so the layer stopped reading as
+     "this part is in focus" and started reading as "the game has been replaced". The
+     sheet only has to push the surroundings back a step. Brightness is left alone —
+     the 30% fill is the darkening, and doing it twice was most of the problem. */
+  background: rgba(6, 26, 52, 0.3);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  pointer-events: none;
+}
+/* THE FOCUS, LIFTED OVER THE SHEET — and nothing else.
+
+   No glow and no oval fade. Both were here and both rebuilt the spotlight this was
+   supposed to replace: a warm drop-shadow around a softly feathered ellipse IS a light
+   shining on the scene, however it is constructed. What is wanted is simply that the
+   part being talked about is not behind the sheet.
+
+   So this is the region, sharp, with a rounded corner and a hairline of white to say
+   it is a panel lifted above the blur rather than a hole in it. Being a plain rounded
+   rectangle is also what makes it read as deliberate: a soft-edged blob looks like an
+   effect, a clean edge looks like a decision. */
+.tut-cut {
+  position: absolute;
+  translate: -50% -50%;
+  pointer-events: none;
+  /* NO SHAPE AT ALL — no border, no corner, no shadow, no glow.
+
+     Three versions of this were wrong in two opposite directions. A feathered oval
+     with a warm drop-shadow was a spotlight however it was built. Replacing it with a
+     rounded rectangle and a white hairline swapped a light for a SQUARE stuck on the
+     scene, which is just as much a piece of interface drawn over the artwork.
+
+     What is wanted is that the focus is simply not behind the sheet. So the edges are
+     feathered away to nothing and there is no outline of any kind: the only thing the
+     eye can see is that this part of the picture is sharp and the rest is not. The
+     feather is generous and reaches the very edge, so there is no boundary to read as
+     a shape — which is what separates this from the oval: that one had a glow and a
+     brightening ON the edge, and this one has nothing there at all. */
+  /* 50%, WHICH IS THE ONLY VALUE THAT REACHES THE EDGE.
+
+     A radial-gradient size is a percentage of the BOX, so 74% gave a radius half again
+     as long as the box half-width — the gradient ran off the element before it got
+     anywhere near transparent, and the mask was still about half opaque AT the edge.
+     That is a hard boundary, which is the rectangular step that kept coming back
+     however the stops were tuned. At 50% the gradient spans exactly to the edge, so
+     transparent at 100% really is transparent where the element ends.
+
+     Sharp across the middle 70%, fading over the outer 30%. That ratio is what decides
+     how much sharp area there is: a longer fade needs a bigger region to keep the
+     subject out of it, and a bigger region means less of the sheet is visible. 70/30 on
+     a region 1.42x the subject puts the whole subject in the sharp core with a ~130px
+     softening beyond it, and leaves the sheet covering everything else. */
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%,
+                        #000 0%, #000 70%, transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%,
+                #000 0%, #000 70%, transparent 100%);
+}
+.tut-cut[hidden] { display: none; }
+
+/* A DOM CONTROL RAISED ABOVE THE SHEET while the tutorial is introducing it. 41 is one
+   above .tutorial, so the control is sharp and fully lit while everything else sits
+   behind the blur — the same result the copied focus panel gets for canvas targets,
+   achieved the way DOM allows. Removed again the moment the step moves on. */
+.tut-lift {
+  /* Raised above the sheet and otherwise untouched. No halo: the control being the
+     only sharp, fully-lit thing on the screen already says "this one", and a glow
+     around it is the ring this whole approach exists to avoid. */
+  z-index: 41 !important;
+}
+
+/* THE HAND. It taps, on the spot being explained, and it IS the instruction to tap —
+   there is no button. Same supplied art as the swipe hint, so a child learns one hand
+   that means "your finger goes here". */
+.tut-hand {
+  position: absolute;
+  width: clamp(54px, 5.6vw, 108px);
+  aspect-ratio: 300 / 360;
+  translate: -50% -50%;
+  background: url("../assets/ui/icons/touch.png") center / contain no-repeat;
+  filter: drop-shadow(0 clamp(3px, 0.31vw, 6px) clamp(6px, 0.63vw, 12px) rgba(4, 20, 44, 0.6));
+  pointer-events: none;
+}
+.tut-hand[hidden] { display: none; }
+/* TWO GESTURES, and the hand has to perform the one being asked for — a child copies
+   the movement, so a tapping hand on a step that wants a swipe teaches the wrong
+   thing. The step names its gesture and this picks the animation. */
+.tut-hand[data-gesture="tap"] { animation: tutTap 1.15s cubic-bezier(.35, 0, .3, 1) infinite; }
+.tut-hand[data-gesture="sweep"] { animation: tutSweep 1.5s cubic-bezier(.4, 0, .3, 1) infinite; }
+/* ACROSS the rope, which is the cut. The ripple is switched off for this one: a
+   contact ring belongs to a tap, and on a sweep it reads as a series of taps. */
+.tut-hand[data-gesture="sweep"]::after { display: none; }
+@keyframes tutSweep {
+  0%   { translate: -170% -50%; rotate: -14deg; opacity: 0; }
+  14%  { translate: -140% -50%; rotate: -12deg; opacity: 1; }
+  66%  { translate: 40% -50%;   rotate: 10deg;  opacity: 1; }
+  84%  { translate: 70% -50%;   rotate: 12deg;  opacity: 0; }
+  100% { translate: -170% -50%; rotate: -14deg; opacity: 0; }
+}
+/* A tap is a press and a lift with a beat of stillness between — a hand that moves
+   continuously reads as waving, not tapping. The ripple is the ::after. */
+@keyframes tutTap {
+  0%, 100% { scale: 1;    rotate: -6deg; }
+  38%      { scale: .84;  rotate: 0deg; }
+  56%      { scale: 1.02; rotate: -3deg; }
+}
+.tut-hand::after {
+  content: "";
+  position: absolute;
+  left: 14%; top: 6%;
+  width: 46%; aspect-ratio: 1;
+  border-radius: 50%;
+  border: clamp(2px, 0.21vw, 4px) solid rgba(255, 236, 170, 0.95);
+  animation: tutTapRing 1.15s cubic-bezier(.2, .7, .3, 1) infinite;
+}
+@keyframes tutTapRing {
+  0%, 30% { scale: .3; opacity: 0; }
+  45%     { scale: 1;  opacity: .95; }
+  85%     { scale: 2.1; opacity: 0; }
+  100%    { scale: .3; opacity: 0; }
+}
+
+/* NO SPOTLIGHT ELEMENT ANY MORE. There was a .tut-spot: a transparent circle whose own
+   huge box-shadow supplied the dim, with a gold outline round it.
+
+   It is gone because the ring was the problem. An outline is a hard line drawn ON TOP
+   of the artwork, so however well placed it reads as interface stuck over the scene —
+   and it had to be re-solved twice, once when a percentage height made it an ellipse
+   and again when a circle big enough to enclose the block row swallowed half the
+   screen. .tut-veil says the same thing with the game’s own picture instead: what is
+   being pointed at is simply the part still in focus.
+*/
+/* THE DIALOGUE BOX.
+
+   IT SIZES ITSELF TO ITS WORDS. `width: max-content` under a `max-width` ceiling means
+   a four-word step gets a small box and a long one wraps at a readable measure — no
+   fixed width to tune per string, and no string that can overflow.
+
+   IT POINTS AT WHAT IT IS TALKING ABOUT. The tail is what makes this a speech bubble
+   rather than a floating panel, and it FLIPS: the script sets data-side to "above" or
+   "below" depending on whether there was room over the spotlight, and the tail is drawn
+   on the opposite edge so it always aims at the light. A fixed tail would point away
+   from the thing being explained exactly when the box had to move, which is worse than
+   having no tail at all.
+
+   The tail is a rotated square, not a border triangle: a triangle cannot carry the navy
+   keyline and the white inner rim the box has, so it reads as a paper cutout stuck to a
+   painted panel. A square rotated 45deg keeps both. */
+.tut-bubble {
+  position: absolute;
+  translate: -50% -50%;
+  width: max-content;
+  max-width: min(78vw, 620px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 0.9vw, 16px);
+  padding: clamp(16px, 1.7vw, 32px) clamp(24px, 2.5vw, 46px);
+  /* CHUNKIER AND ROUNDER. The old box was a tidy web panel: a thin rim, a modest
+     radius, and a level edge. A cartoon speech bubble is fat-rimmed, very round, and
+     sits slightly off-square — the tilt is what stops it reading as a dialog and is
+     the cheapest single thing that makes it look drawn rather than laid out. */
+  border-radius: clamp(26px, 2.8vw, 54px);
+  border: clamp(4px, 0.45vw, 8px) solid #17547F;
+  background: linear-gradient(180deg, #FFFEF7 0%, #F2FAFF 58%, #D6EEFC 100%);
+  /* NO EXTRUDED SLAB, and that is what fixes the detached pointer.
+
+     There was a hard `0 15px 0 #0E3E60` under the box — a navy bar standing proud of
+     its bottom edge. The tail hangs off that same edge, so the slab sat BETWEEN the box
+     and its own pointer: a stripe of navy across the join, with the white triangle
+     apparently floating below it. Every attempt to fix the tail geometry was chasing
+     the wrong thing, because the gap was the shadow.
+
+     It also made the box read as a UI panel. A cartoon speech bubble is a fat outline
+     and a soft shadow underneath, not an extruded block with a lip.
+     A single soft shadow lifts it off the scene and leaves the tail joined. */
+  box-shadow:
+    inset 0 0 0 clamp(4px, 0.42vw, 8px) rgba(255, 255, 255, 0.98),
+    inset 0 clamp(-14px, -1.3vw, -8px) clamp(18px, 1.9vw, 34px) rgba(120, 190, 226, 0.34),
+    0 clamp(10px, 1.05vw, 20px) clamp(22px, 2.3vw, 44px) rgba(6, 32, 60, 0.5);
+  text-align: center;
+  rotate: -1.4deg;
+  animation: tutBubbleIn 380ms cubic-bezier(.2, 1.8, .35, 1) both;
+}
+/* THE TAIL — TWO CLIPPED TRIANGLES, and the third attempt at it.
+
+   First it was a rotated square in front of the box with two of its four borders set
+   transparent to fake the join. It read as detached, because the box carries a thick
+   white inner rim and the tail did not: along the join there was navy against white
+   with a visible seam, and two stubby border ends poking out sideways.
+
+   Then it was the same square moved BEHIND with z-index -1, so the box would paint
+   over its inner half. That cannot work here and the reason is worth keeping: the box
+   has a `rotate`, a transform creates a stacking context, and z-index -1 is then
+   clamped INSIDE that context — so the diamond stayed in front, now with all four
+   borders showing. It looked worse than what it replaced.
+
+   Two clipped triangles have no stacking dependency at all. ::before is the navy
+   outline and ::after is the fill inset within it, both pointing away from the box and
+   overlapping its edge by a pixel so there is no gap to see. The outline meets the
+   box's own navy border, which is the same colour, so the join disappears without
+   anything having to be hidden. */
+.tut-bubble::before,
+.tut-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  width: clamp(26px, 2.7vw, 50px);
+  height: clamp(16px, 1.7vw, 30px);
+}
+/* the navy outline, the full size */
+.tut-bubble::before { background: #17547F; }
+/* the fill, narrower and shorter so the outline shows all round it */
+.tut-bubble::after {
+  width: clamp(16px, 1.7vw, 31px);
+  height: clamp(10px, 1.05vw, 19px);
+}
+/* box ABOVE the light: the tail hangs off the bottom and points down at it, and takes
+   the blue foot of the gradient because that is the edge it grows out of */
+/* Box ABOVE the target: the tail points down. The outline starts 2px inside the box's
+   own border so the two navies merge with no seam; the fill starts inside that. */
+.tut-bubble[data-side="above"]::before {
+  top: 100%;
+  margin-top: calc(clamp(4px, 0.45vw, 8px) * -1);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+}
+.tut-bubble[data-side="above"]::after {
+  top: 100%;
+  margin-top: calc(clamp(4px, 0.45vw, 8px) * -1 - 1px);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  background: #D6EEFC;
+}
+/* box BELOW the light: the tail sits on top, points up, and takes the pale top */
+.tut-bubble[data-side="below"]::before {
+  bottom: 100%;
+  margin-bottom: calc(clamp(4px, 0.45vw, 8px) * -1);
+  clip-path: polygon(50% 0, 0 100%, 100% 100%);
+}
+.tut-bubble[data-side="below"]::after {
+  bottom: 100%;
+  margin-bottom: calc(clamp(4px, 0.45vw, 8px) * -1 - 1px);
+  clip-path: polygon(50% 0, 0 100%, 100% 100%);
+  background: #FFFEF7;
+}
+@keyframes tutBubbleIn {
+  from { scale: .7;  rotate: -7deg; translate: -50% calc(-50% + 16px); }
+  to   { scale: 1;   rotate: -1.4deg; translate: -50% -50%; }
+}
+
+.tut-text {
+  /* Heavier and a shade larger: this is the only text on the screen and it is being
+     read by someone learning to read. */
+  font: 800 clamp(18px, 1.95vw, 36px)/1.28 "Baloo 2", system-ui, sans-serif;
+  color: #0E3E60;
+  /* stops a two-line step leaving one orphan word on the second line */
+  text-wrap: balance;
+  letter-spacing: .005em;
+}
+
+/* NO BUTTON. There was a "Got it" pill here. The hand replaced it: a finger tapping
+   on the thing being explained is understood by a child who cannot read the sentence
+   yet, and it says WHERE to tap rather than sitting in a box claiming comprehension.
+   A tap anywhere on the stage acknowledges a step now. */
+
+/* Skip sits in a corner and is deliberately quiet: findable by an adult, and never
+   competing with the thing the child is being asked to look at. */
+.tut-skip {
+  position: absolute;
+  right: clamp(10px, 1.1vw, 22px);
+  top: clamp(10px, 1.1vw, 22px);
+  font: 700 clamp(11px, 1.15vw, 20px)/1 "Baloo 2", system-ui, sans-serif;
+  color: #EAF9FF;
+  padding: clamp(6px, 0.63vw, 11px) clamp(12px, 1.26vw, 22px);
+  border: 2px solid rgba(234, 249, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(6, 32, 60, 0.5);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.tut-skip:hover { background: rgba(6, 32, 60, 0.72); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-veil { -webkit-backdrop-filter: brightness(0.6); backdrop-filter: brightness(0.6); }
+  .tut-hand, .tut-hand::after { animation: none; }
+  .tut-hand[data-gesture="sweep"] { animation: none; translate: -50% -50%; }
+  /* still ARRIVES at its resting values rather than being parked mid-pop */
+  .tut-bubble { animation: none; scale: 1; rotate: -1.4deg; translate: -50% -50%; }
+}
+
+/* THE ENDING LAYOUT. The overlay stops being a centring box and becomes a full-stage
+   frame with something pinned at each end, so the middle stays clear for the two
+   characters standing together. */
+/* `[hidden]` HAS TO WIN, AND !important TOOK THAT AWAY.
+
+   This is the fault behind the ending card and the Play again button appearing over
+   the cover and over live gameplay. `.overlay[hidden] { display: none }` is what hides
+   every panel, and it is ordinary specificity — so `display: block !important` here
+   beat it and the ending panel was rendered permanently, from boot, whatever the
+   hidden attribute said. It sat on top of the PLAY button: elementFromPoint at the
+   centre of PLAY returned this panel's label, so the first tap of the game was
+   landing on an invisible ending screen.
+
+   The !important is needed at all only because .overlay sets `display: flex` to centre
+   its card, and this panel pins one thing at each end instead. So the hidden case is
+   restated below with the same weight. Anything that raises specificity to override a
+   layout rule has to re-assert the hidden rule as well, or it silently un-hides the
+   element it is styling. */
+.overlay-ending[hidden] { display: none !important; }
+.overlay-ending {
+  display: block !important;
+  pointer-events: none;                  /* only the button takes input */
+  /* NO DIM AND NO BLUR. .overlay gives every panel a 42% navy wash and a 3px
+     backdrop blur, which is right for a modal that interrupts the game — and exactly
+     wrong for this one. The ending exists to show the character standing with the
+     friend who was waiting for him while confetti falls; dimming and blurring that is
+     hiding the reward in order to announce it. The card and the button carry their own
+     contrast, so nothing needs a wash behind them. */
+  background: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.overlay-ending .card {
+  position: absolute;
+  left: 50%;
+  top: clamp(14px, 2.2vh, 40px);
+  translate: -50% 0;
+  pointer-events: auto;
+}
+/* PLAY AGAIN, pinned to the bottom of the stage rather than sitting in the panel.
+   It is the only thing to do on this screen, so it gets a place of its own where a
+   thumb already rests — and being out of the card is what let the card move up and
+   uncover the characters. */
+.btn-replay {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(16px, 3.2vh, 54px);
+  translate: -50% 0;
+  pointer-events: auto;
+  min-width: clamp(200px, 22vw, 380px);
+  /* A ONE-SHOT ARRIVAL, NOT A PERPETUAL BOB, and this was a real bug rather than a
+     taste call.
+
+     It carried playBob on an infinite loop, so the button never stopped moving. A
+     thumb aiming at it is aiming at a target that has moved by the time the finger
+     lands, so presses on it miss and the ending panel looks stuck on screen. That is
+     the reported fault. Playwright refused to click it at all, reporting "element is
+     not stable" for thirty seconds, which is the same complaint in machine form and
+     is why no test had caught it.
+
+     A press must never be a movement anyway: on touch the finger covers the control
+     at the moment it would travel. It pops in once to draw the eye, then holds still
+     to be pressed. */
+  animation: cardPop 420ms cubic-bezier(.2, 1.5, .4, 1) both;
+}
+@media (prefers-reduced-motion: reduce) { .btn-replay { animation: none; translate: -50% 0; } }
+
+/* ---------- THE WIN PANEL ----------
+   card-fun already gives it the thick navy rim, the honey starburst, the tilt and the
+   bounce. This is what makes it read as the BIGGEST moment rather than just another
+   panel: a wider box so the heading can be large, a warmer ground, and a heading
+   scaled past the one on any other panel.
+
+   It deliberately does not add a second starburst, a second shadow or a second
+   animation on top of card-fun. Stacking celebrations is how a reward screen ends up
+   busier than it is exciting — the character on the canvas behind is already
+   celebrating with a sparkle shower, and this panel should not compete with it. */
+.card-win {
+  max-width: min(86vw, 760px);
+  /* a touch warmer than the Ouch card: this one is a prize, not a consolation */
+  background:
+    radial-gradient(120% 78% at 50% 4%, rgba(255, 241, 196, 0.98), rgba(255, 241, 196, 0) 66%),
+    linear-gradient(180deg, #FFFBEA 0%, #F0F9FF 56%, #C6E8FB 100%) !important;
+}
+.card-win h1 {
+  /* the largest type in the game, because this is the largest moment in it */
+  font-size: clamp(46px, 5.4vw, 104px) !important;
+}
+.card-win p {
+  font: 700 clamp(15px, 1.6vw, 30px)/1.35 "Baloo 2", system-ui, sans-serif;
+  color: #14496F;
+  margin: 0 0 clamp(12px, 1.3vw, 24px) !important;
+  text-wrap: balance;
+}
+/* AMBER, NOT GREEN. It carries .btn-chunky for the rim-and-face construction the
+   button family uses, and then overrides the face colour: the family's own face is
+   green, which belongs to no other pixel in this game — the cover, the jump button and
+   every highlight in it are amber on ice blue. A green pill reads as a stock UI kit
+   button dropped onto painted art, which is exactly what it was.
+
+   The press is a DARKENING rather than a movement: on touch a finger covers the
+   control at the moment it would travel, so a moving highlight is hidden exactly when
+   it is needed. */
+.btn-replay .btn-chunky-face {
+  background: linear-gradient(180deg, #FFD262 0%, #F2A93B 52%, #D2851A 100%) !important;
+  border-color: #A8660F !important;
+}
+/* The LABEL too: it inherits the family green, which on an amber face is the one
+   colour combination in the game that is hard to read. White with the same navy stroke
+   the other cartoon lettering uses. */
+.btn-replay .btn-chunky-label {
+  color: #FFFFFF !important;
+  -webkit-text-stroke: clamp(2px, 0.21vw, 4px) #A8660F;
+  paint-order: stroke fill;
+}
+.btn-replay:hover .btn-chunky-face { filter: brightness(1.07); }
+.btn-replay:active .btn-chunky-face { filter: brightness(.88); }
+
 /* ---------- the Ouch panel's character hero ---------- */
 .card-hero {
-  width: clamp(120px, 12vw, 230px);
-  height: clamp(100px, 10vw, 195px);
+  /* BIGGER. It is the only picture on the panel and it was thumbnail-sized, which is
+     most of why the card read as a form with an icon on it. */
+  width: clamp(150px, 16vw, 300px);
+  height: clamp(126px, 13.4vw, 254px);
+  margin-bottom: clamp(-6px, -0.6vw, -2px);
   background-repeat: no-repeat;
   background-position-x: 0%;
-  filter: drop-shadow(0 clamp(5px, 0.52vw, 10px) clamp(7px, 0.73vw, 14px) rgba(8,40,72,.4));
-  animation: heroWobble 900ms ease-in-out infinite;
+  filter: drop-shadow(0 clamp(6px, 0.63vw, 13px) clamp(8px, 0.85vw, 17px) rgba(8,40,72,.45));
+  /* drops in first, then keeps the idle wobble — two animations, not one */
+  animation: heroDrop 520ms cubic-bezier(.2, 1.7, .4, 1) both,
+             heroWobble 900ms ease-in-out 520ms infinite;
+}
+@keyframes heroDrop {
+  from { opacity: 0; translate: 0 -38px; scale: .7; }
+  to   { opacity: 1; translate: 0 0;     scale: 1; }
 }
 @keyframes heroWobble {
   0%, 100% { transform: rotate(-2.5deg); }
@@ -348,8 +819,12 @@
   /* the common box the two takes were built onto */
   aspect-ratio: 1880 / 711;
   background-image: url("../assets/ui/btn-play.webp");
+  /* NO PERPETUAL BOB. See the note on .btn-replay: an infinitely animating button is a
+     target that has moved by the time a finger lands on it, and Playwright refuses to
+     click one at all ("element is not stable"), which is why no test caught it. It
+     arrives with a pop and then holds still to be pressed. */
+  animation: cardPop 460ms cubic-bezier(.2, 1.5, .4, 1) both;
   filter: drop-shadow(0 clamp(5px, 0.52vw, 10px) clamp(10px, 1vw, 20px) rgba(46, 12, 4, 0.5));
-  animation: playBob 2.4s cubic-bezier(.45, 0, .55, 1) infinite;
   z-index: 3;
 }
 /* the amber cap's own box, measured off the normal take */
@@ -506,31 +981,99 @@
    the family already carries, and a bounce on the way in. It is the one moment the
    player has failed at something, so it is deliberately friendly rather than severe —
    no red, no alarm, and the character sits right at the top of it. */
+/* THE CARD IS A TOY, NOT A DIALOG.
+ *
+ * The previous treatment was already warmer than the ice panels it replaced, and it
+ * still read as a web modal: a near-white rounded square, everything centred, a small
+ * character, and nothing behind any of it. Cream instead of grey is not a game.
+ *
+ * What makes a panel in a children's game feel like a game is not colour, it is
+ * DEPTH and TILT — a thick outline so it reads as a physical object, a shadow it
+ * plainly sits above, a couple of degrees off-square so it looks placed rather than
+ * laid out, and something happening behind the character so the middle of the card
+ * is not empty. All of that is drawn with the panel's own pseudo-elements, so it adds
+ * no markup and no new interface: still one heading and one button. */
 .card-fun {
-  border-radius: clamp(26px, 2.8vw, 54px) !important;
-  /* warm cream into pale sky, rather than the cold ice of the other panels */
+  position: relative;
+  overflow: hidden;                        /* the rays and specks stay inside the panel */
+  border-radius: clamp(30px, 3.2vw, 62px) !important;
+  /* warm honey at the top into pale sky, and a fat white rim inside the navy edge */
   background:
-    radial-gradient(120% 80% at 50% 0%, rgba(255, 252, 240, 0.98), rgba(255, 252, 240, 0) 62%),
-    linear-gradient(180deg, #FFFDF6 0%, #E8F6FF 58%, #C9E9FA 100%) !important;
-  padding: clamp(18px, 2vw, 38px) clamp(28px, 3vw, 58px) clamp(22px, 2.3vw, 44px) !important;
-  animation: cardPop 420ms cubic-bezier(.2, 1.5, .4, 1) both;
+    radial-gradient(120% 78% at 50% 4%, rgba(255, 246, 214, 0.98), rgba(255, 246, 214, 0) 64%),
+    linear-gradient(180deg, #FFFCEF 0%, #EAF7FF 56%, #BFE4FA 100%) !important;
+  border: clamp(4px, 0.42vw, 8px) solid #17547F !important;
+  box-shadow:
+    inset 0 0 0 clamp(4px, 0.42vw, 9px) rgba(255, 255, 255, 0.95),
+    inset 0 clamp(-14px, -1.2vw, -8px) clamp(18px, 1.9vw, 34px) rgba(96, 176, 214, 0.35),
+    0 clamp(10px, 1vw, 20px) 0 #0E3E60,     /* the slab it sits on */
+    0 clamp(18px, 1.9vw, 36px) clamp(26px, 2.7vw, 52px) rgba(6, 32, 60, 0.45) !important;
+  padding: clamp(20px, 2.2vw, 42px) clamp(30px, 3.2vw, 62px) clamp(24px, 2.5vw, 48px) !important;
+  /* placed, not laid out */
+  rotate: -1.6deg;
+  animation: cardPop 460ms cubic-bezier(.2, 1.6, .38, 1) both;
 }
-/* the heading in the same cartoon lettering as the button: white with a navy stroke */
+/* THE BURST BEHIND THE CHARACTER. Rays from a repeating conic gradient, turning very
+   slowly — the one thing that stops the middle of the card being a blank field. Warm,
+   low contrast, and behind everything: it must never compete with the button. */
+.card-fun::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: clamp(38px, 4vw, 78px);
+  width: clamp(260px, 27vw, 520px); aspect-ratio: 1;
+  translate: -50% -50%;
+  background: repeating-conic-gradient(from 0deg,
+    rgba(255, 201, 92, 0.30) 0deg 9deg, rgba(255, 201, 92, 0) 9deg 24deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 38%, transparent 78%);
+  mask-image: radial-gradient(closest-side, #000 38%, transparent 78%);
+  animation: cardRays 26s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+/* A FEW SPECKS OF SNOW still settling, drawn as three radial dots. Cheap, and it makes
+   the panel feel like part of the same weather as the stage behind it. */
+.card-fun::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.95) 42%, transparent 44%),
+    radial-gradient(circle, rgba(255,255,255,.75) 42%, transparent 44%),
+    radial-gradient(circle, rgba(255,255,255,.6) 42%, transparent 44%);
+  background-size: 9px 9px, 6px 6px, 12px 12px;
+  background-position: 12% 22%, 82% 34%, 68% 12%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 0;
+}
+/* everything real sits above the decoration */
+.card-fun > * { position: relative; z-index: 1; }
+@keyframes cardRays { to { rotate: 360deg; } }
+/* THE HEADING IS THE LOGO OF THIS PANEL. Same cartoon lettering as the button — white
+   with a navy stroke — but bigger, tilted the other way to the card so the two do not
+   look skewed together, and sat on a hard drop rather than a soft blur, which is what
+   makes painted lettering read as painted. */
 .card-fun h1 {
-  font-size: clamp(34px, 3.9vw, 74px) !important;
-  line-height: 0.95;
+  font-size: clamp(40px, 4.6vw, 88px) !important;
+  line-height: 0.92;
+  margin: clamp(2px, 0.3vw, 6px) 0 clamp(10px, 1.1vw, 20px) !important;
   color: #FFFFFF !important;
-  -webkit-text-stroke: clamp(3px, 0.36vw, 7px) #14496F;
+  -webkit-text-stroke: clamp(4px, 0.42vw, 8px) #14496F;
   paint-order: stroke fill;
-  text-shadow: 0 clamp(3px, 0.31vw, 6px) 0 rgba(20, 73, 111, 0.35);
-  letter-spacing: .01em;
+  text-shadow:
+    0 clamp(4px, 0.42vw, 8px) 0 #14496F,
+    0 clamp(9px, 0.95vw, 18px) clamp(10px, 1vw, 20px) rgba(20, 73, 111, 0.35);
+  letter-spacing: .015em;
+  rotate: 1.2deg;
 }
 @keyframes cardPop {
   from { opacity: 0; scale: .72; }
   to   { opacity: 1; scale: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card-fun { animation: none; }
+  .card-fun { animation: none; rotate: none; }
+  .card-fun::before { animation: none; }
+  .card-fun h1 { rotate: none; }
+  .card-hero { animation: none; opacity: 1; translate: none; scale: 1; }
   .btn-retry { animation: none; }
   .btn-retry:active, .btn-retry.pressed { scale: 1; }
 }

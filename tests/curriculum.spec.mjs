@@ -586,23 +586,59 @@ test.describe('the hanging row', () => {
     }
   });
 
-  test('every crevasse stays far too wide to jump', async ({ page }) => {
+  test('the crossing cannot be jumped, and every piece spans its own hole', async ({ page }) => {
+    /* THE CROSSING, NOT EACH GAP — and that is a change of claim, not a relaxed
+     * threshold.
+     *
+     * This used to require each crevasse to exceed 400px, because a jump carries about
+     * 460 and one fixed 620px hole was the whole crossing. A ditch is now cut to the
+     * width of the piece that bridges it, which is 133-200px depending on how many
+     * options the row holds — so the old assertion fails by design, and raising it
+     * would only force the geometry back.
+     *
+     * What still has to be true is that the crossing is IMPASSABLE — and the honest
+     * assertion for that is NOT a width. A first attempt at this measured the span
+     * from the first near lip to the last far lip and required it to beat a jump,
+     * which fails on a single-ditch phase for a good reason: that span is one 200px
+     * ditch, and 200px genuinely is jumpable. The geometry is not what stops the
+     * player crossing.
+     *
+     * What stops them is that the JUMP IS DISABLED for the whole of a puzzle. So that
+     * is what is asserted — the actual mechanism rather than an invented consequence
+     * of it.
+     *
+     * And the new invariant the redesign rests on: every option must be at least as
+     * wide as the hole, or a correct answer drops through the gap it was meant to
+     * bridge. That is the assertion that would have caught the two ways this went
+     * wrong while it was being built — a ditch sized from the row box instead of the
+     * finished piece, and a floor that outgrew the piece in the six-option phases. */
     await boot(page, { speed: 900, fast: 4 });
     const total = await phaseCount(page);
     for (let i = 0; i < total; i++) {
       await enterPhase(page, i);
-      const gaps = await page.evaluate(() => {
+      const r = await page.evaluate(() => {
         const G = window.iceAgeGame.debug();
-        return G.gapsThisPhase.map(g => ({
-          w: g.x1 - g.x0, near: g.x0 - G.worldX, slots: g.slots.length
-        }));
+        const gs = G.gapsThisPhase;
+        const hang = (G.l1 && G.l1.shapes || []).filter(s => s.state === "hang");
+        return {
+          gaps: gs.map(g => ({ w: g.x1 - g.x0, near: g.x0 - G.worldX, slots: g.slots.length })),
+          jumpEnabled: G.jumpEnabled,
+          narrowestPiece: hang.length ? Math.min(...hang.map(s => s.w)) : 0
+        };
       });
-      expect(gaps.length, `phase ${i + 1} crevasse count`).toBeGreaterThan(0);
-      for (const g of gaps) {
-        // a jump carries about 460px
-        expect(g.w, `phase ${i + 1} crevasse width`).toBeGreaterThan(400);
-        // and its near lip is past the character, who stops at the edge
+      expect(r.gaps.length, `phase ${i + 1} crevasse count`).toBeGreaterThan(0);
+
+      // the crossing cannot be jumped because jumping is off, which is the real rule
+      expect(r.jumpEnabled, `phase ${i + 1} jump is disabled`).toBe(false);
+
+      for (const g of r.gaps) {
+        // one bridge per hole: a plank that is half one shape and half another is not a thing
+        expect(g.slots, `phase ${i + 1} slots per crevasse`).toBe(1);
+        // the near lip is past the character, who stops at the edge
         expect(g.near, `phase ${i + 1} near lip`).toBeGreaterThan(430 + 200);
+        // and the narrowest option still reaches across it
+        expect(r.narrowestPiece, `phase ${i + 1} piece spans its hole`)
+          .toBeGreaterThanOrEqual(g.w);
       }
     }
   });

@@ -20,6 +20,7 @@
  *
  *     node tools/gif-to-grid.mjs
  */
+import { existsSync } from 'node:fs';
 import sharp from 'sharp';
 import { join, resolve } from 'node:path';
 
@@ -55,10 +56,28 @@ async function sheetSize(file, cells, cellW) {
   return areas[areas.length >> 1];
 }
 
-/* ---- the reference: what size the character is in the sheets already shipping ---- */
-const REF = [['mammoth-skid.webp', 15], ['mammoth-shake.webp', 12], ['mammoth-hurt.webp', 16]];
+/* ---- the reference: what size the character is in the sheets already shipping ----
+ *
+ * Two things were stale here and both stopped this tool running at all.
+ *
+ * It named mammoth-shake.webp and mammoth-hurt.webp, which were deleted on request when
+ * the game went to delivered GIFs only — so the very first measurement threw "Input file
+ * is missing". And it looked for them under CHAR, which is where the GRIDS live; the
+ * built sheets are in game/assets/char, which is a different folder and always was.
+ *
+ * Now it reads the sheets that actually ship, with their real frame counts taken from
+ * CFG.characters.frames, and it says which one it could not open rather than dying on a
+ * sharp stack trace. Replacing a sheet is fine: the reference is the character's
+ * established SIZE, and the sheet being replaced still carries it. */
+const SHEETS_DIR = join(ROOT, 'game', 'assets', 'char');
+const REF = [['mammoth-run.webp', 36], ['mammoth-jump.webp', 10], ['mammoth-skid.webp', 36]];
 const refs = [];
-for (const [f, n] of REF) refs.push(await sheetSize(join(CHAR, f), n, 420));
+for (const [f, n] of REF) {
+  const p = join(SHEETS_DIR, f);
+  if (!existsSync(p)) { console.warn('  reference sheet missing, skipping: ' + f); continue; }
+  refs.push(await sheetSize(p, n, 420));
+}
+if (!refs.length) { console.error('no reference sheet could be read from ' + SHEETS_DIR); process.exit(1); }
 refs.sort((a, b) => a - b);
 const refSize = refs[refs.length >> 1];
 console.log('shipping sheets: sqrt(area) medians ' + refs.map(v => v.toFixed(0)).join(', ') +

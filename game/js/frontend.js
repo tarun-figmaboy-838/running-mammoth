@@ -18,7 +18,9 @@ export class Frontend {
     this.el = {
       cover: root.getElementById('cover'),
       play: root.getElementById('btn-play'),
-      oopsHero: root.getElementById('oops-hero')
+      /* oopsHero is gone with the Ouch card — see index.html. The win panel has a hero
+         of its own, filled by showWin() below from the character's own sheet. */
+      winHero: root.getElementById('win-hero')
     };
     this.state = 'ENTERING';
     this._timers = [];
@@ -87,35 +89,40 @@ export class Frontend {
     elem.style.backgroundPositionX = pct + '%';
   }
 
-  showHurt() {
-    if (!this.el.oopsHero) return;
+  /* THE WIN PANEL'S CHARACTER, on ONE frame rather than a loop.
+
+     The Ouch card used to run a setInterval stepping frames onto its hero at 140ms —
+     a second animation, outside the renderer, of a beat the canvas was already
+     animating. This does not repeat that: the character on the CANVAS behind the
+     panel is already celebrating, so a second animated copy of him on the panel would
+     be two performances of one moment. One still, held, is enough to say who did it.
+
+     It reads the idle sheet, which is the one delivered sheet with a settled standing
+     pose and is otherwise unused (see CFG.characters.sheets) — so the art is already
+     built and this costs nothing new. Falls through to run, then jump, so a missing
+     sheet leaves the panel without a picture rather than without a panel. */
+  showWin() {
+    if (!this.el.winHero) return;
     const id = this.game.character();
-    /* The hurt and shake sheets have been removed, so this falls through to the jump
-       sheet. Its last frames are the grounded recovery poses, which is the closest
-       thing available to "sat down after a bump". */
-    const sheet = this.game.sheetFor(id, 'hurt') ||
-                  this.game.sheetFor(id, 'shake') ||
+    const sheet = this.game.sheetFor(id, 'idle') ||
+                  this.game.sheetFor(id, 'run') ||
                   this.game.sheetFor(id, 'jump');
     if (!sheet) return;
-    const last = sheet.frames - 1;
-    const a = Math.max(0, last - 3), b = last;
-    let f = a;
-    this.hideHurt();
-    this.frameAt(this.el.oopsHero, sheet, f);
-    this._hurt = setInterval(() => {
-      f = f >= b ? a : f + 1;
-      this.frameAt(this.el.oopsHero, sheet, f);
-    }, 140);
-    this._timers.push(this._hurt);
+    this.frameAt(this.el.winHero, sheet, 0);
   }
-  hideHurt() { if (this._hurt) { clearInterval(this._hurt); this._hurt = null; } }
+
+  /* showHurt/hideHurt are gone. They ran a setInterval that stepped the last few
+     frames of a sheet onto the Ouch card's hero element at 140ms — a second, DOM-side
+     animation of a beat the canvas is already animating. The card went (a crash
+     recovers by itself now) and with it the reason for a frame pump outside the
+     renderer: the delivered 36-frame knockout plays on the canvas, where the rest of
+     the character animation lives. */
 
   wait(ms, fn) { const t = setTimeout(fn, ms); this._timers.push(t); return t; }
 
   destroy() {
     this._timers.forEach(clearTimeout);
     this._timers.forEach(clearInterval);
-    this.hideHurt();
     window.removeEventListener('keydown', this._onKey);
   }
 }

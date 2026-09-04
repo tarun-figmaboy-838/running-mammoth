@@ -44,6 +44,7 @@ export const ORDER = [
   'engine.js',
   'hud.js',
   'frontend.js',
+  'tutorial.js',
   'main.js'
 ];
 

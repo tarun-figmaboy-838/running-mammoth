@@ -404,6 +404,179 @@ Two rules this layer holds to, and a brief can rely on:
 
 `?reduced=1` (and the OS reduced-motion setting) scales all of it down.
 
+### 9e. The first-play tutorial
+
+Added 2026-09-04. `game/js/tutorial.js`, a DOM layer driven from `main.js` on its own
+animation frame — not from `onHud`, which fires from the engine's update, which the
+tutorial *pauses*: driving it from there would stop it dead on its first step.
+
+**Two kinds of step, and the difference decides everything else.**
+
+| | describing | asking |
+|---|---|---|
+| `advance` | a number of seconds | the name of an action |
+| the game | frozen | running |
+| the blur sheet | on | off |
+| the hand | none | on the control, tapping or sweeping |
+| the box | stays for the whole step | leaves after 2.4s |
+| ends when | it has been read | the player does the thing |
+
+The order is: name the mammoth · name the rock (frozen, so it can be looked at) · name
+the JUMP button · **ask for a jump** · name the crevasse · name the blocks · **ask for a
+cut**. Naming a thing before asking for it is the whole pattern; the button was once the
+one place it was skipped, and the control was never introduced at all.
+
+**Reading time comes from the sentence**, not a constant: `1.5s + 55ms/char`, clamped
+2.6–5.2s. **There is no tap-to-advance** — a child taps because a finger is on the screen,
+not to dismiss text, so honouring it would skip the instruction they were about to read.
+Skip is the deliberate way out and it is a button.
+
+**The highlight is a blur sheet with the focus lifted over it**, never a spotlight. Three
+constructions were tried and rejected, and they are recorded because each looks more
+reasonable than the one that replaced it:
+
+1. a lit circle with a gold ring — an outline is a hard line drawn ON the artwork
+2. a masked hole in the blur — needs the hole kept in step with a moving target, its rim
+   inflated to keep the subject out of the blur, and its polarity is inverted from how it
+   reads; all of that to arrive back at a lit circle
+3. a rounded rectangle with a white hairline — a square stuck on the scene
+
+What ships: a 30% sheet with a light blur over the whole stage, and the focus region
+copied off the canvas and drawn on top with a long feather and no outline of any kind. A
+DOM target (the JUMP button) is *raised* instead — `.tut-lift` — because copying its
+region would lift a snapshot of the empty sky behind it and hide the control.
+
+**The copy is taken once per step**, which is safe rather than lucky: every step that
+shows the sheet has frozen the game. Per-frame would mean reading back from the canvas
+sixty times a second.
+
+**It runs every time.** A stored "seen" flag was removed: once set, the tutorial was
+invisible with no way back to it from inside the game — a returning player, a second
+child on the same browser, or anyone reviewing the build got dropped straight into
+gameplay, and the feature was untestable by hand. `?tutorial=0` suppresses it, which is
+what the suite passes.
+
+**Rules.** It never completes the task, never blocks the input it asks for
+(`pointer-events: none` on the layer throughout), and never leaks an answer — the block
+step spotlights the whole row and its wording is about ropes and blocks, never about
+which shape fits.
+
+---
+
+### 9f. The ending
+
+The last crossing leads into `FINAL_RUN`, which now ends **where the friend stands**
+rather than on a progress number, so the journey finishes somewhere instead of at an
+arbitrary moment.
+
+- `G.bearAt` is set **once**, in `onEnter`. Assigning it in the update branch is a
+  treadmill: the target is recomputed from the current `worldX` every frame, stays a
+  fixed distance ahead forever, and the run home never ends.
+- The arrival gap is `CFG.mammothX + 265`. At 330 the bear ended up at screen x 327
+  against a character standing at 430 — he had run past his own friend.
+- `particles.confetti` throws 90 pieces across the whole width from above the frame,
+  staggered by `delay` so it falls as a shower rather than one sheet. Each piece tumbles
+  by squeezing its width on a cosine, the same trick the reward token used.
+- The panel is **not a modal**: `.overlay-ending` clears the 42% navy wash and the 3px
+  backdrop blur that `.overlay` gives every other panel. The ending exists to show the
+  two of them together — dimming and blurring that is hiding the reward in order to
+  announce it. Words at the top, `Play again` pinned to the bottom, middle band clear.
+
+---
+
+### 9g. Difficulty
+
+**The jump.** The old window was about 0.2s: the apex was 295px and the bar 45% of a
+140px rock, so the character was clear for 0.79s of a 0.887s flight — but the rock
+crosses the danger zone in ~0.58s, and the difference is all the margin there was. Four
+terms were loosened rather than one of them a lot:
+
+| | was | now |
+|---|---|---|
+| `jumpVel` | −1330 (apex 295, air 0.887s) | −1470 (apex 360, air 0.98s) |
+| clearance bar | 45% of rock height | 28% |
+| body half-width | 68 | 52 |
+| `bufferMs` / `coyoteMs` | 110 / 90 | 190 / 150 |
+
+Measured after: **0.35s** of press window, from 330px out to 150px out.
+
+**The rocks.** `jumpBefore` names six phases, and the count runs 2, 3, 4 then holds at
+`maxRocks`. It is derived from `jumpBefore.indexOf(p.id)`, **not** counted up as
+stretches happen: a counter inflates on a retry, because `retryObstacle()` returns to
+`PHASE_RUN` and re-entering clears `phaseJumped` so the stretch spawns again — measured
+going 1, 2, 3, 4 inside a single phase, which made failing a jump harder than the attempt
+that had just beaten you.
+
+---
+
+### 9h. The phase zoom
+
+`CFG.levelOne.zoomK` is 1.08, eased in on `PHASE_INTRO` and out when running resumes.
+
+**The scale is the largest that keeps the puzzle on the stage, and the focus point is
+solved rather than chosen.** Scaling by k about f maps p to `f + (p − f)k`, so everything
+further from f than the frame edge moves out of frame. Rearranging that for the rightmost
+block, the character and the water gives a permitted range for f, and the crossing centre
+is clamped into it — see `viewFocus()`. Picking a nice-looking focus and scale instead is
+what silently clips the sixth option in a six-option phase.
+
+**Every DOM overlay must map through the published transform.** `view: {k, x, y}` goes out
+on the HUD state, and `Hud.toView` and `Tutorial.toView` apply it. The verdict mark and
+the hand hint are placed in stage coordinates over the crossing — the thing the zoom moves
+furthest — and unmapped they drift off it. The tutorial maps only its **canvas-space**
+targets: the JUMP button's box comes from a real DOM rect and is already in screen space,
+so mapping it would move the one target that was right.
+
+---
+
+### 9d. The delivered character sheets
+
+Reworked 2026-09-04. Four animations were delivered as 36-frame GIFs and the character
+is now drawn from art in every state that matters, rather than from poses borrowed out
+of the jump sheet.
+
+| slot | what it is | where it plays |
+|---|---|---|
+| `run` | 36-frame cycle | distance-driven, `stride` sets the cadence |
+| `jump` | 10 poses picked off the measured arc | `jumpMap` addresses them by name |
+| `skid` | **new** | `SKID_STOP`, mapped across `breakSkid` (2300ms = its own 36 x 60ms) |
+| `shake` | **new** | `SHAKE` at `tremorFps`, then `LOOK_DOWN` holds the final frame |
+| `hurt` | **new** | `KNOCKOUT` and `HURT` |
+| `idle` | **built, deliberately not loaded** | see below |
+
+**One size, one foot line.** Every extent is measured across all sheets to pick ONE
+scale, so the character cannot change size between animations, and every frame stands on
+the same line — `slice-char.mjs` prints both and the `baseGap` it needs (27).
+
+**No procedural shudder any more.** There used to be a sideways knock, a nervous roll
+and a jelly squash applied on top of whatever frame was showing, plus a recoil-then-lean
+double take. Its own comment said why it existed: *"because the fright has no art of its
+own."* It has art now, and two performances of one beat fight rather than add — a sine
+wave shoving the sprite sideways over a drawn reaction reads as the picture vibrating.
+Removed. `scare` still decays and still drives the sweat beads and the gulp, which are
+separate cues. The screen shake and the earthquake are camera moves, not character
+animation, and are untouched.
+
+**The idle sheet is held back on purpose.** `LOOK_DOWN` holds the last frame of the
+delivered fright — the pose the character has just arrived at — and swapping that for a
+neutral breathing loop discards the reaction the learner watched. It is also not listed
+in `sheets`, because a listed sheet is fetched: 1.5MB on every load for something
+nothing draws. To turn it on: add the line back, add `idle: 36` to `frames`, and
+uncomment the branch in `LOOK_DOWN`.
+
+**One grid per slot.** The superseded `skid-gif.png` was deleted rather than kept as a
+previous take: two grids for one slot differing only by a suffix is how frames from two
+deliveries end up merged into one sheet.
+
+**Known trade: the knockout's outer star ring is clipped.** Keeping it needs a padded
+frame box, and a padded box immediately becomes the largest frame in the set, so the one
+shared scale collapses and the character comes out smaller in every other sheet too
+(measured: body 74..303px became 107..250, `baseGap` 25 became 76). The dazed sit, the
+spiral eyes and the inner stars survive, and `near: 200` on that sheet is what keeps
+them. Fixing it properly means a larger cell for every sheet.
+
+---
+
 ### 9b. The cartoon sound layer
 
 Added 2026-09-04. Two new synth voices, and seven cues built on them. All synthesised —

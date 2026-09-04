@@ -10,7 +10,7 @@
  * this folder and never the place to make a change.
  *
  * Rebuild:  node tools/build-bundle.mjs
- * In order: polygons.js, option-shapes.js, engine.js, hud.js, frontend.js, main.js
+ * In order: polygons.js, option-shapes.js, engine.js, hud.js, frontend.js, tutorial.js, main.js
  */
 (function () {
 'use strict';
@@ -814,10 +814,27 @@ const CFG = {
   surfaceY: 840,
   mammothX: 430,
   runSpeed: 520,
+  /* THE JUMP WINDOW, widened — it was genuinely too tight, and the reason is not the
+   * clearance height, which is what it looks like.
+   *
+   * Worked through with the old numbers: the apex is jumpVel^2/2g = 295px and a rock
+   * only has to be cleared by 45% of its 140px height, so the character is above the
+   * bar for 0.79s of a 0.887s flight. That part was never the problem. The rock,
+   * though, crosses the danger zone — its own width plus the 136px body box — in about
+   * 0.58s at 520px/s. So the press has to land inside 0.79 - 0.58 = ~0.2s. Two tenths
+   * of a second is a reflex test, not a jump, and it is the first thing the game asks
+   * anyone to do.
+   *
+   * Every term is loosened rather than one of them a lot: more airtime, a lower bar, a
+   * narrower body, and more forgiving input. Together they roughly double the margin,
+   * measured rather than estimated — see the note on the collider below.
+   *
+   * gravity is left alone: it sets the FEEL of the arc, and a floatier jump on the
+   * same airtime reads as the character being lighter, which is not the fix. */
   gravity: 3000,
-  jumpVel: -1330,
-  coyoteMs: 90,
-  bufferMs: 110,
+  jumpVel: -1470,          // apex 360px, airtime 0.98s (was 295px / 0.887s)
+  coyoteMs: 150,           // pressed a moment late off the ground still counts
+  bufferMs: 190,           // pressed a moment early still fires on landing
   totalDistance: 11200,
   // surfaceRatio anchors the path image to surfaceY. The art's faint top fringe starts
   // at src y~216 but its SOLID snow edge is at ~227, so the old 0.406 left the feet
@@ -857,7 +874,18 @@ const CFG = {
      the rock buried whatever size it is drawn at, which is what makes it sit IN the snow
      with the drift coming up around its base. Purely visual: the collider is `height`
      and is measured from surfaceY, so this cannot change the jump. */
-  obstacle: { height: 140, drawHeight: 230, sinkRatio: 0.11, pairGap: 100, pairScale: 0.7 },
+  /* ONE ROCK, ONE JUMP. `pairGap` was 100px, which is less than the character is wide:
+     several rocks at that spacing are a single clump cleared with a single jump, so
+     raising the count from two to four made the obstacle wider without ever asking for
+     another jump. `pairScale` shrank them to fit the clump, which made them look like
+     smaller rocks rather than more of them.
+
+     A jump covers about 510px of ground (0.98s of airtime at 520px/s), so rocks have to
+     be further apart than that to be separate obstacles — 780 leaves roughly a quarter
+     of a second on the ground between landing and the next take-off, which is enough to
+     react and not so much that the run feels empty. They are drawn at full size now,
+     because each one is its own obstacle. */
+  obstacle: { height: 140, drawHeight: 230, sinkRatio: 0.11, soloGap: 780, pairScale: 1 },
   /* Shared sprite geometry. Every sheet, for every character, is rebuilt on one
      420x320 cell with the content bottom on a shared baseline — baseGap px up from
      the cell bottom — so a character is exactly the same size whichever animation is
@@ -870,8 +898,20 @@ const CFG = {
        with a hanging trunk needs room BELOW the feet inside the cell (52 source px at
        the worst), and that room is what this reserves. Change it only together with
        the slicer, which prints the value it has built the sheets to. */
-    cw: 420, ch: 320, baseGap: 25, scale: 1.12, fps: 15,
-    tremorFps: 16, lookFps: 9,
+    /* 27, not 25: re-measured by tools/slice-char.mjs when the delivered knockout and
+       idle sheets joined the set. It is the slicer's own output and the two must agree
+       or the character walks above or below the snow — the tool prints the number it
+       needs on every run. */
+    cw: 420, ch: 320, baseGap: 27, scale: 1.12, fps: 15,
+    /* THE FRIGHT'S OWN RATE. The delivered sheet is authored at 60ms a frame, so 36
+       frames is 2.16s and the sheet has to be walked at 1/0.06 = 16.67fps to play at
+       the speed it was drawn for. At 16 it ran 4% slow, which nobody can see; the point
+       of pinning it is that CFG.timing.frightHold below is derived from this number, so
+       if one changes the other has to follow. */
+    tremorFps: 16.67, lookFps: 9,
+    /* The delivered idle is authored at 60ms a frame like the rest, so 16.67fps plays
+       it at the speed it was drawn for — 36 frames is a 2.16s breathing loop. */
+    idleFps: 16.67,
     // 16 frames at 15fps is 1.07s, and the Try Again card comes in at T.knockout
     // (1100ms) — so the crash finishes playing just as the card arrives
     koFps: 15
@@ -907,12 +947,35 @@ const CFG = {
       sheets: {
         run: 'assets/char/mammoth-run.webp',
         jump: 'assets/char/mammoth-jump.webp',
-        skid: 'assets/char/mammoth-skid.webp'
+        skid: 'assets/char/mammoth-skid.webp',
+        /* THE FRIGHT AT THE EDGE, delivered. SHAKE and LOOK_DOWN had no art at all and
+           fell back to a pose out of the jump sheet — so the one beat the whole puzzle
+           hangs on, the character arriving at a hole in the world and reacting to it,
+           was a still frame with a procedural tremor over it. 36 frames now. */
+        shake: 'assets/char/mammoth-shake.webp',
+        /* THE CRASH, delivered. KNOCKOUT and HURT read this slot, and with nothing in
+           it they read the fright frames BACKWARDS as an improvised recoil — a fair
+           trick, and nothing like a crash. This is a whole performance: it runs, hits,
+           tumbles and lands sitting down dazed with spiral eyes. */
+        hurt: 'assets/char/mammoth-hurt.webp',
+        /* NO IDLE ENTRY, ON PURPOSE — the art exists and is deliberately not loaded.
+         *
+         * mammoth-idle.webp is built by tools/slice-char.mjs and sits in this folder
+         * ready to use. It is held back rather than wired in: LOOK_DOWN now holds the
+         * final frame of the DELIVERED fright animation, which is a standing alert
+         * pose the character has just arrived at, and swapping that for a neutral
+         * breathing loop throws away the reaction the learner just watched.
+         *
+         * It is not listed here because a listed sheet is FETCHED — 1.5MB pulled down
+         * on every load for something nothing draws, which on a phone is a real cost
+         * for nothing. To turn it on: add the line back, add `idle: 36` to frames
+         * below, and take the idleSheet branch in PlayerController's LOOK_DOWN case
+         * out of its comment. */
       },
       /* Straight from tools/slice-char.mjs — the sheets are built to these counts, so
          the two move together. The run is 20 because the source art had 20 and the
          cycle is distance-driven, so it is simply smoother; nothing else changes. */
-      frames: { run: 36, jump: 10, skid: 36 },
+      frames: { run: 36, jump: 10, skid: 36, shake: 36, hurt: 36 },
       /* The knockout art has a ring of stars and spiral eyes DRAWN IN. The engine's
          own circling stars would be a second set, which is the exact fault docs/ANIMATION.md
          warns about, so they stay off for this character. */
@@ -964,9 +1027,22 @@ const CFG = {
     focus: 500, split: 280, fly: 820,
     celebrate: 700, holdRepair: 500, crossfade: 1500,
     // the instruction holds the stage alone before the options come down
-    introRead: 2000,
+    /* HOW LONG THE SENTENCE OWNS THE STAGE, and it is a reading time rather than a
+       beat. "Cut the shape with 5 sides" is six words; a child reading at two to three
+       words a second needs about 2.5s for the words alone, plus a moment to take in
+       what the sentence is asking. 2000 was measured against the animation it precedes
+       rather than against a reader, and it cut the slower ones off mid-sentence.
+
+       3400 is the reading time; the blocks then lower in, and by the time anything is
+       cuttable the sentence has left — see the note on `instruction` in the HUD state. */
+    introRead: 3400,
     // how long the knockout plays before the Try Again card pops in
-    knockout: 1100,
+    /* knockout is when the character is DOWN — kept because the daze, the stars and
+       the hit vignette are keyed to it. recover is when the run resumes, and it has
+       to clear the delivered knockout animation: 36 frames at koFps 15 is 2400ms, so
+       3000 leaves ~600ms sitting dazed before he gets up. Shorten it and the crash
+       is cut off mid-tumble; there is no card to hide behind any more. */
+    knockout: 1100, recover: 3000,
     // how long an instruction banner stays before sliding away
     instructionHold: 3800, instructionRemind: 2200
   },
@@ -991,7 +1067,62 @@ const CFG = {
 
        THREE do not fit at all: even at the bare minimum, 3 x 405 + 2 x 110 = 1435 from
        x 630 lands the far lip at 2065. Two is the most a 1920 stage can hold. */
-    gapWMulti: 415,        // when a phase opens two of them
+    gapWMulti: 415,        // legacy fixed width, kept for the one-ditch fallback
+
+    /* THE DITCH IS NOW SIZED FROM THE SHAPE THAT BRIDGES IT.
+     *
+     * It used to be a fixed 620px (415 with two), and the answer dropped into the
+     * middle of it as a small plug while drawCrossingFill closed snow around the rest
+     * to make something walkable. That is why the repair read as a block dropped in a
+     * hole rather than as a bridge: most of the mended span was snow the player had
+     * nothing to do with.
+     *
+     * A ditch is now the width of the piece that spans it, less the bearing it takes
+     * on each lip. The piece IS the bridge, edge to edge, and no fill is drawn.
+     *
+     * bearing is the overlap onto each lip, as a fraction of the piece width. A real
+     * plank needs to rest on something at both ends; 0.09 each side reads as seated
+     * rather than balanced, and it is what stops a hairline of daylight showing at
+     * the joins when the surface bobs.
+     *
+     * WHY THIS DOES NOT LEAK THE ANSWER, which is the first thing to check: every
+     * option in a phase is fitted to the SAME box width (seatedChunk clamps to
+     * box.w), so the ditch comes out the same size whichever shape is the target. It
+     * varies BETWEEN phases, because a five- or six-option row divides into narrower
+     * boxes — which is the variety asked for, arrived at without the terrain saying
+     * anything about which shape fits. Nothing shape-like is ever cut into the ditch:
+     * only its SPAN is derived, and its lips stay the same broken ice as before. */
+    bearing: 0.09,
+    /* THE PHASE ZOOM. The view eases in when a shape level opens so the instruction,
+     * the blocks and the ditch are the whole picture, and eases back out when the run
+     * resumes.
+     *
+     * 1.08 is not a taste call, it is the largest scale that keeps the puzzle on the
+     * stage. Zooming about any point pushes the far edges outward, and the option row
+     * already reaches to within 60px of the right edge: at 1.12 about the crossing the
+     * rightmost block lands at x 1939 on a 1920 stage and is simply cut off. The
+     * focus point is solved from that constraint in viewFocus() rather than picked, so
+     * the framing cannot silently clip a block when the row width changes.
+     *
+     * zoomMs is slow on the way in — the world settling towards the puzzle reads as
+     * the camera taking an interest — and quicker on the way out, because by then the
+     * player wants to be running again. */
+    zoomK: 1.08, zoomInMs: 900, zoomOutMs: 520,
+    /* The most rocks one stretch may hold. Four at pairScale sits inside the run-up
+       the stretch allows; beyond that they arrive faster than the jump recovers and it
+       stops being a curve and becomes a wall. */
+    maxRocks: 4,
+    /* A FLOOR, BUT IT MUST NEVER EXCEED THE BRIDGE. It was 250 on the reasoning that
+       a narrower gap reads as a crack rather than a crevasse — and at 250 it floored
+       the six-option phases above their own pieces (198 and 162 wide), so the ditch
+       came out 52-88px longer than the thing meant to span it. A floor that breaks
+       the bridge is worse than a narrow gap.
+
+       130 is below every piece the row can produce, so it only ever catches a
+       degenerate case. The hard phases now have visibly smaller ditches than the
+       easy ones, which is the variation that was asked for — and three of them in a
+       row still reads as a broken stretch rather than a step. */
+    ditchMin: 130,
     ditchGap: 120,         // ice island between two crevasses
     /* How far past the character the near lip opens — and, because the option row is
        centred on the crevasse, what decides how BIG an option can be.
@@ -1107,7 +1238,7 @@ const CFG = {
          Three answers over two holes is the most the stage geometry allows; three
          separate unjumpable crevasses do not fit. Which answer lands in which hole is
          still not fixed: any wanted shape takes whichever free slot is nearest the cut. */
-      { id: 6, ditches: 2, options: 5,
+      { id: 6, ditches: 3, options: 5,
         targets: ['regularPentagon', 'irregularConvexPentagon', 'concavePentagon'],
         /* irregularHexagon -> concaveHexagon. Both distractors were convex while one
            of the three targets is a concave pentagon, so concavity identified one of
@@ -1116,14 +1247,20 @@ const CFG = {
         rotate: 0, swing: 0,
         instruction: 'Cut all the pentagons.' },
 
-      { id: 7, ditches: 2, options: 6,
+      { id: 7, ditches: 3, options: 6,
         targets: ['irregularConvexHexagon', 'concaveHexagon', 'regularHexagon'],
         distractors: ['concaveHeptagon', 'irregularPentagon', 'regularOctagon'],
         rotate: 0, swing: 0,
         instruction: 'Cut all the hexagons.' }
     ],
     // which phases are preceded by a rock to jump, so it never becomes every phase
-    jumpBefore: [2, 5],
+    /* WHICH PHASES GET A ROCK STRETCH BEFORE THEM, and there are more of them now:
+       with only two, the escalating count had nowhere to escalate to and topped out at
+       two rocks. Six stretches let it run 2, 3, 4 and then hold at the cap, which is
+       the curve that was asked for. Phase 1 has none: the tutorial teaches the jump on
+       a single rock before any phase, and stacking a stretch in front of the first
+       puzzle as well would put two rock runs back to back before any cutting. */
+    jumpBefore: [2, 3, 4, 5, 6, 7],
     /* One entry per phase. A different phase count moves this array with it, and
        nothing else: every other per-phase number is inside the phase itself. */
     /* HOW LONG THE MAMMOTH RUNS before each crevasse. Roughly tripled from
@@ -2152,7 +2289,12 @@ class AudioManager {
   /** The fright, on the frame he sees the hole: a comical woodblock knock plus a
       swallowed squeak sliding DOWN, which is what reads as "oh no" rather than "ta-da". */
   gasp() {
+    /* Three layers over about a second and a half, which is roughly the length of the
+       delivered fright sheet — so the sound lasts as long as the animation instead of
+       being over before the character has finished reacting. */
     this.wobble();                                         // the knees going
+    this.knees();                                          // and knocking together
+    this.doubleTake();                                     // he looks, then looks again
     this._tone(880, 0.1, 0.05, 'triangle', 300);           // the squeak, sliding down
     this._noise(0.14, 1600, 'bandpass', 0.05, 3.4);         // the intake of breath
     this._tone(196, 0.16, 0.05, 'sine', 130, 0.05);
@@ -2222,11 +2364,34 @@ class AudioManager {
   wobble() {
     this._warble(150, 0.5, 0.038, 'sine', 128, 26, 8);
   }
-  /** Skidding to a halt at the edge, feet going nowhere. */
+  /** Skidding to a halt at the edge, feet going nowhere. Sized to the delivered
+      36-frame skid, which plays across CFG.timing.breakSkid — so the squeal lasts the
+      whole slide instead of being a blip at the start of it. */
   skid() {
-    this._noise(0.5, 1750, 'bandpass', 0.06, 9, 0, 620);
-    this._warble(760, 0.46, 0.03, 'sawtooth', 300, 55, 24);
+    this._noise(2.0, 1750, 'bandpass', 0.055, 9, 0, 480);    // the feet, all the way down
+    this._warble(820, 1.9, 0.028, 'sawtooth', 240, 60, 22);  // the comic squeal, sliding
+    this._noise(0.3, 420, 'lowpass', 0.05, 0.8, 1.9, 160);   // the thump of coming to rest
   }
+  /* THE KNEES KNOCKING, for the fright at the edge. Six low woodblock-ish taps a beat
+     apart, alternating pitch — the cartoon shorthand for legs that have stopped
+     cooperating. Spread across about a second so it lasts as long as the delivered
+     fright animation, and deliberately soft because it plays under the gasp. */
+  knees() {
+    for (let i = 0; i < 6; i++) {
+      const t = i * 0.17;
+      this._tone(96 + (i % 2) * 26, 0.06, 0.035, 'square', 62, t);
+      this._noise(0.05, 340, 'bandpass', 0.02, 2.4, t);
+    }
+  }
+
+  /* A DOUBLE-TAKE. He looks, then looks again — two rising blips with the second one
+     higher and a beat late, which is how a take reads in sound. */
+  doubleTake() {
+    this._tone(420, 0.09, 0.04, 'triangle', 700);
+    this._tone(560, 0.12, 0.045, 'triangle', 980, 0.16);
+    this._noise(0.06, 2200, 'bandpass', 0.02, 3, 0.16);
+  }
+
   /** A glint of light, for the sparkle burst. */
   twinkle() {
     [12, 16, 19].forEach((s, i) => this._note(s, 0.16, 0.026, 'sine', i * 0.055));
@@ -2245,21 +2410,86 @@ class ParticleManager {
   chips(x, y, n = 8, vy0 = -60) {
     this.spawn(n, () => ({ x: x + rand(-70, 70), y: y + rand(-10, 20), vx: rand(-70, 70), vy: rand(vy0, vy0 + 90), r: rand(4, 10), dur: rand(0.7, 1.2), kind: 'ice', rot: rand(0, 6.28), vr: rand(-4, 4) }));
   }
-  /* A wrong chunk hitting the melt water. There are only ~190px of stage below the
-     snow line, so a splash kept inside the crevasse is a few pixels of nothing —
-     this one bursts UP out of the mouth of the hole, which is both readable and a
-     lot more fun to watch. */
+  /* A WRONG CHUNK HITTING THE MELT WATER — a crown, which is what a splash is.
+   *
+   * The version before this read as a clump of white shards hanging near the top of
+   * the hole, and every part of that was a separate decision going wrong together:
+   *
+   *   it was thrown from the crevasse MOUTH, not the water. That was right when the
+   *   pool was not drawn at all and a splash inside the hole was a few invisible
+   *   pixels; the pool is painted now and its surface is plainly visible, so the
+   *   splash was happening about 180px above the thing it was supposedly splashing.
+   *
+   *   every droplet left from x +/- 30 within a +/- 43 degree fan at a similar speed,
+   *   so 22 of them travelled as one blob instead of spreading.
+   *
+   *   each one is stretched along its own velocity, and at 900px/s that turns a
+   *   droplet into a long thin spike — which on an ice stage reads as a shard.
+   *
+   * A real splash is three things at once, so this makes three: a narrow CROWN thrown
+   * almost straight up from the impact point, a wide low SHEET of fast droplets going
+   * sideways, and slow round FOAM that lingers where the surface broke. Speeds vary by
+   * a factor of four inside each group, which is what stops them moving as one object. */
   splash(x, y, n = 20) {
-    this.spawn(n, i => {
-      const a = -Math.PI / 2 + (i / n - 0.5) * 1.5;
-      const v = 420 + Math.random() * 520;
+    const crown = Math.max(3, Math.round(n * 0.45));
+    const sheet = Math.max(3, Math.round(n * 0.35));
+    const foam = Math.max(2, n - crown - sheet);
+
+    // the crown: up and slightly out, tall and thin, the tallest part of the splash
+    this.spawn(crown, i => {
+      const a = -Math.PI / 2 + (i / crown - 0.5) * 0.9;
+      const v = 300 + Math.random() * 640;
       return {
-        x: x + rand(-30, 30), y: y + rand(-6, 10),
-        vx: Math.cos(a) * v * 0.55, vy: Math.sin(a) * v,
-        r: rand(4, 11), dur: rand(0.7, 1.15), kind: 'water',
-        rot: rand(0, 6.28), vr: rand(-3, 3)
+        x: x + rand(-22, 22), y: y + rand(-4, 6),
+        vx: Math.cos(a) * v * 0.5, vy: Math.sin(a) * v,
+        r: rand(5, 12), dur: rand(0.55, 0.95), kind: 'water', foam: 0
       };
     });
+    // the sheet: low and wide, thrown out along the surface both ways
+    this.spawn(sheet, i => {
+      const side = i % 2 ? 1 : -1;
+      const a = -Math.PI / 2 + side * (0.75 + Math.random() * 0.55);
+      const v = 340 + Math.random() * 520;
+      return {
+        x: x + side * rand(6, 34), y: y + rand(-2, 8),
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.72,
+        r: rand(3, 8), dur: rand(0.45, 0.8), kind: 'water', foam: 0
+      };
+    });
+    // the foam: slow, round, and it stays near the break in the surface
+    this.spawn(foam, () => ({
+      x: x + rand(-46, 46), y: y + rand(-2, 12),
+      vx: rand(-70, 70), vy: rand(-190, -60),
+      r: rand(7, 16), dur: rand(0.6, 1.1), kind: 'water', foam: 1
+    }));
+  }
+  /* CONFETTI, for finishing the journey.
+
+     Thrown across the WHOLE width from above the top of the frame, not from a point:
+     a burst from one place is an impact, and confetti has to rain on everything for
+     the moment to read as a celebration rather than as one more hit effect.
+
+     Each piece is a flat rectangle that TUMBLES — the width is squeezed on a cosine
+     exactly as the reward token was, because a spinning flake seen edge-on is a line
+     and that squeeze is the whole illusion. Without it they fall as coloured bricks.
+
+     Staggered by `delay` rather than all released together, so it falls as a shower
+     over a couple of seconds instead of one sheet crossing the screen. */
+  confetti(stageW, n = 80) {
+    const hue = ['#FFC93C', '#FF7BAC', '#5AD2F4', '#8CE07A', '#FFF2B8', '#C58CFF'];
+    this.spawn(n, i => ({
+      x: Math.random() * stageW,
+      y: -40 - Math.random() * 260,
+      vx: rand(-70, 70),
+      vy: rand(150, 330),
+      r: rand(7, 15),
+      dur: rand(2.4, 4.2),
+      kind: 'confetti',
+      rot: rand(0, 6.28), vr: rand(-5, 5),
+      sp: rand(1.6, 3.4),
+      col: hue[i % hue.length],
+      delay: Math.random() * 1.9
+    }));
   }
   /* A SHOCK RING: one expanding hoop on the frame an impact happens. It is the
      cheapest possible way to say "that hit here", and unlike a particle spray it
@@ -2302,6 +2532,18 @@ class ParticleManager {
       if (p.t >= p.dur) { p.dead = true; continue; }
       // a sparkle is a glint of light, so it drifts rather than falls
       if (p.kind === 'ring') { p.life = 1 - p.t / p.dur; continue; }
+      /* A staggered start. The piece exists from the beginning — so it is counted and
+         pooled like everything else — but does not move or draw until its delay is up,
+         which is what turns one sheet of confetti into a shower. */
+      if (p.kind === 'confetti') {
+        if (p.delay > 0) { p.delay -= dt; p.life = 1; continue; }
+        p.vy += 190 * dt;                    // light: it drifts down, it does not drop
+        p.vx *= (1 - 0.6 * dt);              // and air resistance takes the sideways off
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.rot += p.vr * dt;
+        p.life = 1 - p.t / p.dur;
+        continue;
+      }
       p.vy += (p.kind === 'ice' ? 900 : p.kind === 'water' ? 1500
              : p.kind === 'sparkle' ? 90 : p.kind === 'sweat' ? 1100 : 520) * dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
@@ -2319,18 +2561,32 @@ class ParticleManager {
         ctx.moveTo(0, -p.r); ctx.lineTo(p.r * 0.8, 0); ctx.lineTo(0, p.r); ctx.lineTo(-p.r * 0.8, 0); ctx.closePath(); ctx.fill();
         ctx.restore();
       } else if (p.kind === 'water') {
-        // a teardrop stretched along its own direction of travel
+        /* FOAM IS ROUND AND WATER IS A DROPLET. The stretch is capped at 0.55 of the
+           radius and scaled off a much higher speed divisor, because the old 1.6x
+           stretch at 700px/s turned a fast droplet into a spike — and a white spike on
+           an ice stage reads as a shard of ice, which is the wrong substance entirely.
+           Foam does not stretch at all: it is churned surface, not a droplet in flight. */
         const sp = Math.hypot(p.vx, p.vy) || 1;
         ctx.save();
         ctx.translate(p.x, p.y);
-        ctx.rotate(Math.atan2(p.vy, p.vx));
-        const g = ctx.createLinearGradient(-p.r, 0, p.r, 0);
-        g.addColorStop(0, 'rgba(255,255,255,0.95)');
-        g.addColorStop(1, 'rgba(150,214,242,0.85)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, p.r * (1 + Math.min(1.6, sp / 700)), p.r * 0.62, 0, 0, 6.2832);
-        ctx.fill();
+        if (p.foam) {
+          const gg = ctx.createRadialGradient(-p.r * 0.3, -p.r * 0.3, 0, 0, 0, p.r);
+          gg.addColorStop(0, 'rgba(255,255,255,0.98)');
+          gg.addColorStop(0.6, 'rgba(233,249,255,0.85)');
+          gg.addColorStop(1, 'rgba(168,222,247,0.35)');
+          ctx.fillStyle = gg;
+          ctx.beginPath(); ctx.arc(0, 0, p.r, 0, 6.2832); ctx.fill();
+        } else {
+          ctx.rotate(Math.atan2(p.vy, p.vx));
+          const g = ctx.createLinearGradient(-p.r, 0, p.r, 0);
+          g.addColorStop(0, 'rgba(255,255,255,0.96)');
+          g.addColorStop(0.55, 'rgba(214,241,253,0.92)');
+          g.addColorStop(1, 'rgba(104,201,238,0.8)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, p.r * (1 + Math.min(0.55, sp / 1600)), p.r * 0.78, 0, 0, 6.2832);
+          ctx.fill();
+        }
         ctx.restore();
       } else if (p.kind === 'sweat') {
         /* A cartoon bead: a teardrop with a white catchlight, tipped along its travel
@@ -2349,6 +2605,19 @@ class ParticleManager {
         ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2; ctx.stroke();
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.beginPath(); ctx.ellipse(-p.r * 0.24, -p.r * 0.1, p.r * 0.2, p.r * 0.34, 0, 0, 6.2832); ctx.fill();
+        ctx.restore();
+      } else if (p.kind === 'confetti') {
+        if (p.delay > 0) continue;           // not released yet
+        /* THE TUMBLE IS THE WIDTH, the same trick the reward token used: a flat piece
+           turning on its long axis is full width one moment and a line the next. */
+        const face = Math.cos(p.t * (p.sp || 2) * 6.2832);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot || 0);
+        ctx.fillStyle = p.col || '#FFC93C';
+        ctx.globalAlpha = clamp(p.life * 1.6, 0, 1);
+        ctx.fillRect(-p.r * 0.5, -p.r * 0.34 * Math.abs(face) - 0.5,
+                     p.r, Math.max(1.2, p.r * 0.68 * Math.abs(face)));
         ctx.restore();
       } else if (p.kind === 'ring') {
         /* An expanding hoop, thinning as it goes. Warm rather than white: white on an
@@ -2749,6 +3018,7 @@ class PlayerController {
     const img = k => images[character.id + ':' + k] || null;
     this.sheet = img('run'); this.jumpSheet = img('jump');
     this.skidSheet = img('skid'); this.shakeSheet = img('shake');
+    this.idleSheet = img('idle');          // the standing loop for LOOK_DOWN
     this.hurtSheet = img('hurt');          // optional; falls back to reversed shake
     /* NO per-frame correction any more, and that is a fix rather than a removal.
 
@@ -2906,42 +3176,37 @@ class PlayerController {
         this.t > (this.F.shake ? this.F.shake / CFG.sprite.tremorFps
                                : CFG.comedy.shakeHoldMs / 1000)) this.setState('LOOK_DOWN');
 
-    /* ---- THE CARTOON SHUDDER ----
-       Built on top of whatever frame is showing, because the fright has no art of its
-       own. Three components off one amplitude, at three different frequencies so it
-       never settles into a single visible beat:
-
-         wobX    knees knocking — mostly sideways, which is what a shiver looks like
-                 from the side
-         wobRot  a nervous roll, an order of magnitude smaller than the knock
-         wobSq   a jelly squash, so he wobbles rather than merely vibrating
-
-       The amplitude decays away over `scareDecay`, and while he is still over the
-       hole a residual `peerQuiver` is left under it — he is nervous for as long as he
-       is looking down there, and it also means the held pose is never stone-still. */
+    /* ---- NO PROCEDURAL SHUDDER ----
+     *
+     * There used to be one: a sideways knock, a nervous roll and a jelly squash, all
+     * driven off a decaying `scare` amplitude and applied ON TOP of whatever frame was
+     * showing. Its own comment gave the reason it existed — "because the fright has no
+     * art of its own" — and that reason is gone: there is a delivered 36-frame fright
+     * animation now, and the character reacts to the hole in the art itself.
+     *
+     * Two performances of the same beat played at once do not add up, they fight. The
+     * drawn reaction has its own timing and weight; a sine wave shoving the whole
+     * sprite sideways over it reads as the picture vibrating rather than the animal
+     * being frightened. Removed on that basis, not as a tidy-up.
+     *
+     * `scare` itself stays, and still decays: it is read by the sweat beads and by the
+     * gulp clock below, which are separate cues and not a second copy of the fright.
+     * The wobble fields stay at zero so the renderer needs no special case.
+     *
+     * The screen shake and the earthquake are NOT this. They move the camera on impact,
+     * they are not a character animation, and they are untouched. */
     const CM = CFG.comedy;
     this.tremorT += dt;
     this.scare = Math.max(0, this.scare - dt / CM.scareDecay);
     const peering = this.state === 'SHAKE' || this.state === 'LOOK_DOWN';
-    const amp = clamp(this.scare + (peering ? CM.peerQuiver : 0), 0, 1.4);
-    if (amp > 0.004) {
-      const w = this.tremorT * CM.tremorHz * 6.2832;
-      this.wobX = amp * CM.wobbleX * (Math.sin(w) * 0.72 + Math.sin(w * 1.71 + 1.1) * 0.28);
-      this.wobRot = amp * CM.wobbleRot * Math.sin(w * 0.93 + 0.4);
-      this.wobSq = amp * CM.wobbleSq * Math.sin(w * 1.37);
-    } else { this.wobX = 0; this.wobRot = 0; this.wobSq = 0; }
+    this.wobX = 0; this.wobRot = 0; this.wobSq = 0;
 
-    /* THE DOUBLE TAKE. He recoils off the lip first and only then leans in — a lean
-       with no recoil in front of it reads as curiosity, and the joke is fright. The
-       recoil snaps (14/s) and the lean in is slow (4/s), which is the timing that
-       makes the two read as separate beats rather than as one drift. */
-    this.leanWant = this.state === 'SHAKE'
-      ? (this.t < CM.recoilMs / 1000 ? -CM.recoilPx : CM.peerPx * 0.55)
-      : this.state === 'LOOK_DOWN' ? CM.peerPx
-      : this.state === 'SURPRISED' ? -CM.recoilPx * 0.7
-      : 0;
-    this.lean = lerp(this.lean, this.leanWant,
-                     clamp(dt * (this.state === 'SHAKE' && this.t < CM.recoilMs / 1000 ? 14 : 4), 0, 1));
+    /* AND NO PROCEDURAL DOUBLE TAKE while the fright is playing, for the same reason:
+       the delivered animation already recoils and settles, so sliding the sprite
+       backwards then forwards on top of it moved the character against its own feet.
+       SURPRISED keeps its recoil — that state has no art of its own. */
+    this.leanWant = this.state === 'SURPRISED' ? -CM.recoilPx * 0.7 : 0;
+    this.lean = lerp(this.lean, this.leanWant, clamp(dt * 4, 0, 1));
 
     /* A SWALLOW, on a slow clock, for as long as he is over the hole. The learner can
        sit on this pose for minutes; a breath alone is not enough to keep it alive, and
@@ -2955,8 +3220,16 @@ class PlayerController {
     /* Beads flicked off the head — only while he is STOPPED and rattled. Gating on
        the amplitude alone threw sweat during the skid, which is both wrong (the joke
        is the moment he stops and looks) and the one place it cost measurable frame
-       time, because the skid is already the busiest frame in the game. */
-    if (peering && amp > 0.26) {
+       time, because the skid is already the busiest frame in the game.
+
+       It reads `scare` directly now. It used to read `amp`, which was the shudder's
+       own amplitude — scare plus a residual quiver while peering — and that local
+       went with the shudder. Leaving the reference behind threw once per frame for
+       the whole fright, and because the throw aborted update() partway the fright
+       never advanced past its first frame: the delivered animation looked frozen.
+       The threshold is lowered to 0.2 to match, since the old value included the
+       0.17 quiver that no longer exists. */
+    if (peering && this.scare > 0.2) {
       this.sweatClock += dt;
       if (this.sweatClock > CM.sweatEvery) {
         this.sweatClock = 0;
@@ -3054,13 +3327,21 @@ class PlayerController {
         else f = J.alert;
         break;
       case 'LOOK_DOWN':
-        /* HOLDS the shake sheet's last frame — it is already the head-down look, and
-           this state is where the tremble ends rather than a second performance of it.
+        /* HOLDS THE FINAL FRAME OF THE DELIVERED FRIGHT. That frame is the pose the
+           character has just settled into after reacting to the hole, so holding it is
+           continuous with what the learner watched — this state is where the reaction
+           ENDS, not a second performance of it.
 
-           With no shake sheet it holds the jump sheet's IDLE pose, which is a settled
-           grounded frame. That is the right fallback rather than `alert`: the learner
-           may sit on this pose for minutes while they think, and a startled face held
-           that long reads as the game having hung. */
+           A looping breathing idle was tried here and held back: there is a delivered
+           idle sheet ready to go (see the note in CFG.characters.sheets), and replacing
+           the arrived-at pose with a neutral loop discards the reaction. Turn it on by
+           uncommenting the branch below and listing the sheet.
+
+           Deliberately not `alert` as the last resort: the learner may sit here for
+           minutes, and a startled face held that long reads as the game having hung. */
+        // if (this.idleSheet && F.idle) {
+        //   sheet = this.idleSheet; f = Math.floor(this.t * SP.idleFps) % F.idle;
+        // } else
         if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = F.shake - 1; }
         else f = J.idle;
         break;
@@ -3105,7 +3386,7 @@ class PlayerController {
     this.lastFrame = f;
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
-      : sheet === this.hurtSheet ? 'hurt' : '?';
+      : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : '?';
     /* GROUNDED poses are placed on THIS frame's own footline. A run cycle's vertical
        variation is the bob and has to be kept, and an airborne frame's tucked legs are
        the art; but a pose the character holds while standing still has no business
@@ -3723,8 +4004,8 @@ class ObstacleController {
     for (let i = 0; i < count; i++) {
       this.list.push({
         id: id + i,
-        x: worldX + screenX + i * cc.pairGap,
-        scale: count > 1 ? cc.pairScale : 1,
+        x: worldX + screenX + i * (cc.soloGap || 780),
+        scale: cc.pairScale || 1,
         kind: this.kinds.length ? (i + Math.floor(Math.random() * this.kinds.length)) % this.kinds.length : 0,
         passed: false, telegraph: 0, hits: 0, grace: 0
       });
@@ -3757,7 +4038,18 @@ class ObstacleController {
       const ow = this.w * o.scale, oh = this.h * o.scale;
       const ox0 = sx - ow * 0.28, ox1 = sx + ow * 0.28;
       const feet = mammoth.feetY;
-      if (live && o.grace <= 0 && o.hits < 3 && ox0 < CFG.mammothX + 68 && ox1 > CFG.mammothX - 68 && feet > CFG.surfaceY - oh * 0.45) {
+      /* THE BODY BOX AND THE BAR, both loosened — see the note on CFG.jumpVel.
+
+         68 was half the body box, so the danger zone was the rock plus 136px; 52
+         takes 32px off it, which is 0.06s at run speed. And the bar comes down from
+         45% of the rock height to 28%, so the character counts as clear earlier in
+         the rise and later in the fall.
+
+         Neither makes a hit unfair: 52px is still wider than the character's own
+         chest, and at 28% of 140px the feet are 39px up, which is plainly over a rock
+         the eye reads as knee-high. What they buy is that a press slightly early or
+         slightly late still clears it. */
+      if (live && o.grace <= 0 && o.hits < 3 && ox0 < CFG.mammothX + 52 && ox1 > CFG.mammothX - 52 && feet > CFG.surfaceY - oh * 0.28) {
         o.hits++; o.grace = 1.1; onHit(o, sx);
         if (o.hits >= 3) o.crumble = 0;
       }
@@ -3903,11 +4195,20 @@ function createGame(canvas, hooks = {}) {
     complete: false,
     l1: null,
     attempts: 0, idle: 0, hintUntil: 0, hint: null,
+    /* oops stays on the state object and is now always false: the Ouch card it drove
+       is gone (the crash recovers by itself — see OBSTACLE_HIT). It is left here, and
+       still published to the HUD, because removing a field from that object is a
+       change every consumer has to be checked against and it buys nothing. */
     oops: false, hitFx: 0, hitObstacle: null, hitReturn: null,
     verdict: '', verdictT: 0, verdictAt: null, handHint: null, idleHand: 0, dropReady: false,
     quakeT: 0, quakeAmp: 0, quakeLen: 0, quakeRoll: 0, quakePeak: 0, quakeAt: 0,
     quakeOx: 0, quakeOy: 0,
     freeze: 0,                                            // seconds of hit-stop left
+    /* The live view transform. k is the scale, (vx, vy) the stage point it scales
+       about. Published to the HUD so the DOM overlays can map through exactly the same
+       numbers — a coach mark or a verdict positioned in raw stage coordinates would
+       drift off its target the moment the canvas zoomed. */
+    zoom: 1, zoomWant: 1, zoomVX: 960, zoomVY: 540,
     punchAmp: 0, punchT: 0, punchLen: 0, punchAt: 0, punchX: 0, punchY: 0,
     instrHold: 0, instrLast: '',
     phase: 0, phasesDone: 0, gapsThisPhase: null, phaseLayout: null, phaseJumped: false
@@ -3958,9 +4259,20 @@ function createGame(canvas, hooks = {}) {
          was gone by the time they were looking. It still owns the stage alone during
          PHASE_INTRO — the chunks are held above the screen until that beat ends — and
          it takes no pointer events, so it can never swallow a cut. */
-      instruction: (G.instrHold > 0 || G.state === 'PHASE_ACTIVE' ||
-                    G.state === 'PHASE_WRONG' || G.state === 'PHASE_SUCCESS')
-        ? G.instruction : '',
+      /* THE INSTRUCTION LEAVES BEFORE PLAY STARTS.
+       *
+       * It used to stay up for the whole of PHASE_ACTIVE, PHASE_WRONG and
+       * PHASE_SUCCESS — so the sentence sat over the stage for as long as the learner
+       * took to think, competing with the very shapes it was asking them to look at.
+       * Now it owns the stage alone while it is readable and is gone by the time the
+       * blocks are cuttable: instruction -> read it -> it leaves -> play.
+       *
+       * instrHold is the only gate left, so the sentence is on screen for exactly the
+       * time it was armed for and no longer. NOTHING CLEARS G.instruction ITSELF —
+       * only its visibility is gated — because replayInstruction() reads that text and
+       * the idle helper re-arms this hold to bring it back. Blanking the text to hide
+       * the panel is what silently broke the recall control once before. */
+      instruction: G.instrHold > 0 ? G.instruction : '',
       jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
       oops: G.oops,
       // the hint control asks for attention once the learner has been stuck a while
@@ -3971,6 +4283,13 @@ function createGame(canvas, hooks = {}) {
       verdictAt: G.verdict ? (G.verdictAt || null) : null,
       // where to demonstrate the cut, once the learner has been idle a long while
       handHint: G.handHint || null,
+      /* THE VIEW TRANSFORM, so the DOM overlays land on what they point at. The
+         verdict mark, the hand hint and the tutorial spotlight are all positioned in
+         stage coordinates; once the canvas scales about a point, a raw stage position
+         is no longer where that thing appears. Publishing the transform rather than
+         the corrected positions keeps one source of truth and lets each consumer map
+         only what it needs. */
+      view: { k: G.zoom, x: G.zoomVX, y: G.zoomVY },
       soundOn: !!audio.enabled
     };
     const s = JSON.stringify(h);
@@ -4004,6 +4323,11 @@ function createGame(canvas, hooks = {}) {
     jobs.push(loadImg('assets/env/rock-wide.webp').then(i => { images.rockWide = i; }));
     jobs.push(loadImg('assets/env/rock-tall.webp').then(i => { images.rockTall = i; }));
     jobs.push(loadImg('assets/env/rope.webp').then(i => { images.rope = i; }));
+    /* THE FRIEND AT THE END. Loaded with the world rather than with the character
+       sheets: he is scenery that happens to be a character, he has no animation and no
+       states, and putting him in CFG.characters would make him look like something the
+       player could be. */
+    jobs.push(loadImg('assets/char/bear.webp').then(i => { images.bear = i; }));
     // one painted block per shape the curriculum can name
     for (const [id, s] of Object.entries(optionShapes)) {
       jobs.push(loadImg(s.image).then(i => { images['shape:' + id] = i; }));
@@ -4030,6 +4354,9 @@ function createGame(canvas, hooks = {}) {
       case 'RUN_SEGMENT_1':
         G.moving = true; G.jumpEnabled = true; mammoth.setState('RUN'); break;
       case 'JUMP_CHALLENGE_1':
+        /* The very first rock is always a single one: it is the step where the jump is
+           being learned, and learning it against three at once is not a difficulty
+           curve, it is a wall. */
         obstacles.spawn(G.worldX, 2150, 1); G.jumpPulse = true; break;
       case 'POST_JUMP_RUN_1':
         G.jumpPulse = false; G.hitCount = 0; break;
@@ -4041,7 +4368,7 @@ function createGame(canvas, hooks = {}) {
         G.moving = false; G.jumpEnabled = false; G.jumpPulse = false; G.oops = false;
         break;
       case 'GLACIER_BREAK_1': G.jumpEnabled = false; G.jumpPulse = false; startBreak(); break;
-      case 'PHASE_RUN':
+      case 'PHASE_RUN': G.zoomWant = 1;
         /* PHASE_RUN is also where a retry lands, so it must NOT reset the strike
            count. It used to, which meant the three-strike valve could never fire:
            fail the jump, retry, land back here, counter cleared, fail again — an
@@ -4051,6 +4378,9 @@ function createGame(canvas, hooks = {}) {
         G.phaseJumped = false;
         mammoth.setState('RUN'); break;
       case 'PHASE_INTRO':
+        /* Frame the puzzle: the instruction, the blocks and the ditch become the whole
+           picture, and the view eases back out when the run resumes below. */
+        aimZoom();
         G.jumpEnabled = false;
         G.dropReady = false;                 // nothing moves until the panel leaves
         G.instruction = phaseCfg().instruction;
@@ -4074,7 +4404,10 @@ function createGame(canvas, hooks = {}) {
         break;
       // Level 2 is parked (drafts/level-2.draft.js), so the last repaired crossing
       // leads straight into the run home.
-      case 'FINAL_RUN':
+      case 'FINAL_RUN': G.zoomWant = 1;
+        /* Far enough ahead that the run home is a run rather than a step, and close
+           enough that it is not a trek: at CFG.runSpeed this is about four seconds. */
+        G.bearAt = G.worldX + CFG.W + 1250;
         G.l1 = null; G.gapsThisPhase = null;
         G.instruction = 'Run for home!';
         G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
@@ -4082,11 +4415,44 @@ function createGame(canvas, hooks = {}) {
       case 'COMPLETE':
         G.moving = false; G.complete = true; G.jumpEnabled = false; G.instruction = '';
         mammoth.setState('CELEBRATE'); particles.snowPuff(CFG.mammothX, CFG.surfaceY, 8);
+        /* CONFETTI, from above the whole stage rather than from the character. A burst
+           thrown off one point reads as an impact; confetti has to fall on everything,
+           which is what makes it a celebration rather than another particle effect. */
+        if (!reduced) particles.confetti(CFG.W, 90);
         // a proper shower for the end of the journey, thrown from over his head
         particles.sparkle(CFG.mammothX + 40, CFG.surfaceY - 320, reduced ? 8 : 26, 340);
         audio.fanfare();
         break;
     }
+  }
+
+  /* THE FRIEND WAITING AT THE END OF THE JOURNEY.
+
+   * He is placed in WORLD space, a fixed distance past the point the last crossing is
+   * mended, so the character runs up to him rather than him sliding into frame — which
+   * is the difference between arriving somewhere and having scenery delivered to you.
+   *
+   * bearAt is set when FINAL_RUN begins, because that is the first moment the finish
+   * line has a world position at all. Drawn only once it is set, so nothing appears
+   * during the puzzles.
+   *
+   * He is drawn at CFG.sprite.scale like the character, off his own foot line, so the
+   * two animals are the same size standing next to each other — a friend who is subtly
+   * the wrong scale reads as a different game's art. */
+  function drawBear(ctx) {
+    const img = images.bear;
+    if (!img || !G.bearAt) return;
+    const sx = G.bearAt - G.worldX;
+    if (sx < -300 || sx > CFG.W + 300) return;
+    const k = CFG.sprite.scale * 0.86;          // a cub, so a little smaller
+    const w = img.width * k, h = img.height * k;
+    ctx.save();
+    /* A slow breathing bob, so he is alive while he waits. Sine on the shared clock —
+       no state of his own to keep, and it cannot drift out of step with anything. */
+    const bob = reduced ? 0 : Math.sin(G.t * 1.6) * 4;
+    ctx.translate(sx, CFG.surfaceY + 6 + bob);
+    ctx.drawImage(img, -w / 2, -h, w, h);
+    ctx.restore();
   }
 
   /* ---- glacier break ---- */
@@ -4203,12 +4569,92 @@ function createGame(canvas, hooks = {}) {
     return out;
   }
 
+  /* THE ONE WIDTH EVERY OPTION IN A PHASE IS DRAWN AT.
+   *
+   * All the blocks in a phase must look equally capable of bridging the hole, or the
+   * learner can pick by SIZE instead of counting sides — and picking by size is not
+   * the thing being taught. Measured before this: a three-option row produced blocks
+   * 243, 270 and 274px wide, so the widest was a standing hint on every one of the
+   * five single-answer phases.
+   *
+   * The variation came from the re-fit inside seatedChunk taking min(w/width,
+   * h/height): whenever a shape is taller than it is wide relative to the box, HEIGHT
+   * binds and the finished block comes out narrower than the box. Which shapes that
+   * catches depends on their aspect ratios, so the blocks in a row ended up at
+   * whatever widths their proportions happened to give.
+   *
+   * So the width is chosen so that height can never bind for ANY option in the phase:
+   * measure every shape at a huge notional height to get its true aspect ratio, take
+   * the tallest, and pick the width at which even that one still fits the row box.
+   * Every block then comes out at exactly that width, and the only thing that
+   * distinguishes them is the silhouette — which is the question.
+   *
+   * Both layoutPhase and buildPhase call this, so the width the ditches are cut for
+   * and the width the blocks are drawn at are the same number by construction. It is
+   * pure: same phase in, same width out, no state. */
+  function phasePieceW(p) {
+    const box = optionBox(p.options);
+    const w0 = Math.min(box.w, SHAPE_W);
+    const kinds = p.targets.concat(p.distractors).slice(0, p.options);
+    let tallest = 0;
+    for (let i = 0; i < kinds.length; i++) {
+      /* A notional height of 1e6 so the height term can never bind here — what comes
+         back is the shape's own aspect ratio rather than a clamped one. */
+      const c = seatedChunk(kinds[i], { w: w0, h: 1e6 },
+                            { irregular: p.irregular, seed: p.id * 97 + 7 * i + 3 });
+      const bb = polyBounds(c.pts);
+      if (bb.w > 0) tallest = Math.max(tallest, bb.h / bb.w);
+    }
+    if (!(tallest > 0)) return w0;
+    return Math.max(80, Math.min(w0, L1.optionH / tallest));
+  }
+
   function layoutPhase(originX) {
     const p = phaseCfg();
     /* Never more crevasses than answers: a crevasse with no slot to fill could not
        be mended, and the run would arrive at an open hole. */
     const n = clamp(p.ditches || 1, 1, p.targets.length);
-    const gapW = n > 1 ? L1.gapWMulti : L1.gapW;
+
+    /* EACH DITCH IS AS WIDE AS THE PIECE THAT WILL BRIDGE IT.
+     *
+     * The piece width is the option row's own box width — the same number
+     * seatedChunk() clamps every hanging chunk to — so the ditch and the chunk cannot
+     * disagree about how big a bridge is. Take the bearing off each end and what is
+     * left is the span the piece has to cross.
+     *
+     * ONE DITCH PER ANSWER is what makes this hold together. A six-option row gives
+     * narrow pieces and therefore narrow ditches, and a single narrow ditch would look
+     * like something you could simply hop. Three of them with ice islands between is a
+     * long broken stretch that plainly cannot be crossed, and each one is mended by
+     * its own piece — which is also the clearest possible reading of "three answers,
+     * three holes". Jumping is disabled for the whole puzzle regardless, so no
+     * individual span is exploitable either way. */
+    /* THE DITCH IS CUT TO THE PIECES AS THEY ACTUALLY COME OUT, not to the box they
+     * were fitted in. Those are different numbers and the difference is not small.
+     *
+     * seatedChunk re-fits with k = min(w/width, h/height), so whenever HEIGHT is the
+     * binding constraint the finished piece is narrower than its box. Measured: a
+     * three-option row gave a 340px box and 274px pieces, and a six-option row a 198px
+     * box and 162px pieces — so a ditch sized from the box left every bridge 5px short
+     * in the easy phases and 88px short in the hard ones. A bridge that does not reach
+     * is the entire feature failing, and it would have looked like a rendering bug.
+     *
+     * So every option is built here and measured, and the ditch is cut to the
+     * NARROWEST of them. Every piece then spans its hole with bearing to spare.
+     *
+     * Using all the options rather than just the targets is deliberate: the narrowest
+     * is as likely to be a distractor as an answer, so the width of the hole says
+     * nothing about which shape belongs in it. Sizing to the targets would have put
+     * the answer in the terrain.
+     *
+     * It builds each chunk twice per phase — once here to measure, once in buildPhase
+     * to hang. That is a few dozen polygon operations once per phase, against getting
+     * the geometry right; the seeds match so both passes see identical shapes. */
+    /* Every block in the phase is this wide — see phasePieceW — so there is nothing
+       to take a minimum over any more, and the hole is simply the block less the
+       bearing it rests on at each end. */
+    const pieceW = phasePieceW(p);
+    const gapW = Math.max(L1.ditchMin, Math.round(pieceW * (1 - L1.bearing * 2)));
 
     // Centred on the stage. The group is nudged right only as far as it must be to
     // keep the near lip clear of the character, who skids to a halt at the edge.
@@ -4221,7 +4667,11 @@ function createGame(canvas, hooks = {}) {
       CFG.mammothX + L1.clearance * 0.5,
       CFG.W - 60 - groupW
     );
-    const share = slotShare(p.targets.length, n);
+    /* ONE SLOT PER DITCH. slotShare used to divide a wide crevasse into several
+       repair slots, because one 620px hole had to swallow up to three answers. A ditch
+       is now the width of a single piece, so it holds exactly one — and a bridge that
+       is half of one shape and half of another was never a thing anybody wanted. */
+    const share = new Array(n).fill(1);
 
     ground.gaps = ground.gaps.filter(g => g.repaired);
     const gaps = [], slots = [];
@@ -4248,6 +4698,8 @@ function createGame(canvas, hooks = {}) {
       gaps.push(g);
       x += gapW + L1.ditchGap;
     }
+    /* No pieceW carried out any more: buildPhase asks optionBox for the same
+       safe-area-centred box this used, so the two cannot disagree. */
     return { gaps, slots };
   }
 
@@ -4266,11 +4718,28 @@ function createGame(canvas, hooks = {}) {
     const kinds = p.targets.concat(p.distractors).slice(0, p.options);
     for (let i = kinds.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [kinds[i], kinds[j]] = [kinds[j], kinds[i]]; }
 
-    /* Centred on the crevasse group, in screen space — the world is standing still
-       for the whole of a phase, so a screen x is stable. */
-    const gs = layout.gaps;
-    const groupMid = (gs[0].x0 + gs[gs.length - 1].x1) / 2 - G.worldX;
-    const box = optionBox(kinds.length, groupMid);
+    /* ONE BOX, MEASURED AND USED. The row is centred on the SAFE AREA, not on the
+     * crevasse group, and that is what removes a bug rather than a preference.
+     *
+     * It used to be centred on the group, which made the row's box depend on where the
+     * ditches are — while the ditches are now sized from the row's box. That cycle was
+     * broken by measuring the box at the stage centre for the ditches and then
+     * OVERRIDING box.w here, and the override is exactly the fault: `step` still came
+     * from the recentred box while `w` came from the stage-centred one, so every chunk
+     * was drawn wider than the slot it hangs in and the three of them overlapped into
+     * one mass. Measured: 340px shapes on a step narrower than that.
+     *
+     * Centring on the safe area means the box that sized the ditches IS the box the
+     * chunks hang in — one value, no override, and a shape can never be wider than its
+     * own slot. The row sits slightly right of the stage centre because the safe area
+     * starts clear of the character, which is where the crossing is anyway; the phase
+     * zoom then pulls the whole composition together. */
+    const box = optionBox(kinds.length);
+    /* The one width, again from phasePieceW rather than from the box — the box decides
+       WHERE each block hangs, this decides how WIDE it is, and the ditches were cut
+       from the same call. Clamped to the box so a block can never be wider than the
+       slot it hangs in, which is what made the row overlap into one mass before. */
+    box.w = Math.min(box.w, phasePieceW(p));
 
     G.l1 = {
       phase: p, slots: layout.slots,
@@ -4678,16 +5147,28 @@ function createGame(canvas, hooks = {}) {
          pick out. Nothing is ever seen to shrink.
 
          PLUG_SINK is 0 here so the block keeps as much height as the stage allows. */
-      const availW = slotSpan * 0.94;
       const availH = CFG.H - CFG.surfaceY - 6;
-      /* Clamped at 1: a shape shorter than the cavity stays at exactly the size it was
-         cut and the ice fills the rest, rather than being grown to reach the walls —
-         growing is what clipped silhouettes in the first place. With optionH tied to
-         the cavity height this comes out at 1.0 for every phase. */
-      const fitWhole = Math.min(1,
-        sb.w > 0 ? availW / sb.w : 1,
-        sb.h > 0 ? availH / sb.h : 1
-      );
+      /* NO WIDTH CONSTRAINT ANY MORE, and this is the last place the old geometry was
+       * still fighting the new one.
+       *
+       * It used to fit the plug into `slotSpan * 0.94` as well as the cavity height,
+       * because a fixed 620px crevasse was far wider than any chunk and the slot was a
+       * share of it. The ditch is now CUT FROM the piece — see layoutPhase — so that
+       * constraint inverted: the slot is narrower than the chunk by exactly the bearing
+       * the bridge needs at each end, and re-fitting to it shrank every piece back down
+       * to the opening. Measured on phase 1: a 274px triangle scaled to 0.686 and landed
+       * 188px wide, so it sat inside its hole instead of spanning it, and the bearing
+       * the whole bridge idea rests on was scaled away.
+       *
+       * It also broke a standing rule the hard way: a plug that is re-fitted on landing
+       * is a plug that visibly changes size between what was cut and what arrives.
+       *
+       * The height clamp stays. It is not redundant — it is what stops a tall shape
+       * dropping its apex off the bottom of the stage, which is the fault that once
+       * made phase 1's triangle read as a trapezoid. With optionH tied to the cavity
+       * height it comes out at 1.0 for every phase, so in practice the piece now lands
+       * at exactly the size it was cut. */
+      const fitWhole = Math.min(1, sb.h > 0 ? availH / sb.h : 1);
       (g.pieces = g.pieces || []).push({
         kind: sh.kind, pts: sh.pts, seed: sh.seed, art: sh.art,
         /* The top of the seated silhouette, in the piece's own coordinates. The
@@ -4749,7 +5230,30 @@ function createGame(canvas, hooks = {}) {
 
            It was also just wrong to watch. A block that has broken the surface of a
            meltwater pool does not carry on flying sideways under it. */
-        if (!sh.splashed) sh.x += sh.vx * dt;
+        /* IT MAY NEVER TRAVEL INTO THE CHARACTER, and it could.
+
+           A wrong chunk is thrown sideways at the speed that puts it over open water
+           by the time it has fallen far enough. If it then splashes, this stops. But a
+           chunk whose fall does NOT end in water — one aimed across a narrow ditch that
+           lands on solid ice instead — never sets `splashed`, so it kept accelerating
+           sideways for as long as it existed. Cut from the right of the row it travels
+           LEFT, and it was measured reaching x 569 in phases 2, 3 and 5, against a
+           character whose right edge is at 699. A block was landing on the player.
+
+           Two guards, because either alone leaves a hole. It stops once it has reached
+           the x it was aimed at, which is the honest end of the throw; and its left
+           edge is hard-clamped clear of the character regardless, so no future change
+           to socket-picking can reintroduce this. The clamp is the invariant
+           regression.spec asserts, and it is a safety rule rather than a nicety:
+           nothing in this game is allowed to fall on the character. */
+        if (!sh.splashed) {
+          const reached = sh.socket && ((sh.vx > 0 && sh.x >= sh.socket.x) ||
+                                        (sh.vx < 0 && sh.x <= sh.socket.x));
+          if (!reached) sh.x += sh.vx * dt;
+          const halfW = (sh.w || SHAPE_W) / 2;
+          const floorX = CFG.mammothX + 300 + halfW;
+          if (sh.x < floorX) { sh.x = floorX; sh.vx = 0; }
+        }
         sh.rot += dt * 1.9;
         sh.scale = lerp(sh.scale, 0.62, dt * 1.6);
         const g = gapUnder(sh.x);
@@ -4757,8 +5261,13 @@ function createGame(canvas, hooks = {}) {
         if (!sh.splashed && sh.y >= wy) {
           sh.splashed = true;
           if (g) ground.addSplash(g, sh.x, G.t);
-          // the visible burst comes out of the MOUTH of the crevasse, not the pool
-          particles.splash(sh.x, CFG.surfaceY + 8, reduced ? 10 : 22);
+          /* AT THE WATER LINE. It used to be thrown from CFG.surfaceY + 8 — the mouth
+             of the crevasse, about 180px above the pool — on the reasoning that a
+             splash down in the hole would be invisible. That was true before the pool
+             was painted; its surface is clearly visible now, so the burst belongs where
+             the chunk actually goes in. wy is the exact row the impact was detected on,
+             including the surface's own bob. */
+          particles.splash(sh.x, wy - 4, reduced ? 12 : 26);
           audio.splash();
           // a lighter hold than a correct answer, and no punch on the frame: a miss
           // should feel like a splash, not like the game hitting the player back
@@ -5216,6 +5725,52 @@ function createGame(canvas, hooks = {}) {
         if (p.impact) p.impact = Math.max(0, p.impact - dt * PIECE_IMPACT);
       }
     }
+  }
+
+  /* WHERE TO SCALE ABOUT, solved rather than chosen.
+   *
+   * Scaling by k about f maps a stage point p to f + (p - f) * k, so every point
+   * further from f than the frame edge moves OUT of frame. The things that must stay
+   * visible are the rightmost block, the character on the left, and the water at the
+   * bottom of the ditch. Rearranging the map for each of those gives a permitted
+   * range for f, and the crossing centre is then clamped into it — so the camera
+   * points at the puzzle whenever it can, and gives up exactly as much of that as it
+   * must to keep a block on screen.
+   *
+   * Doing this the other way round — picking a nice-looking focus and a nice-looking
+   * scale — is what clips the sixth option in a six-option phase, on a stage width
+   * nobody tested. */
+  function viewFocus(k) {
+    const M = 8;                                  // px of slack at each edge
+    const rightMost = CFG.W - 60;                 // the option row reaches here
+    const leftMost = CFG.mammothX - 120;          // the character stays in shot
+    const bottomMost = CFG.surfaceY + CFG.levelOne.waterDepth;
+    const topMost = 60;                           // the instruction pill sits below this
+    // f + (p - f) k <= limit   =>   f (1 - k) <= limit - p k   =>   f >= (limit - p k)/(1 - k)
+    const fx = {
+      min: (CFG.W - M - rightMost * k) / (1 - k),
+      max: (M - leftMost * k) / (1 - k)
+    };
+    const fy = {
+      min: (CFG.H - M - bottomMost * k) / (1 - k),
+      max: (M - topMost * k) / (1 - k)
+    };
+    return { fx, fy };
+  }
+
+  /** Aim the view at the crossing, as far as the frame allows. */
+  function aimZoom() {
+    const gaps = (G.gapsThisPhase || []).filter(Boolean);
+    if (!gaps.length) { G.zoomWant = 1; return; }
+    const k = CFG.levelOne.zoomK;
+    const cx = (gaps[0].x0 + gaps[gaps.length - 1].x1) / 2 - G.worldX;
+    const { fx, fy } = viewFocus(k);
+    G.zoomVX = clamp(cx, Math.min(fx.min, fx.max), Math.max(fx.min, fx.max));
+    /* Between the blocks and the ditch, so both are pulled towards the middle rather
+       than one of them being centred and the other pushed to an edge. */
+    const mid = (CFG.levelOne.optionY + CFG.surfaceY) / 2;
+    G.zoomVY = clamp(mid, Math.min(fy.min, fy.max), Math.max(fy.min, fy.max));
+    G.zoomWant = k;
   }
 
   /* ---- shake: amplitude decays over its life instead of cutting off flat ---- */
@@ -5688,6 +6243,14 @@ function createGame(canvas, hooks = {}) {
        what stays on screen. Real dt is still consumed, so a hold always ends. */
     if (G.freeze > 0) { G.freeze -= dt; return; }
     G.t += dt; G.st += dt * 1000;
+    /* Eased towards the target on the game clock, so the move is identical at any
+       frame rate. Different rates in and out: see the note on zoomInMs. */
+    {
+      const L1z = CFG.levelOne;
+      const ms = G.zoomWant > G.zoom ? L1z.zoomInMs : L1z.zoomOutMs;
+      G.zoom += (G.zoomWant - G.zoom) * clamp(dt * 1000 / Math.max(1, ms) * 2.6, 0, 1);
+      if (Math.abs(G.zoomWant - G.zoom) < 0.0008) G.zoom = G.zoomWant;
+    }
     if (G.punchLen > 0) {
       G.punchT += dt;
       if (G.punchT >= G.punchLen) { G.punchLen = 0; G.punchAt = 0; }
@@ -5767,18 +6330,35 @@ function createGame(canvas, hooks = {}) {
         break;
       case 'POST_JUMP_RUN_1': if (G.st > T.postJump1) setState('GLACIER_BREAK_1'); break;
       case 'OBSTACLE_HIT':
-        /* The crash runs on a timeline rather than all at once:
-             0ms    impact — sparks, shake, the knockout starts
-             ~1.1s  the knockout has played out and the character is down
-                    -> the card pops in, and the button pops a beat after it
-           Showing the panel on the frame of impact hid the animation the learner
-           needs to see, which is the whole feedback. */
-        if (!G.oops && G.st > T.knockout) G.oops = true;
+        /* THE CRASH PLAYS OUT AND THE RUN RESUMES BY ITSELF. No panel, no button.
+
+           It used to stop here and pop an "Ouch!" card with a TRY AGAIN button on
+           it, and that is a worksheet interrupting a game: the player has already
+           been told they crashed — by the impact, the stars and the character
+           sitting down dazed — and being asked to confirm it adds a tap that says
+           nothing. A runner recovers at the nearest checkpoint and carries on.
+
+           The timeline is the ANIMATION length, not an arbitrary beat. The delivered
+           knockout is 36 frames at CFG.sprite.koFps, so it needs 2.4s to play, and
+           T.recover holds a little past that so the dazed sit is read rather than cut
+           off. Recovering at T.knockout (1100ms) would have talked over the crash it
+           is the consequence of — which is the same mistake the card made in the
+           other direction.
+
+           retryObstacle() is the checkpoint: it clears the rock that was walked
+           into, restores movement and the jump control, and returns to G.hitReturn —
+           the run state the player was actually in — so the run-up is identical to
+           the first attempt and no progress is lost. */
+        if (G.st > T.recover) retryObstacle();
         break;
       case 'GLACIER_BREAK_1': updateBreak(dt); break;
       case 'PHASE_INTRO':
         /* Read, then act. The panel owns the first beat by itself; when it slides
            away the ropes lower their chunks in, and only then is the phase playable. */
+        /* The hold is re-armed to the reading time when the phase opens, so the
+           sentence cannot vanish before introRead is up — the two used to be set
+           independently and a short instructionHold blanked the panel while the stage
+           was still supposed to be its own. */
         if (!G.dropReady && G.st > T.introRead) {
           G.dropReady = true;
           /* Send the BANNER away, not the instruction. The panel's visibility is
@@ -5837,21 +6417,57 @@ function createGame(canvas, hooks = {}) {
         }
         break;
 
-      case 'PHASE_RUN': {
+      case 'PHASE_RUN': G.zoomWant = 1; {
         // a real stretch of adventure between puzzles, with a rock to clear before
         // the phases the config asks for — not before every one
         const p = L1.phases[G.phase];
         const dur = L1.runMs[G.phase] || 3000;
         if (L1.jumpBefore.includes(p.id) && !G.phaseJumped && G.st > 700) {
           G.phaseJumped = true;
-          obstacles.spawn(G.worldX, 2150, 1);
+          /* MORE ROCKS AS THE JOURNEY GOES ON — one before the first jump stretch, then
+             two, then three, up to the cap. The run between puzzles gets harder as the
+             puzzles do, so the curve is in the whole game rather than only in the
+             thinking.
+
+             DERIVED FROM WHICH STRETCH THIS IS, not counted up as they happen. A
+             counter was tried and it inflates on a retry: retryObstacle() returns to
+             PHASE_RUN, re-entering clears phaseJumped, and the stretch spawns again
+             with the counter one higher — measured going 1, 2, 3, 4 inside a single
+             phase, so failing a jump made the next attempt harder than the one that
+             had just beaten you. jumpBefore.indexOf is the same number every time this
+             stretch is entered, however many attempts it takes.
+
+             Off jumpBefore rather than the phase number because it does not name every
+             phase — off the phase index the count would skip values. */
+          const stretch = L1.jumpBefore.indexOf(p.id);
+          // starts at TWO: one rock is the tutorial's teaching case and is behind us
+          const count = clamp(2 + Math.max(0, stretch), 2, L1.maxRocks || 4);
+          obstacles.spawn(G.worldX, 2150, count);
           G.jumpPulse = true;
         }
         const clear = !obstacles.list.length || obstacles.list.every(o => o.passed);
         if (G.st > dur && clear) { G.jumpPulse = false; setState('GLACIER_BREAK_1'); }
         break;
       }
-      case 'FINAL_RUN': if (G.progress >= 0.999) setState('COMPLETE'); break;
+      case 'FINAL_RUN':
+        G.zoomWant = 1;
+        /* ARRIVES AT THE FRIEND. It used to end on a progress number, so the journey
+           finished at an arbitrary moment with nothing on screen to mark it; stopping
+           where the bear stands gives the ending a place.
+
+           bearAt is set ONCE in onEnter, not here. It was assigned in this branch first
+           and that can never arrive: the target is recomputed from the current worldX on
+           every frame, so it stays a fixed distance ahead forever and the run home never
+           ends. The progress test is kept as the fallback for a bearAt that was never
+           set. */
+        /* STOPS SHORT OF HIM, not level with him. 330 was the distance to the bear
+           and the character stands at CFG.mammothX = 430 — so the run ended with the
+           bear at screen x 327, a hundred pixels BEHIND the character: he had gone past
+           his own friend. The gap has to clear the character position plus room for the
+           two of them to stand side by side. */
+        if (G.bearAt) { if (G.bearAt - G.worldX <= CFG.mammothX + 265) setState('COMPLETE'); }
+        else if (G.progress >= 0.999) setState('COMPLETE');
+        break;
     }
     pushHud();
   }
@@ -6809,12 +7425,30 @@ function createGame(canvas, hooks = {}) {
          "done" rather than each individual piece. */
       for (const p of g.pieces) drawKeystone(ctx, g, p);
       if (g.repaired) {
-        /* Order matters. The fill is drawn OVER the plugs with their outlines punched
-           out of it, so it closes the void right up to each answer's edge without
-           covering it; then the deck spans the top; then the snow buries every join. */
-        drawCrossingFill(ctx, g);                 // ice closing in around the answers
-        drawCrossingDeck(ctx, g);                 // the span, resting on the keystones
-        drawCrossingSnow(ctx, g);                 // last, so it buries the top join
+        /* THE PIECE IS THE BRIDGE. No fill, and that is the point of the whole change.
+         *
+         * There used to be three layers here. drawCrossingFill closed bright snow into
+         * the void with each answer's outline punched out of it, drawCrossingDeck ran a
+         * span across the top, and drawCrossingSnow buried the joins. All three existed
+         * to solve one problem: the ditch was a fixed 620px and the answer was a ~270px
+         * plug, so two thirds of the mended crossing had to be invented.
+         *
+         * The ditch is now cut to the width of the piece that spans it, so there is no
+         * void left to close. What the learner cut is what they walk on, edge to edge,
+         * fully visible and countable — which is the shape they chose doing the job
+         * they chose it for, rather than a token in the middle of a snowfield.
+         *
+         * The deck is kept and the fill is not: the deck is a thin cap that reads as
+         * the piece bedding into the lips, and it is what stops a hairline of daylight
+         * at the two joins as the surface bobs. drawCrossingSnow stays for the same
+         * reason — a little settled snow in the seam is what makes a repair read as
+         * whole, and it is the one thing that should drift over a join.
+         *
+         * drawCrossingFill is left in the file, unused, because it is 180 lines of hard-
+         * won notes about matching painted art — see its own comment block — and that
+         * reasoning outlives this particular use of it. */
+        drawCrossingDeck(ctx, g);                 // the piece bedding into both lips
+        drawCrossingSnow(ctx, g);                 // settled snow in the seam
       }
     }
   }
@@ -6852,6 +7486,14 @@ function createGame(canvas, hooks = {}) {
     }
     ctx.save();
     ctx.translate(ox, oy);
+    /* THE PHASE ZOOM, applied before the punch so the two multiply rather than fight:
+       the zoom is a slow sustained framing and the punch is a fast transient on top of
+       whatever the framing currently is. */
+    if (G.zoom > 1.0005) {
+      ctx.translate(G.zoomVX, G.zoomVY);
+      ctx.scale(G.zoom, G.zoom);
+      ctx.translate(-G.zoomVX, -G.zoomVY);
+    }
     /* The punch, applied about the point the impact happened so that point holds
        still while the frame swells around it. */
     if (G.punchAt > 0.0005) {
@@ -6886,6 +7528,8 @@ function createGame(canvas, hooks = {}) {
     drawCracks(ctx);
     drawRepairedPieces(ctx);
     obstacles.draw(ctx, G.worldX, G.t);
+    // behind the character, so the two never fight for the same pixels on arrival
+    drawBear(ctx);
     mammoth.draw(ctx, G.t);
     drawDazeStars(ctx);
     atmos.drawFront(ctx, G.worldX, G.t, reduced);
@@ -6925,6 +7569,7 @@ function createGame(canvas, hooks = {}) {
     G.shakeAmp = 0; G.shakeLen = 0;
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
+    G.bearAt = 0;                   // the friend is not placed until the run home
     slash = null; brk = null; taps.length = 0;
     ground.reset(); obstacles.reset(); particles.clear(); mammoth.reset(); bgm.reset();
     atmos.intensity = 0; atmos.flash = 0;
@@ -6965,6 +7610,12 @@ function createGame(canvas, hooks = {}) {
       return { src: img.src, frames: ch ? (ch.frames[slot] || 1) : 1 };
     },
     setPaused(v) { paused = v; if (!v) last = 0; },
+    /* READABLE, so a test can tell a frozen simulation from a slow one. paused is a
+       closure variable and there was no way to observe it: a harness had to infer the
+       freeze from G.moving, which is the CHARACTER movement flag and is already false
+       during a puzzle — so an explaining step that failed to pause looked identical to
+       one that worked. */
+    isPaused: () => paused,
     /* BACKGROUNDING SHOULD BE SILENT. setPaused stops the simulation and nothing else,
        so a hidden tab went on playing the music bed and holding an AudioContext open
        for a game that was frozen. main.js calls these alongside it. Both are safe to
@@ -7087,6 +7738,13 @@ function createGame(canvas, hooks = {}) {
    engine's HUD state onto it. The engine never touches the DOM itself. */
 
 class Hud {
+  /** A stage point where the zoomed canvas actually draws it. */
+  static toView(view, p) {
+    const k = view && view.k || 1;
+    if (k <= 1.0005) return p;
+    return { x: view.x + (p.x - view.x) * k, y: view.y + (p.y - view.y) * k };
+  }
+
   constructor(root = document) {
     this.el = {
       /* hint / sound / pause are gone from the markup. The lookups stay because every
@@ -7108,8 +7766,10 @@ class Hud {
       text: root.getElementById('instruction-text'),
       complete: root.getElementById('complete'),
       replay: root.getElementById('btn-replay'),
-      oops: root.getElementById('oops'),
-      retry: root.getElementById('btn-retry'),
+      /* oops and retry are gone from the markup: a crash recovers by itself now and
+         there is no failure panel. The lookups are not kept "just in case" — every
+         use of them went with them, and a lookup with no user is how a dead element
+         gets resurrected by the next person reading this file. */
       rotate: root.getElementById('rotate')
     };
     this.paused = false;
@@ -7163,10 +7823,27 @@ class Hud {
       return;
     }
     if (h.verdictAt) {
-      el.style.left = (h.verdictAt.x / 1920 * 100).toFixed(2) + '%';
-      el.style.top = (h.verdictAt.y / 1080 * 100).toFixed(2) + '%';
+      /* Mapped through the view transform, because a phase zooms the canvas about a
+         point and this mark is placed in stage coordinates — over the crossing, which
+         is exactly the thing the zoom moves furthest. Unmapped it drifted off the
+         crevasse by tens of pixels at 1.08 and would have looked like a positioning
+         bug in the mark rather than a missing transform. */
+      const v = Hud.toView(h.view, h.verdictAt);
+      el.style.left = (v.x / 1920 * 100).toFixed(2) + '%';
+      el.style.top = (v.y / 1080 * 100).toFixed(2) + '%';
     }
-    if (h.verdict === this._verdictWas) return;
+    /* AND RE-SHOW IT IF SOMETHING HID IT. This guard exists so the pop is not
+       restarted on every frame of the mark's life, and on its own it was wrong the
+       moment the animationend handler started hiding the element: the CSS animation is
+       900ms of wall clock while G.verdictT is 0.9s of GAME time, so the element gets
+       hidden first and the engine can still be reporting the same verdict afterwards.
+       A second identical verdict then matched _verdictWas, returned here, and never
+       came back — which is the exact bug the unconditional reset below was added to
+       fix, reintroduced one line higher up.
+
+       Checking el.hidden as well means the only thing this skips is a mark that is
+       already on screen showing the right glyph. */
+    if (h.verdict === this._verdictWas && !el.hidden) return;
     this._verdictWas = h.verdict;
     el.dataset.mark = h.verdict;
     el.hidden = false;
@@ -7181,8 +7858,10 @@ class Hud {
     const el = this.el.hand;
     if (!el) return;
     if (!h.handHint) { if (!el.hidden) el.hidden = true; return; }
-    el.style.left = (h.handHint.x / 1920 * 100).toFixed(2) + '%';
-    el.style.top = (h.handHint.y / 1080 * 100).toFixed(2) + '%';
+    // the demonstration hand points at a rope, so it moves with the view as well
+    const p = Hud.toView(h.view, h.handHint);
+    el.style.left = (p.x / 1920 * 100).toFixed(2) + '%';
+    el.style.top = (p.y / 1080 * 100).toFixed(2) + '%';
     if (el.hidden) el.hidden = false;
   }
 
@@ -7311,17 +7990,37 @@ class Hud {
        on request, and G.helper had been pinned to the empty string ever since — so
        `h.helper || h.instruction` was provably just h.instruction. */
     const message = h.instruction || '';
-    if (message !== this.lastMessage) {
+
+    /* SHOWN WHENEVER THERE IS SOMETHING TO SAY, not only when the line CHANGES.
+     *
+     * This was a diff-driven state machine: it acted only when `message` differed from
+     * the last one it had seen. That leaves the element stuck if anything hides it by
+     * any other route, because the message has not changed so nothing puts it back.
+     * Observed exactly that — engine state PHASE_ACTIVE with "Cut the triangle." in
+     * G.instruction, and the element sitting at `class="instruction leaving"`,
+     * `hidden=true`, with the right text inside it. The one thing telling the learner
+     * what to look for was invisible for the whole phase.
+     *
+     * The re-assert costs a couple of property reads per HUD push and cannot get
+     * stuck: if there is a message and the element is not showing it, it shows it.
+     * The entrance animation is still only restarted for a genuinely NEW line, so a
+     * re-assert does not make the pill flash. */
+    const el = this.el.instruction;
+    const outOfSync = message && (el.hidden || el.classList.contains('leaving'));
+    if (message !== this.lastMessage || outOfSync) {
+      const isNewLine = message !== this.lastMessage;
       this.lastMessage = message;
       if (message) {
         clearTimeout(this._leaveT);
         this.el.text.textContent = message;
-        this.el.instruction.hidden = false;
-        this.el.instruction.classList.remove('leaving');
-        // restart the entrance animation on every new line
-        this.el.pill.style.animation = 'none';
-        void this.el.pill.offsetWidth;
-        this.el.pill.style.animation = '';
+        el.hidden = false;
+        el.classList.remove('leaving');
+        // restart the entrance animation only for a new line, never for a re-assert
+        if (isNewLine) {
+          this.el.pill.style.animation = 'none';
+          void this.el.pill.offsetWidth;
+          this.el.pill.style.animation = '';
+        }
       } else {
         // slide away instead of vanishing on a display:none flip
         this.el.instruction.classList.add('leaving');
@@ -7348,21 +8047,10 @@ class Hud {
 
     if (this.el.complete.hidden === h.complete) this.el.complete.hidden = !h.complete;
 
-    if (this.el.oops && this.el.oops.hidden === !!h.oops) {
-      this.el.oops.hidden = !h.oops;
-      // restart the icon's pop each time the panel appears
-      if (h.oops) {
-        const ic = this.el.oops.querySelector('.card-icon');
-        if (ic) { ic.style.animation = 'none'; void ic.offsetWidth; ic.style.animation = ''; }
-        /* ONLY FOR A KEYBOARD PLAYER. Focusing this button so Space retries straight
-           away is right for someone on a keyboard and wrong for everyone else: the
-           browser treats a programmatic focus as focus-visible, so a mouse or touch
-           player got a focus indicator drawn around TRY AGAIN without ever having
-           asked for one. Tracked by modality, the affordance goes to the players who
-           can use it and is invisible to the rest. */
-        if (this.el.retry && this._kbd) this.el.retry.focus({ preventScroll: true });
-      }
-    }
+    /* NO FAILURE PANEL TO SYNC. This block showed the Ouch card and, when it opened,
+       focused TRY AGAIN so a keyboard player could press Space straight away. Both are
+       gone with the card: a crash plays out and the run resumes at the nearest
+       checkpoint by itself, so there is nothing to open and nothing to focus. */
   }
 
   /** Flash the pressed look, for jumps that came from the keyboard. */
@@ -7403,7 +8091,9 @@ class Frontend {
     this.el = {
       cover: root.getElementById('cover'),
       play: root.getElementById('btn-play'),
-      oopsHero: root.getElementById('oops-hero')
+      /* oopsHero is gone with the Ouch card — see index.html. The win panel has a hero
+         of its own, filled by showWin() below from the character's own sheet. */
+      winHero: root.getElementById('win-hero')
     };
     this.state = 'ENTERING';
     this._timers = [];
@@ -7472,37 +8162,664 @@ class Frontend {
     elem.style.backgroundPositionX = pct + '%';
   }
 
-  showHurt() {
-    if (!this.el.oopsHero) return;
+  /* THE WIN PANEL'S CHARACTER, on ONE frame rather than a loop.
+
+     The Ouch card used to run a setInterval stepping frames onto its hero at 140ms —
+     a second animation, outside the renderer, of a beat the canvas was already
+     animating. This does not repeat that: the character on the CANVAS behind the
+     panel is already celebrating, so a second animated copy of him on the panel would
+     be two performances of one moment. One still, held, is enough to say who did it.
+
+     It reads the idle sheet, which is the one delivered sheet with a settled standing
+     pose and is otherwise unused (see CFG.characters.sheets) — so the art is already
+     built and this costs nothing new. Falls through to run, then jump, so a missing
+     sheet leaves the panel without a picture rather than without a panel. */
+  showWin() {
+    if (!this.el.winHero) return;
     const id = this.game.character();
-    /* The hurt and shake sheets have been removed, so this falls through to the jump
-       sheet. Its last frames are the grounded recovery poses, which is the closest
-       thing available to "sat down after a bump". */
-    const sheet = this.game.sheetFor(id, 'hurt') ||
-                  this.game.sheetFor(id, 'shake') ||
+    const sheet = this.game.sheetFor(id, 'idle') ||
+                  this.game.sheetFor(id, 'run') ||
                   this.game.sheetFor(id, 'jump');
     if (!sheet) return;
-    const last = sheet.frames - 1;
-    const a = Math.max(0, last - 3), b = last;
-    let f = a;
-    this.hideHurt();
-    this.frameAt(this.el.oopsHero, sheet, f);
-    this._hurt = setInterval(() => {
-      f = f >= b ? a : f + 1;
-      this.frameAt(this.el.oopsHero, sheet, f);
-    }, 140);
-    this._timers.push(this._hurt);
+    this.frameAt(this.el.winHero, sheet, 0);
   }
-  hideHurt() { if (this._hurt) { clearInterval(this._hurt); this._hurt = null; } }
+
+  /* showHurt/hideHurt are gone. They ran a setInterval that stepped the last few
+     frames of a sheet onto the Ouch card's hero element at 140ms — a second, DOM-side
+     animation of a beat the canvas is already animating. The card went (a crash
+     recovers by itself now) and with it the reason for a frame pump outside the
+     renderer: the delivered 36-frame knockout plays on the canvas, where the rest of
+     the character animation lives. */
 
   wait(ms, fn) { const t = setTimeout(fn, ms); this._timers.push(t); return t; }
 
   destroy() {
     this._timers.forEach(clearTimeout);
     this._timers.forEach(clearInterval);
-    this.hideHurt();
     window.removeEventListener('keydown', this._onKey);
   }
+}
+
+
+/* ==================== tutorial.js ==================== */
+/* THE FIRST-PLAY TUTORIAL.
+ *
+ * Teaches the two mechanics the game is made of — jump the rock, cut a rope to mend
+ * the path — by spotlighting one thing at a time and then making the player do it.
+ *
+ * WHY IT IS A DOM LAYER AND NOT DRAWN ON THE CANVAS. The engine never touches the DOM
+ * and the HUD never touches the canvas; that separation is what keeps the renderer
+ * testable. The tutorial has to point at BOTH kinds of thing — the mammoth and the
+ * crevasse are canvas pixels, the JUMP button is an element — so it lives on the DOM
+ * side and addresses canvas targets in stage coordinates, converted to percentages of
+ * the stage exactly as the verdict mark and the hand hint already do.
+ *
+ * THE RULES IT FOLLOWS, all of which are load-bearing:
+ *
+ *   ONE THING AT A TIME, WITH THE STAGE TO ITSELF. An instruction that appears while
+ *   the objects it describes are still moving loses: the player watches the movement.
+ *   So an explaining step PAUSES the game, holds the stage alone, and only releases it
+ *   when the player taps.
+ *
+ *   IT TEACHES BY DOING. The two steps that matter — the jump and the cut — do not
+ *   advance on a tap. They unpause and wait for the player to actually perform the
+ *   action, then confirm it. A tutorial that advances on taps has taught nothing.
+ *
+ *   IT NEVER COMPLETES THE TASK. Nothing here jumps, cuts, or moves the game on by
+ *   itself.
+ *
+ *   IT NEVER LEAKS AN ANSWER. The block step spotlights the WHOLE row, never one
+ *   option, and its wording is about ropes and blocks, never about which shape fits.
+ *   The curriculum is the game's whole purpose and a tutorial that hands over the
+ *   first answer costs the first phase its teaching.
+ *
+ *   NOTHING IS PARKED AT OPACITY 0. Every element rests visible and animates from
+ *   there, so a dropped keyframe or a reduced-motion setting cannot leave the layer
+ *   permanently invisible while every attribute still reads as intended.
+ *
+ * Shown on every run. `?tutorial=0` suppresses it, which is what the test suite
+ * passes, since almost none of those tests expects a coach mark over the stage.
+ */
+
+/* NO STORED "SEEN" FLAG. There was one, and it made the tutorial invisible after a
+   single play with no way to bring it back — see the note in main.js. Nothing writes
+   it now, and nothing reads it: a key left behind, still being written but no longer
+   consulted, is exactly the sort of thing that gets wired back up by accident. */
+
+/* Stage coordinates, because that is the space the engine thinks in: a 1920x1080
+   backbuffer letterboxed into whatever the viewport is. Converted to percentages of
+   the stage element on the way out, so one set of numbers is correct at every size. */
+const W = 1920, H = 1080;
+const clampN = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+
+
+class Tutorial {
+  /**
+   * @param {Document} root
+   * @param {object} game  the engine handle from createGame()
+   */
+  constructor(root, game) {
+    this.root = root;
+    this.game = game;
+    this.el = {
+      layer: root.getElementById('tutorial'),
+      veil: root.getElementById('tut-veil'),
+      cut: root.getElementById('tut-cut'),
+      canvas: root.getElementById('game-canvas'),
+      bubble: root.getElementById('tut-bubble'),
+      text: root.getElementById('tut-text'),
+      hand: root.getElementById('tut-hand'),
+      skip: root.getElementById('tut-skip')
+    };
+    this.step = -1;
+    this.done = false;
+    this.t = 0;                    // seconds the current step has been on screen
+    this.hold = 0;                 // a follow-up line's remaining time
+    this.follow = null;
+    this._built = false;
+    this._wasPaused = false;
+  }
+
+  /* ---- the script ----
+
+     TWO KINDS OF STEP, and the difference decides everything else about them.
+
+     A DESCRIBING step states what something is. It freezes the game, blurs everything
+     except the thing it is talking about, holds long enough to be read, and then moves
+     on BY ITSELF. There is no hand and nothing to tap: asking a child to confirm they
+     have read a sentence is asking the wrong question, and a hand on a step with no
+     action to perform teaches that the hand means nothing.
+
+     An ASKING step wants a finger. It lets the game run, shows the hand on the control
+     to use, and waits for the player to actually do it — a jump, or a cut. The veil is
+     off for these, because the player has to see the scene they are acting in.
+
+     `advance` says which kind it is: a NUMBER of seconds means describing and
+     self-advancing; a string names the action to wait for. */
+  get steps() {
+    return [
+      {
+        id: 'meet',
+        at: g => ['RUN_SEGMENT_1', 'JUMP_CHALLENGE_1'].includes(g.state),
+        spot: () => ({ x: 430, y: 690, rx: 165, ry: 215, world: true }),
+        text: 'This is your mammoth. He runs all by himself!',
+        advance: 0, pause: true
+      },
+      {
+        /* THE ROCK IS DESCRIBED BEFORE THE CONTROL IS OFFERED, and the game stops
+           while that happens. Previously the rock and the button were one step: the
+           sentence said "a rock, press JUMP" while the rock was still travelling, so
+           the player was reading and being asked to act at the same moment, and if
+           they read to the end they had already hit it. Freezing the run means the
+           obstacle can be looked at and understood before anything is expected. */
+        id: 'rock',
+        at: g => this.rockAhead(g) !== null,
+        spot: g => {
+          const sx = this.rockAhead(g);
+          return sx === null ? null : { x: sx, y: 780, rx: 150, ry: 140, world: true };
+        },
+        text: 'A rock in the way! He cannot walk through it.',
+        advance: 0, pause: true
+      },
+      {
+        /* THE CONTROL IS NAMED BEFORE IT IS ASKED FOR. This step was missing: the
+           button went straight from not existing to having a hand on it and a sentence
+           telling the player to press it, so the one control in the game was never
+           introduced. Naming a thing and then asking for it is the whole pattern this
+           tutorial is built on, and the button was the one place it was skipped.
+
+           Still frozen, so the button can be looked at without the rock arriving. */
+        id: 'jumpbtn',
+        at: () => this.domSpot('#btn-jump', 40) !== null,
+        spot: () => this.domSpot('#btn-jump', 40),
+        text: 'This is the JUMP button. It makes him hop.',
+        advance: 0, pause: true
+      },
+      {
+        /* AND NOW THE FINGER. The rock is still frozen where the two steps before left
+           it, so it is on screen and jumpable the moment the game restarts — which is
+           why they pause rather than describing on the move. The words say WHEN, which
+           is the part a hand cannot say by itself. */
+        id: 'jumpnow',
+        at: () => this.domSpot('#btn-jump', 40) !== null,
+        spot: () => this.domSpot('#btn-jump', 40),
+        text: 'Tap it now to jump over the rock!',
+        advance: 'jumped', pause: false, hand: 'tap', follow: 'Nice hop!'
+      },
+      {
+        id: 'gap',
+        /* THE ICE HAS TO HAVE ACTUALLY BROKEN. The gaps exist in the data from the
+           moment the collapse is set up, well before they have visibly opened — so
+           gating on their existence pointed the spotlight at unbroken ice while the
+           box said "The ice broke!". g.open runs 0 -> 1 as the ground gives way, so
+           waiting for it is waiting for the sentence to be true. */
+        at: g => (g.gapsThisPhase || []).some(gp => gp && (gp.open || 0) > 0.75) &&
+                 ['GLACIER_BREAK_1', 'PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
+        spot: g => {
+          const gp = (g.gapsThisPhase || [])[0];
+          if (!gp) return null;
+          const cx = (gp.x0 + gp.x1) / 2 - g.worldX;
+          return { x: cx, y: 900, r: Math.max(185, (gp.x1 - gp.x0) * 0.62), world: true };
+        },
+        text: 'The ice broke! This gap is far too wide to jump.',
+        advance: 0, pause: true
+      },
+      {
+        id: 'blocks',
+        /* THE WHOLE ROW, never one option. The row is the material; WHICH block fits is
+           the thing being taught, and a spotlight on one of them answers it. */
+        at: g => !!g.l1 && g.state === 'PHASE_ACTIVE' && this.rowBox(g) !== null,
+        spot: g => this.rowBox(g),
+        text: 'Blocks of ice are hanging on ropes up here.',
+        advance: 0, pause: true
+      },
+      {
+        id: 'cut',
+        at: g => !!g.l1 && g.state === 'PHASE_ACTIVE' && this.ropeBox(g) !== null,
+        spot: g => this.ropeBox(g),
+        text: 'Swipe across a rope!',
+        /* No hand of its own: the engine already strokes a demonstration swipe across
+           the middle rope (drawCutDemo), and its comment records an earlier version
+           that drew between two ropes and crossed neither. Two hands on screen is the
+           same double-up as a procedural shudder over a drawn fright. */
+        /* A SWEEP, not a tap. The gesture is a swipe across a rope, and a hand tapping
+           in place teaches the wrong movement — a child copies what the hand does, so
+           the hand has to do the thing being asked for. */
+        advance: 'cut', pause: false, hand: 'sweep'
+      }
+    ];
+  }
+
+  /* ---- where things are ---- */
+
+  /** The nearest rock still ahead of the character, in stage x, or null. */
+  rockAhead(g) {
+    const list = this.game._obstacles ? this.game._obstacles().list : [];
+    let best = null;
+    for (const o of list) {
+      if (o.passed || o.hits >= 3) continue;
+      const sx = o.x - g.worldX;
+      if (sx > 620 && sx < 1500 && (best === null || sx < best)) best = sx;
+    }
+    return best;
+  }
+
+  /* THE ROPE OF THE MIDDLE BLOCK, which is where the cut actually happens.
+
+     The cut step used to point at the row of blocks, so the hand swept across a BLOCK
+     — and a swipe across a block cuts nothing. The rope is the cuttable thing and it
+     is above the block, not on it, so pointing at the row put the demonstration in the
+     wrong place entirely: a child copying it exactly would fail.
+
+     The middle rope, because a sweep centred there stays clear of both edges of the
+     row, and midway up it so the hand is on rope rather than at either end of it. */
+  ropeBox(g) {
+    const hang = ((g.l1 && g.l1.shapes) || []).filter(s => s.state === 'hang');
+    if (!hang.length) return null;
+    const sorted = hang.slice().sort((a, b) => a.x - b.x);
+    const mid = sorted[Math.floor(sorted.length / 2)];
+    const topOfBlock = mid.y - (mid.h || 200) / 2;
+    if (topOfBlock < 60) return null;                 // rope still off the top
+    const y = Math.max(70, topOfBlock - 60);
+    return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y, rx: 150, ry: 90, world: true };
+  }
+
+  /** A box around every hanging block, in stage coordinates. */
+  rowBox(g) {
+    const hang = ((g.l1 && g.l1.shapes) || []).filter(s => s.state === 'hang');
+    if (!hang.length) return null;
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const s of hang) {
+      x0 = Math.min(x0, s.x - s.w / 2); x1 = Math.max(x1, s.x + s.w / 2);
+      y0 = Math.min(y0, s.y - s.h / 2); y1 = Math.max(y1, s.y + s.h / 2);
+    }
+    if (y1 < 40) return null;                       // still off the top of the screen
+    /* AN OVAL AROUND THE ROW, not a circle enclosing it. The row is much wider than it
+       is tall, so one radius big enough to cover its width is enormous vertically —
+       1228px across for a 970px row, which is most of the screen. Separate axes hug it. */
+    return {
+      x: (x0 + x1) / 2, y: (y0 + y1) / 2,
+      rx: (x1 - x0) / 2 + 60,
+      ry: (y1 - y0) / 2 + 50,
+      world: true
+    };
+  }
+
+  /** A DOM element's box, in stage coordinates, so one code path places every spot. */
+  domSpot(sel, pad = 40) {
+    const stage = this.root.getElementById('stage');
+    const el = this.root.querySelector(sel);
+    if (!stage || !el) return null;
+    const s = stage.getBoundingClientRect(), b = el.getBoundingClientRect();
+    if (!b.width || !b.height) return null;         // hidden: nothing to point at
+    return {
+      x: (b.x + b.width / 2 - s.x) / s.width * W,
+      y: (b.y + b.height / 2 - s.y) / s.height * H,
+      r: Math.max(b.width / s.width * W, b.height / s.height * H) / 2 + pad,
+      /* A DOM TARGET IS RAISED ABOVE THE SHEET, NOT COPIED FROM THE CANVAS.
+         The focus panel works by copying pixels off the game canvas — and the JUMP
+         button is not on the canvas, it is an element. Copying that region would have
+         lifted a snapshot of the empty SKY behind the button and drawn it over the top,
+         hiding the very control being introduced behind a picture of nothing. So a DOM
+         target names its selector and gets lifted in the stacking order instead. */
+      dom: sel
+    };
+  }
+
+  /* ---- lifecycle ---- */
+
+  begin() {
+    if (this._built) return;
+    this._built = true;
+    if (this.el.skip) this.el.skip.addEventListener('click', () => this.finish());
+    /* THE WHOLE STAGE IS THE BUTTON. There is no "Got it" any more: the hand taps on
+       the thing being explained, and a tap anywhere acknowledges it. That is both
+       simpler and more honest about what the hand is asking for — a child who cannot
+       read the sentence yet can still see a finger tapping and copy it, whereas a
+       button labelled "Got it" is a claim about reading.
+
+       Pointer events on the layer are switched off for action steps, so a real swipe
+       still reaches the canvas. */
+    if (this.el.layer) this.el.layer.addEventListener('click', e => {
+      if (e.target === this.el.skip) return;
+      this.tap();
+    });
+    this.step = 0;
+    this.t = 0;
+  }
+
+  /* HOW LONG A SENTENCE STAYS UP, from the sentence rather than a constant.
+
+     A fixed hold is either too short for the longest line or too slow for the shortest
+     one. 1.5s of looking-at-it plus ~55ms a character puts "This is your mammoth. He
+     runs all by himself!" at about 3.9s and the shortest line at the 2.6s floor, which
+     is a comfortable read for a child rather than a glance for an adult. Clamped at
+     both ends so no line can rush past or outstay its welcome. */
+  readTime(text) {
+    return clampN(1.5 + (text || '').length * 0.055, 2.6, 5.2);
+  }
+
+  /* NO TAP-TO-ADVANCE. A describing step moves on by itself and a tap does nothing.
+     Tapping past a sentence is not something a child does deliberately — they tap
+     because a finger is on the screen — so honouring it would skip the instruction
+     they were about to read. Skip is the deliberate way out, and it is a button. */
+  tap() { /* intentionally nothing: see above */ }
+
+  /** The player did the thing an action step was waiting for. */
+  didAction(name) {
+    if (this.done) return;
+    const s = this.steps[this.step];
+    if (s && s.advance === name) {
+      if (s.follow) { this.follow = s.follow; this.hold = 1.4; }
+      this.next();
+    }
+  }
+
+  next() {
+    this.step++;
+    this.t = 0;
+    if (this.step >= this.steps.length) this.finish();
+  }
+
+  finish() {
+    if (this.done) return;
+    this.done = true;
+    this.resume();
+    if (this._lifted) {
+      const el = this.root.querySelector(this._lifted);
+      if (el) el.classList.remove('tut-lift');
+      this._lifted = null;
+    }
+    if (this.el.layer) this.el.layer.hidden = true;
+  }
+
+  pause() {
+    if (this._wasPaused) return;
+    this._wasPaused = true;
+    this.game.setPaused(true);
+  }
+  resume() {
+    if (!this._wasPaused) return;
+    this._wasPaused = false;
+    this.game.setPaused(false);
+  }
+
+  /* ---- one tick, called from the host's animation frame ---- */
+  /* THE WORLD HAS TO BE ON SCREEN BEFORE ANYTHING IS SAID ABOUT IT.
+   *
+   * setPaused stops the render as well as the simulation — deliberately, so a paused
+   * game holds its last frame — and the tutorial starts on the same tick the run
+   * begins. So the very first step froze the game BEFORE a single frame had been
+   * drawn, and the spotlight lit a blank canvas: a dark stage with a speech bubble on
+   * it, pointing at nothing. Measured as a uniformly dark screenshot, which is the
+   * only way this shows up — every element was present, sized and correct.
+   *
+   * It is also the better teaching order. "He runs all by himself" is a claim about
+   * something the player should have watched happen, so waiting a beat for him to
+   * actually run is not a workaround for the freeze; it is the instruction landing
+   * after its demonstration rather than before it. */
+  static WARMUP = 1.1;              // seconds of game time before the first step
+
+  update(dt) {
+    if (this.done || this.step < 0) return;
+    const g = this.game.debug();
+
+    /* THE TUTORIAL ENDS WHEN THE GAME DOES. Nothing here can teach anything once the
+       journey is over, and outliving it made a visible mess: a player who got ahead of
+       the script — or past a step whose target never appeared — reached the ending with
+       the tutorial still holding a describing step. On screen that was the whole game
+       blurred behind the sheet, the ending card and the Play again button over the top
+       of it, and the dialogue box parked at the left edge pointing at something that no
+       longer existed.
+
+       Checked before any step runs, so no step can execute in a state it was never
+       written for. */
+    if (g.complete || g.state === 'COMPLETE' || g.state === 'FINAL_RUN') {
+      this.finish();
+      return;
+    }
+    if (this.step === 0 && (g.t || 0) < Tutorial.WARMUP) {
+      this.resume();
+      this.show(null);
+      return;
+    }
+
+    /* WHAT THE PLAYER ACTUALLY DID, read straight off the game each tick.
+     *
+     * This was first wired through onHud and that cannot work: onHud fires from the
+     * engine update, which an explaining step has PAUSED, and it only fires when its
+     * state object changes — so it is neither running nor per-frame at the moments
+     * this needs. Reading here means the jump step is satisfied by the character
+     * genuinely leaving the ground and the cut step by an attempt being recorded, and
+     * neither can be satisfied by tapping past it. */
+    const anim = this.game.mammothState && this.game.mammothState();
+    if (anim === 'JUMP_AIR' || anim === 'LAND') this.didAction('jumped');
+    if ((g.attempts || 0) > 0) this.didAction('cut');
+
+    // the follow-up line ("Nice hop!") runs on its own clock over the next step
+    if (this.hold > 0) {
+      this.hold -= dt;
+      if (this.hold <= 0) this.follow = null;
+    }
+
+    const s = this.steps[this.step];
+    if (!s) { this.finish(); return; }
+
+    /* NOT READY YET is a normal state, not an error. A step waits for its own moment —
+       a rock coming into range, the blocks arriving — and while it waits the game runs
+       and the layer shows nothing. */
+    if (!s.at(g)) { this.resume(); this.show(null); return; }
+    const box = s.spot(g);
+    if (!box) { this.resume(); this.show(null); return; }
+
+    this.t += dt;
+    if (s.pause) this.pause(); else this.resume();
+
+    /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
+       frozen copy belong to describing steps; the hand belongs to asking ones. */
+    const describing = typeof s.advance === 'number';
+    const text = this.follow || s.text;
+
+    /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
+
+       An asking step waits for the player, which can be a while — and the box was
+       sitting over the blocks for all of it, covering the very things being pointed
+       at. So the sentence is shown long enough to be read and then goes, leaving the
+       hand demonstrating on a clear screen. The step itself carries on waiting.
+
+       A describing step keeps its box for its whole life, because the box IS the step. */
+    /* AN ASKING STEP'S WORDS LEAVE PROMPTLY. A describing step keeps its box for its
+       whole life, because the box IS the step. An asking step waits for the player,
+       which can be as long as they like — so the sentence gets a short read and then
+       goes, leaving the hand demonstrating on a clear screen.
+
+       It was readTime + 0.6, which for the longest line was 5.2s. That is far too long
+       to sit over the blocks being pointed at, and it never showed up in testing
+       because the harness performed the action within a second every time — so the
+       box was measured as present and never seen to leave. Short lines on asking steps
+       and a 2.4s cap: long enough to read four words, short enough to get out of the
+       way before anyone is ready to act. */
+    const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
+    this.show(this.toView(box, g), text, describing, s.hand || null, keepBox);
+
+    // and a describing step moves on once it has been up long enough to read
+    if (describing && this.t >= this.readTime(text)) this.next();
+  }
+
+  /* THE VIEW TRANSFORM, applied to canvas-space targets only.
+   *
+   * A phase zooms the canvas by k about a stage point, so a spotlight positioned at a
+   * raw stage coordinate no longer sits on the thing it is pointing at — the mammoth,
+   * the ditch and the block row all move outward from the focus, by more the further
+   * out they are. The radius scales too, or the light stops matching the object.
+   *
+   * The JUMP button target is measured from a real DOM rect and is already in screen
+   * space, so it must NOT be mapped: doing that would move the one target that was
+   * correct. That is what `world` marks. */
+  toView(box, g) {
+    const k = g.zoom || 1;
+    if (!box.world || k <= 1.0005) return box;
+    const fx = g.zoomVX, fy = g.zoomVY;
+    const out = {
+      x: fx + (box.x - fx) * k,
+      y: fy + (box.y - fy) * k,
+      world: box.world
+    };
+    // both axes scale, or an oval stops matching the row it hugs
+    if (box.r !== undefined) out.r = box.r * k;
+    if (box.rx !== undefined) out.rx = box.rx * k;
+    if (box.ry !== undefined) out.ry = box.ry * k;
+    return out;
+  }
+
+  /* ---- the layer ---- */
+  show(box, text, describing, gesture, keepBox) {
+    const L = this.el.layer;
+    if (!L) return;
+    if (!box) {
+      if (!L.hidden) L.hidden = true;
+      if (this.el.cut && !this.el.cut.hidden) this.el.cut.hidden = true;
+      this._cutKey = null;
+      return;
+    }
+    if (L.hidden) L.hidden = false;
+    /* THE BLUR IS ONLY FOR STEPS THAT EXPLAIN. An action step needs the player to see
+       the whole scene and swipe across a rope in it, so blurring it would fight the
+       very thing being asked for — and the cut-out would be a frozen copy over a
+       moving game. On those steps the veil and the copy are both off and only the
+       words and the hand remain. */
+    if (this.el.veil) this.el.veil.hidden = !describing;
+    if ((!describing || box.dom) && this.el.cut && !this.el.cut.hidden) {
+      this.el.cut.hidden = true; this._cutKey = null;
+    }
+
+    const pc = (v, of) => (v / of * 100).toFixed(2) + '%';
+    /* Each axis as a percentage of ITS OWN axis, which is the only way a percentage
+       size lands where it was meant to: width against 1920, height against 1080. A box
+       that gives rx and ry gets an oval hugging it; one that gives a single r gets a
+       circle, because rx and ry come out equal. */
+    const rx = box.rx !== undefined ? box.rx : box.r;
+    const ry = box.ry !== undefined ? box.ry : box.r;
+
+    /* THE FOCUS, COPIED OFF THE GAME CANVAS AND DRAWN OVER THE BLUR.
+     *
+     * The veil blurs the whole screen; this puts the region being explained back on
+     * top of it, sharp. It has to be a copy because canvas pixels cannot be lifted
+     * above a DOM overlay — there is no z-index for part of a bitmap.
+     *
+     * Copied ONCE per step, not per frame, and that is safe rather than lucky: every
+     * step that shows the veil has paused the game, so the pixels underneath are not
+     * changing. Re-copying every frame would also mean reading back from the canvas 60
+     * times a second, which is the single most expensive thing available here.
+     *
+     * The source rectangle is in the canvas own pixel space, which is the stage space
+     * with the phase zoom already baked in — so the view-mapped box is exactly right
+     * and no further correction is needed. */
+    /* Lift a DOM target above the sheet for as long as it is the focus, and put it back
+       afterwards. Tracked so exactly one element is ever lifted. */
+    const wantLift = describing && box.dom ? box.dom : null;
+    if (this._lifted !== wantLift) {
+      if (this._lifted) {
+        const prev = this.root.querySelector(this._lifted);
+        if (prev) prev.classList.remove('tut-lift');
+      }
+      if (wantLift) {
+        const el = this.root.querySelector(wantLift);
+        if (el) el.classList.add('tut-lift');
+      }
+      this._lifted = wantLift;
+    }
+
+    const cut = this.el.cut, src = this.el.canvas;
+    if (cut && src && describing && !box.dom) {
+      const key = [Math.round(box.x), Math.round(box.y), Math.round(rx), Math.round(ry), this.step].join(':');
+      cut.style.left = pc(box.x, W);
+      cut.style.top = pc(box.y, H);
+      cut.style.width = pc(rx * 2 * 1.42, W);
+      cut.style.height = pc(ry * 2 * 1.42, H);
+      if (cut.hidden) cut.hidden = false;
+      if (this._cutKey !== key) {
+        this._cutKey = key;
+        /* Copied LARGER than the target: the mask holds full opacity only across
+           the middle third, so the region has to be wider than the thing it is showing
+           or the subject itself lands in the fade. */
+        const GROW = 1.42;   // matches the 70/30 mask above
+        const w = Math.max(2, Math.round(rx * 2 * GROW)), h = Math.max(2, Math.round(ry * 2 * GROW));
+        cut.width = w; cut.height = h;
+        const c = cut.getContext('2d');
+        c.clearRect(0, 0, w, h);
+        try {
+          c.drawImage(src, Math.round(box.x - rx * 1.42), Math.round(box.y - ry * 1.42), w, h, 0, 0, w, h);
+        } catch (e) { /* a tainted canvas off the disk: the blur alone still reads */ }
+      }
+    }
+    const b = this.el.bubble;
+    if (b) {
+      /* IT MUST FIT ON THE STAGE, whichever side it goes.
+       *
+       * The rule used to be "above if there is room above, otherwise below" and that
+       * is only half a rule: a big spotlight has no room above AND no room below, so
+       * the fallback pushed the box off the bottom edge and the sentence was cut in
+       * half. Measured on the block row: a 1228px light put the box at y 1109 on a
+       * 1080 stage.
+       *
+       * So both sides are computed, each is checked against the stage, and the side
+       * with room wins; if neither has room the box is clamped inside and kept on the
+       * side with more of it. HALF is the box's own half-height — it is centred on the
+       * y it is given, so that much has to be inside the edge at either end. */
+      const HALF = 130;
+      const GAP = 40;
+      const upY = box.y - ry - GAP;
+      const dnY = box.y + ry + GAP;
+      const upFits = upY - HALF > 0;
+      const dnFits = dnY + HALF < H;
+      let above, y;
+      if (upFits) { above = true; y = upY; }
+      else if (dnFits) { above = false; y = dnY; }
+      else {
+        // neither side fits: take the roomier one and clamp the box onto the stage
+        above = (box.y - ry) > (H - (box.y + ry));
+        y = clampN(above ? upY : dnY, HALF + 8, H - HALF - 8);
+      }
+      b.style.left = pc(Math.min(Math.max(box.x, 320), W - 320), W);
+      b.style.top = pc(y, H);
+      b.dataset.side = above ? 'above' : 'below';
+    }
+    /* RESTART THE POP WHEN THE WORDS CHANGE. A CSS animation runs once when the element
+       appears and never again, so without this only the FIRST step of six would arrive
+       with any motion and the rest would silently swap their text — a player would not
+       notice the box had said something new. */
+    if (this.el.text && this.el.text.textContent !== text) {
+      this.el.text.textContent = text;
+      if (b) { b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; }
+    }
+    /* THE HAND ONLY WHERE A FINGER IS WANTED, and dead centre on the control.
+
+       It used to appear on every step and sit at the lower edge of the focus. Both were
+       wrong. A hand on a step with nothing to press teaches that the hand means
+       nothing, so it now shows only where the step declares one — the JUMP button and
+       the ropes. And it belongs ON the control rather than beside it: offsetting it was
+       to stop it covering the mammoth, which is a problem that only existed because it
+       was being shown on steps that were describing the mammoth. */
+    const hd = this.el.hand;
+    if (hd) {
+      if (gesture) {
+        hd.hidden = false;
+        hd.dataset.gesture = gesture;      // CSS picks tap or sweep off this
+        hd.style.left = pc(box.x, W);
+        hd.style.top = pc(box.y, H);
+      } else if (!hd.hidden) hd.hidden = true;
+    }
+    // the box goes when it has been read; the hand carries on
+    if (b) b.hidden = !keepBox;
+    /* THE LAYER NEVER SWALLOWS POINTER EVENTS. Nothing on it needs a tap any more:
+       describing steps advance themselves and asking steps want the tap to reach the
+       game. Skip has pointer-events of its own, so it still works. Blocking events here
+       is what makes a tutorial unfinishable — it would eat the very swipe it asks for. */
+    L.style.pointerEvents = 'none';
+  }
+
+  destroy() { this.resume(); }
 }
 
 
@@ -7515,6 +8832,8 @@ class Frontend {
      index.html?sound=0        start muted
      index.html?reduced=1      reduced-motion mode (less shake, fewer particles)
      index.html?skip=1         skip the cover/select screens and run immediately
+     index.html?tutorial=0     never show the first-play tutorial
+     index.html?tutorial=1     always show it, however many times it has been seen
      index.html?fast=4         fast-forward: simulation steps per rendered frame (1–8).
                                Steps the simulation rather than scaling dt, so physics
                                is identical to normal play — it just spends less wall
@@ -7545,26 +8864,80 @@ const options = {
 };
 
 let front = null;
-let lastOops = false;
+
+let tut = null;
+let lastComplete = false;
+
+/* THE TUTORIAL RUNS EVERY TIME, and the remembering is gone on purpose.
+ *
+ * It was suppressed after the first play, held in localStorage. That is the
+ * conventional choice and it was the wrong one here, for a reason that showed up the
+ * moment anyone tried to look at it: once the flag is set the tutorial is invisible
+ * and there is no way back to it from inside the game — so a returning player, a
+ * second child on the same browser, a classroom machine, or anyone reviewing the
+ * build gets dropped straight into gameplay with no explanation and no clue that a
+ * tutorial exists at all. A stored flag also makes the feature untestable by hand:
+ * it works once and then appears broken forever.
+ *
+ * It is six short steps with a Skip in the corner, so the cost of showing it again is
+ * one tap; the cost of hiding it is a player who never learns the cut. ?tutorial=0
+ * suppresses it, which is what the test suite passes.
+ */
+const tutFlag = params.get('tutorial');
+const wantTutorial = tutFlag !== '0' && tutFlag !== 'false';
 
 const game = createGame(canvas, {
   onReady: () => {
     /* Straight to the cover. There is no loading curtain: onReady only fires once
        the whole art set has preloaded, so the first thing drawn is already the
        finished cover — a spinner in front of it was covering nothing. */
-    if (flag('skip', false)) { game.begin(); return; }
+    if (flag('skip', false)) { game.begin(); startTutorial(); return; }
     front = new Frontend(document, game);
-    front.init({ onStart: () => game.begin() });
+    front.init({ onStart: () => { game.begin(); startTutorial(); } });
   },
   onHud: state => {
     hud.update(state);
-    // the Ouch panel shows the chosen explorer's own hurt frames
-    if (front && !!state.oops !== lastOops) {
-      lastOops = !!state.oops;
-      if (state.oops) front.showHurt(); else front.hideHurt();
+    /* The Ouch panel used to be fed the explorer's own hurt frames from here. Both
+       the panel and the frame pump are gone: the crash animation plays on the CANVAS
+       now, from the delivered knockout sheet, which is where it always belonged.
+
+       The WIN panel does still want a picture of the character, and it is filled once
+       on the transition rather than every HUD tick — onHud fires on every state change
+       and re-setting the same background image on each of them is work for nothing. */
+    if (front && !!state.complete !== lastComplete) {
+      lastComplete = !!state.complete;
+      /* Nothing to fill: the win panel has no hero picture any more. The character on
+         the CANVAS behind it is celebrating next to the friend who was waiting, which
+         is the picture that matters, and a still copy of him on the panel competed
+         with it — as well as covering the pair of them. */
     }
   }
 });
+
+/* THE TUTORIAL'S OWN TICK, on its own animation frame rather than inside onHud.
+
+   Two reasons, and both are the kind that only show up once it is wired the other
+   way. onHud fires from the engine update, which the tutorial PAUSES — so driving it
+   from there would stop it dead on its first explaining step, with nothing left
+   running to resume it. And onHud only fires when its state object CHANGES, so it is
+   not a per-frame signal at all.
+
+   This loop keeps running while the simulation is frozen, which is exactly the
+   point, and the tutorial reads what it needs from debug() itself. */
+function startTutorial() {
+  if (!wantTutorial || tut) return;
+  tut = new Tutorial(document, game);
+  tut.begin();
+  let last = performance.now();
+  const tick = now => {
+    if (!tut || tut.done) { tut = null; return; }
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    tut.update(dt);
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
 
 game.setOptions(options);
 
@@ -7601,6 +8974,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('beforeunload', () => {
   game.destroy();
   hud.destroy();
+  if (tut) tut.destroy();
   if (front) front.destroy();
 });
 

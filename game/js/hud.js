@@ -2,6 +2,13 @@
    engine's HUD state onto it. The engine never touches the DOM itself. */
 
 export class Hud {
+  /** A stage point where the zoomed canvas actually draws it. */
+  static toView(view, p) {
+    const k = view && view.k || 1;
+    if (k <= 1.0005) return p;
+    return { x: view.x + (p.x - view.x) * k, y: view.y + (p.y - view.y) * k };
+  }
+
   constructor(root = document) {
     this.el = {
       /* hint / sound / pause are gone from the markup. The lookups stay because every
@@ -23,8 +30,10 @@ export class Hud {
       text: root.getElementById('instruction-text'),
       complete: root.getElementById('complete'),
       replay: root.getElementById('btn-replay'),
-      oops: root.getElementById('oops'),
-      retry: root.getElementById('btn-retry'),
+      /* oops and retry are gone from the markup: a crash recovers by itself now and
+         there is no failure panel. The lookups are not kept "just in case" — every
+         use of them went with them, and a lookup with no user is how a dead element
+         gets resurrected by the next person reading this file. */
       rotate: root.getElementById('rotate')
     };
     this.paused = false;
@@ -78,10 +87,27 @@ export class Hud {
       return;
     }
     if (h.verdictAt) {
-      el.style.left = (h.verdictAt.x / 1920 * 100).toFixed(2) + '%';
-      el.style.top = (h.verdictAt.y / 1080 * 100).toFixed(2) + '%';
+      /* Mapped through the view transform, because a phase zooms the canvas about a
+         point and this mark is placed in stage coordinates — over the crossing, which
+         is exactly the thing the zoom moves furthest. Unmapped it drifted off the
+         crevasse by tens of pixels at 1.08 and would have looked like a positioning
+         bug in the mark rather than a missing transform. */
+      const v = Hud.toView(h.view, h.verdictAt);
+      el.style.left = (v.x / 1920 * 100).toFixed(2) + '%';
+      el.style.top = (v.y / 1080 * 100).toFixed(2) + '%';
     }
-    if (h.verdict === this._verdictWas) return;
+    /* AND RE-SHOW IT IF SOMETHING HID IT. This guard exists so the pop is not
+       restarted on every frame of the mark's life, and on its own it was wrong the
+       moment the animationend handler started hiding the element: the CSS animation is
+       900ms of wall clock while G.verdictT is 0.9s of GAME time, so the element gets
+       hidden first and the engine can still be reporting the same verdict afterwards.
+       A second identical verdict then matched _verdictWas, returned here, and never
+       came back — which is the exact bug the unconditional reset below was added to
+       fix, reintroduced one line higher up.
+
+       Checking el.hidden as well means the only thing this skips is a mark that is
+       already on screen showing the right glyph. */
+    if (h.verdict === this._verdictWas && !el.hidden) return;
     this._verdictWas = h.verdict;
     el.dataset.mark = h.verdict;
     el.hidden = false;
@@ -96,8 +122,10 @@ export class Hud {
     const el = this.el.hand;
     if (!el) return;
     if (!h.handHint) { if (!el.hidden) el.hidden = true; return; }
-    el.style.left = (h.handHint.x / 1920 * 100).toFixed(2) + '%';
-    el.style.top = (h.handHint.y / 1080 * 100).toFixed(2) + '%';
+    // the demonstration hand points at a rope, so it moves with the view as well
+    const p = Hud.toView(h.view, h.handHint);
+    el.style.left = (p.x / 1920 * 100).toFixed(2) + '%';
+    el.style.top = (p.y / 1080 * 100).toFixed(2) + '%';
     if (el.hidden) el.hidden = false;
   }
 
@@ -226,17 +254,37 @@ export class Hud {
        on request, and G.helper had been pinned to the empty string ever since — so
        `h.helper || h.instruction` was provably just h.instruction. */
     const message = h.instruction || '';
-    if (message !== this.lastMessage) {
+
+    /* SHOWN WHENEVER THERE IS SOMETHING TO SAY, not only when the line CHANGES.
+     *
+     * This was a diff-driven state machine: it acted only when `message` differed from
+     * the last one it had seen. That leaves the element stuck if anything hides it by
+     * any other route, because the message has not changed so nothing puts it back.
+     * Observed exactly that — engine state PHASE_ACTIVE with "Cut the triangle." in
+     * G.instruction, and the element sitting at `class="instruction leaving"`,
+     * `hidden=true`, with the right text inside it. The one thing telling the learner
+     * what to look for was invisible for the whole phase.
+     *
+     * The re-assert costs a couple of property reads per HUD push and cannot get
+     * stuck: if there is a message and the element is not showing it, it shows it.
+     * The entrance animation is still only restarted for a genuinely NEW line, so a
+     * re-assert does not make the pill flash. */
+    const el = this.el.instruction;
+    const outOfSync = message && (el.hidden || el.classList.contains('leaving'));
+    if (message !== this.lastMessage || outOfSync) {
+      const isNewLine = message !== this.lastMessage;
       this.lastMessage = message;
       if (message) {
         clearTimeout(this._leaveT);
         this.el.text.textContent = message;
-        this.el.instruction.hidden = false;
-        this.el.instruction.classList.remove('leaving');
-        // restart the entrance animation on every new line
-        this.el.pill.style.animation = 'none';
-        void this.el.pill.offsetWidth;
-        this.el.pill.style.animation = '';
+        el.hidden = false;
+        el.classList.remove('leaving');
+        // restart the entrance animation only for a new line, never for a re-assert
+        if (isNewLine) {
+          this.el.pill.style.animation = 'none';
+          void this.el.pill.offsetWidth;
+          this.el.pill.style.animation = '';
+        }
       } else {
         // slide away instead of vanishing on a display:none flip
         this.el.instruction.classList.add('leaving');
@@ -263,21 +311,10 @@ export class Hud {
 
     if (this.el.complete.hidden === h.complete) this.el.complete.hidden = !h.complete;
 
-    if (this.el.oops && this.el.oops.hidden === !!h.oops) {
-      this.el.oops.hidden = !h.oops;
-      // restart the icon's pop each time the panel appears
-      if (h.oops) {
-        const ic = this.el.oops.querySelector('.card-icon');
-        if (ic) { ic.style.animation = 'none'; void ic.offsetWidth; ic.style.animation = ''; }
-        /* ONLY FOR A KEYBOARD PLAYER. Focusing this button so Space retries straight
-           away is right for someone on a keyboard and wrong for everyone else: the
-           browser treats a programmatic focus as focus-visible, so a mouse or touch
-           player got a focus indicator drawn around TRY AGAIN without ever having
-           asked for one. Tracked by modality, the affordance goes to the players who
-           can use it and is invisible to the rest. */
-        if (this.el.retry && this._kbd) this.el.retry.focus({ preventScroll: true });
-      }
-    }
+    /* NO FAILURE PANEL TO SYNC. This block showed the Ouch card and, when it opened,
+       focused TRY AGAIN so a keyboard player could press Space straight away. Both are
+       gone with the card: a crash plays out and the run resumes at the nearest
+       checkpoint by itself, so there is nothing to open and nothing to focus. */
   }
 
   /** Flash the pressed look, for jumps that came from the keyboard. */

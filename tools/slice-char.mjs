@@ -107,15 +107,49 @@ const SHEETS = [
        alert 14  the tallest grounded pose, for SURPRISED */
   { src: 'jump-gif.png',   slot: 'jump',  bob: true,
     pick: [32, 25, 16, 17, 19, 21, 22, 24, 27, 14] },
-  /* The 36-frame skid delivered as an animated GIF. The engine maps this sheet
-     across a 0-1 deceleration PROGRESS rather than a clock, so any frame count works
-     and all 36 are used: the last frame is what the character holds as it comes to
-     rest, which is exactly where the shiver takes over. */
-  { src: 'skid-gif.png',   slot: 'skid',  bob: false },
-  /* No shake and no hurt. Those came from earlier generated grids and were removed on
-     request — only the delivered GIFs are used now. PlayerController falls back to jump
-     poses for SHAKE, LOOK_DOWN, KNOCKOUT and HURT; add a GIF for either and put its
-     entry back here. */
+  /* THE SKID, redelivered. The engine maps this sheet across a 0-1 deceleration
+     PROGRESS rather than a clock, so any frame count works and all 36 are used: the
+     last frame is what the character holds as it comes to rest, which is exactly where
+     the fright takes over.
+
+     This replaces the earlier skid-gif.png take. The previous one is kept in
+     art-source/char-sheets so the swap can be undone without regenerating anything. */
+  /* NO OLD GRID IS LEFT IN THIS FOLDER. The superseded skid-gif.png was deleted
+     rather than kept as a previous take: two grids for one slot, differing only by a
+     suffix, is exactly how frames from two different deliveries end up merged into
+     one sheet. The GIFs in art-source/gif are the archive; the grids are build
+     intermediates and there is now exactly one per slot. */
+  { src: 'skid-new-gif.png',  slot: 'skid',  bob: false },
+  /* THE FRIGHT AT THE EDGE — the sheet SHAKE and LOOK_DOWN have been missing.
+     Both states existed and had no art of their own: they fell back to a pose out of
+     the jump sheet, so the one beat the whole puzzle hangs on — the character arriving
+     at a hole in the world and reacting to it — was a still frame with a procedural
+     tremor on top.
+
+     All 36 frames are used. SHAKE walks the sheet at CFG.sprite.tremorFps and LOOK_DOWN
+     then HOLDS the final frame, so the sheet has to END on the pose the character keeps
+     while the learner works: this delivery does, settling to a standing alert stance.
+
+     No hurt sheet yet. KNOCKOUT and HURT still fall back through here — see
+     PlayerController — which is why the entry below is the shake and not a third slot. */
+  { src: 'ditch-new-gif.png', slot: 'shake', bob: false },
+  /* THE KNOCKOUT, delivered. KNOCKOUT and HURT read the `hurt` slot, and with no
+     sheet there they read the SHAKE frames BACKWARDS as an improvised recoil — which
+     is a reasonable trick and nothing like a crash.
+
+     This delivery is a whole performance: it runs, hits, tumbles through the air and
+     ends sat down dazed with stars circling. The stars and the spiral eyes are DRAWN
+     IN, so CFG.characters.koStars stays false — the engine adding its own ring on top
+     would be the exact double-up docs/ANIMATION.md warns about. */
+  { src: 'ko-new-gif.png',    slot: 'hurt',  bob: false, near: 200 },
+  /* STANDING STILL, delivered — and this is the longest-lived pose in the game.
+
+     LOOK_DOWN is what the character holds for the whole of a puzzle, and it held ONE
+     frozen frame: its own comment in PlayerController says "the learner may sit on
+     this pose for minutes". So for most of the runtime the character was a still
+     image. 36 frames of breathing and a slight sway fix that with no gameplay
+     change at all. */
+  { src: 'idle-new-gif.png',  slot: 'idle',  bob: false },
 ];
 
 const ALPHA = 40;          // a pixel counts as content above this
@@ -190,9 +224,20 @@ function blobs(data, W, H, C) {
    fragment that bled in from the cell next door is FAR from the body; a sweat drop is
    right beside the head. So a region survives unless it sits clear of the body's own
    bounding box by more than a small margin. */
-async function isolate(sharpImg, box) {
+/* THE SLACK IS PER SHEET, because "decoration" is not one size.
+ *
+ * 14px is right for a sweat bead beside the head. It is completely wrong for the
+ * knockout, whose stars ORBIT the character several body-widths out — every one of them
+ * sits clear of the body's box, so all of them were erased: 485 dropped by the area
+ * filter and 160 more by this function, which is the whole point of the animation
+ * deleted. The frames came out as a mammoth sitting down with nothing to explain why.
+ *
+ * So a sheet can widen the slack, and can grow the crop box it is measured in — the
+ * box comes from the BODY blob, so stars outside it are cropped away before this
+ * function ever sees them. Both default to the old behaviour. */
+async function isolate(sharpImg, box, slack) {
   const CUT = 150;            // a real edge is well above this; a matte thread is not
-  const NEAR = 14;            // px of slack around the body: decoration lives in here
+  const NEAR = slack === undefined ? 14 : slack;
   const { data, info } = await sharpImg
     .extract({ left: box.x0, top: box.y0, width: box.w, height: box.h })
     .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -322,6 +367,24 @@ for (const s of SHEETS) {
     const row = rows.find(r => r.items.includes(f));
     f.lift = row ? Math.max(...row.items.map(q => q.contact)) - f.contact : 0;
   }
+  /* NO BOX GROWING, and it is worth saying why rather than leaving it looking like
+     an oversight.
+
+     A frame box comes from the BODY blob, so the knockout art has decoration that
+     falls outside it: a ring of stars orbiting several body-widths out. Widening the
+     box does capture them, and it was tried — but every extent below is taken across
+     ALL sheets to pick ONE scale, precisely so the character cannot change size
+     between animations. A padded box immediately becomes the largest frame in the
+     set, so K collapses and the character comes out visibly smaller in the run, the
+     jump and the skid too. Measured: the body went from 74..303px wide to 107..250,
+     and baseGap from 25 to 76.
+
+     Keeping the outer ring therefore costs either a smaller character everywhere or
+     a larger cell for everyone. Neither is worth it: the pose already reads as a
+     knockout without them — it lands sitting down, dazed, with spiral eyes and the
+     inner stars, which sit close enough to survive the crop. `near` below is what
+     keeps those, and the far ring clips at the cell edge, which is where the sprite
+     ends anyway. */
   measured.push({ ...s, file, data, W, H, C, frames, rows,
                   found: readingOrder(kept).frames.length, dropped: all.length - kept.length });
 }
@@ -371,7 +434,7 @@ for (const m of measured) {
        less however much of this frame sits above its own feet. */
     const dy = Math.round(FOOT_ROW - f.above * K - lift * K);
 
-    const iso = await isolate(sharp(m.file), f);
+    const iso = await isolate(sharp(m.file), f, m.near);
     strays += iso.erased || 0;
     /* .png() matters: a resize on a RAW input hands back raw pixels, and composite()
        cannot parse those - it needs an encoded image. */

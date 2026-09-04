@@ -299,6 +299,11 @@ a:hover { color: var(--ice-pale); }
   pointer-events: auto;
   background: rgba(8, 43, 82, 0.42);
   backdrop-filter: blur(3px);
+  /* ABOVE THE TUTORIAL LAYER (40). A panel must never end up behind the tutorial
+     blur sheet: that put the whole game blurred behind the ending card. It only
+     worked before because these panels happen to be declared after the tutorial in
+     index.html, which is not something layout should depend on. */
+  z-index: 45;
 }
 .overlay[hidden] { display: none; }
 

@@ -38,7 +38,16 @@ export const READY = 'window.iceAgeGame && window.iceAgeGame.state() !== "BOOT"'
  */
 
 /** Load the game and wait until the world exists and the loader is gone. */
-export async function boot(page, { skipScreens = true, sound = false, speed = 0, fast = 0 } = {}) {
+/* THE TUTORIAL IS OFF BY DEFAULT HERE, and leaving it on was a real fault rather than
+ * an oversight in style: the tutorial FREEZES the game on every describing step, so
+ * with it running a test that swipes a rope, pokes the character or waits to walk into
+ * a rock is acting on a world that is not moving. Five tests failed exactly that way
+ * — "the swipe registered as an attempt: 0", "he reacted: 0", "one collision, one
+ * strike: 0" — and every one of them looked like a broken feature.
+ *
+ * Pass `tutorial: true` for the spec that exercises the tutorial itself.
+ */
+export async function boot(page, { skipScreens = true, sound = false, speed = 0, fast = 0, tutorial = false } = {}) {
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
@@ -48,6 +57,7 @@ export async function boot(page, { skipScreens = true, sound = false, speed = 0,
   if (!sound) q.push('sound=0');
   if (speed) q.push('speed=' + speed);
   if (fast) q.push('fast=' + fast);
+  q.push('tutorial=' + (tutorial ? '1' : '0'));
   await page.goto('/index.html' + (q.length ? '?' + q.join('&') : ''));
   /* The game preloads its whole art set before it will start, which is a real
      cold-start cost — give it room rather than hiding it behind a short timeout.

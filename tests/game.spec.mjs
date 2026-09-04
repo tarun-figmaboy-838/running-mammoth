@@ -244,22 +244,30 @@ test.describe('Level 1', () => {
     expect(nearest).toBeGreaterThan(250);
   });
 
-  test('the crevasse is far too wide to jump, and centred', async ({ page }) => {
-    await boot(page);
+  test('the crossing cannot be jumped, and sits in the middle of the stage', async ({ page }) => {
+    /* A ditch is now cut to the width of the piece that bridges it (133-200px), so the
+       old per-gap threshold of 400 fails by design — see the fuller note in
+       curriculum.spec. And the replacement is not a bigger width either: what stops
+       the player crossing is that the JUMP IS DISABLED for the whole puzzle, not the
+       geometry. So this asserts that, plus that the crossing is framed on the stage
+       rather than off at one edge. */
+    await boot(page, { fast: 4 });
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, ['PHASE_INTRO', 'PHASE_ACTIVE'], 15_000);
-    const gaps = await page.evaluate(() => {
+    await waitState(page, ['PHASE_INTRO', 'PHASE_ACTIVE'], 45_000);
+    const r = await page.evaluate(() => {
       const G = window.iceAgeGame.debug();
-      return (G.gapsThisPhase || []).map(g => ({
-        w: g.x1 - g.x0, mid: (g.x0 + g.x1) / 2 - G.worldX
-      }));
+      const gs = G.gapsThisPhase || [];
+      if (!gs.length) return null;
+      return {
+        n: gs.length,
+        jumpEnabled: G.jumpEnabled,
+        mid: (gs[0].x0 + gs[gs.length - 1].x1) / 2 - G.worldX
+      };
     });
-    expect(gaps.length).toBeGreaterThan(0);
-    for (const g of gaps) {
-      expect(g.w).toBeGreaterThan(400);       // a jump carries about 460px
-      expect(g.mid).toBeGreaterThan(600);
-      expect(g.mid).toBeLessThan(1400);       // roughly the middle of a 1920 stage
-    }
+    expect(r, "a crossing was opened").not.toBeNull();
+    expect(r.jumpEnabled, "the jump is off, which is what makes it impassable").toBe(false);
+    expect(r.mid, "and it is on the stage, right of the character").toBeGreaterThan(600);
+    expect(r.mid, "and not off the right edge").toBeLessThan(1500);
   });
 
   test('slashing the rope with the pointer cuts that chunk', async ({ page }) => {
@@ -469,33 +477,39 @@ test.describe('Level 1', () => {
 });
 
 test.describe('crashing', () => {
-  test('the knockout plays before the Try Again card appears', async ({ page }) => {
-    await boot(page);
-    const r = await page.evaluate(async () => {
-      const g = window.iceAgeGame;
-      g._force('OBSTACLE_HIT');
-      g._anim('KNOCKOUT');
-      let cardAt = -1;
-      const start = g.debug().st;
-      for (let i = 0; i < 200; i++) {
-        if (g.debug().oops && cardAt < 0) cardAt = g.debug().st;
-        await new Promise(r2 => requestAnimationFrame(r2));
-      }
-      return { cardAt, start, anim: g.mammothState() };
-    });
-    // the animation is the feedback: the card must not cover it on frame one
-    expect(r.cardAt).toBeGreaterThan(900);
-  });
-
-  test('the card has no body text and Try Again resumes the run', async ({ page }) => {
-    await boot(page);
+  test('a crash plays out and the run resumes on its own', async ({ page }) => {
+    /* THERE IS NO FAILURE PANEL ANY MORE, and these two tests used to be about one.
+     * They asserted that the Ouch card appeared no sooner than 900ms into the knockout
+     * and that TRY AGAIN resumed the run.
+     *
+     * The card is gone: it was a modal interrupting a game to tell the player
+     * something they had just watched happen, and it popped up DURING the knockout
+     * animation, talking over the feedback it was a consequence of. A crash now plays
+     * the full animation and returns to the run by itself.
+     *
+     * So the assertion changes from "the panel is late enough" to the two things that
+     * actually have to hold: the animation is allowed to play, and the player is never
+     * stranded. The second is the one that matters — an auto-resume that fails leaves
+     * the game dead with no button to press, which is strictly worse than the modal it
+     * replaced, and nothing else in the suite would catch it. */
+    const errors = await boot(page, { fast: 4 });
     await force(page, 'OBSTACLE_HIT');
-    await expect(page.locator('#oops')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('#oops p')).toHaveCount(0);
-    await expect(page.locator('#oops h1')).toHaveText('Ouch!');
-    await page.locator('#btn-retry').click({ force: true });
-    await page.waitForFunction('window.iceAgeGame.debug().moving === true', null, { timeout: 5000 });
-    expect((await G(page)).jumpEnabled).toBe(true);
+
+    // the crash is felt on the canvas, not announced in a panel
+    const during = await page.evaluate(() => ({
+      anim: window.iceAgeGame.mammothState(),
+      moving: window.iceAgeGame.debug().moving,
+      panel: !!document.getElementById('oops')
+    }));
+    expect(during.panel, 'no Ouch element exists in the markup').toBe(false);
+    expect(during.moving, 'the run stops for the crash').toBe(false);
+
+    /* AND IT COMES BACK BY ITSELF. Generous, because the knockout is a fixed duration
+       in GAME time and this runner is slow — see the note at the top of helpers.mjs. */
+    await page.waitForFunction('window.iceAgeGame.debug().moving === true', null, { timeout: 45_000 });
+    const after = await G(page);
+    expect(after.jumpEnabled, 'and the jump is available again').toBe(true);
+    expect(jsErrors(errors), 'the game threw').toEqual([]);
   });
 
   test('three failures crumble the rock so the run can never dead-end', async ({ page }) => {

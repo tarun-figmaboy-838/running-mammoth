@@ -136,8 +136,9 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
     const t0 = Date.now();
     while (Date.now() - t0 < 14000) {
       const p = g._player();
+      const [sheet, idx] = g.mammothFrame().split(':');
       seen.push({
-        st: g.state(), anim: p.state, t: +p.t.toFixed(3),
+        st: g.state(), anim: p.state, t: +p.t.toFixed(3), sheet, idx: +idx,
         scare: +p.scare.toFixed(3), wobX: +p.wobX.toFixed(2),
         lean: +p.lean.toFixed(2), gulp: +p.gulp.toFixed(2)
       });
@@ -154,18 +155,42 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
      is measuring is playing perfectly. p.t is the state's own clock. */
   const shakeHeld = shake.length ? Math.max(...shake.map(s => s.t)) : 0;
   const maxWob = Math.max(...trail.map(s => Math.abs(s.wobX)));
+  const maxLean = Math.max(...trail.map(s => Math.abs(s.lean)));
   const maxScare = Math.max(...trail.map(s => s.scare));
-  const minLean = Math.min(...trail.map(s => s.lean));
-  const maxLean = Math.max(...trail.map(s => s.lean));
   const gulps = trail.filter(s => s.gulp > 0.9).length;
+  // what the fright is DRAWN from, which is the thing this test is really about
+  const sheets = [...new Set(shake.map(s => s.sheet))];
+  const distinct = new Set(shake.map(s => s.idx)).size;
   console.log('SHAKE frames =', shakeFrames, '| held for', shakeHeld + 's',
+    '| sheet(s)', sheets.join(','), '| distinct art frames', distinct,
     '| max scare =', maxScare, '| max |wobX| =', maxWob,
-    '| lean', minLean, '->', maxLean, '| gulps', gulps);
+    '| max |lean| =', maxLean, '| gulps', gulps);
+
   expect(shakeHeld, 'the fright holds for a real length of time').toBeGreaterThan(0.9);
   expect(shakeFrames, 'and is drawn on many frames').toBeGreaterThan(6);
-  expect(maxWob, 'he actually wobbles').toBeGreaterThan(2);
-  expect(minLean, 'he recoils off the lip').toBeLessThan(-8);
-  expect(maxLean, 'and then leans in to look').toBeGreaterThan(6);
+
+  /* IT IS THE DELIVERED ANIMATION, and that is a change of substance rather than of
+     numbers. This used to assert a procedural wobble and a recoil-then-lean, because
+     the fright had no art of its own and was a sine wave applied on top of a held
+     frame. There is a 36-frame delivered fright now, so what has to be true is that
+     the SHEET plays: same sheet throughout, and many distinct frames of it.
+
+     Twice during this change a missing symbol threw once per frame inside update(),
+     which aborted it partway and left the animation stuck on frame 0 — and a frozen
+     sheet is indistinguishable from a held pose in a screenshot. Asserting on the
+     count of distinct frames is what catches that. */
+  expect(sheets, 'the fright is drawn from its own sheet').toEqual(['shake']);
+  expect(distinct, 'and the sheet actually advances').toBeGreaterThan(6);
+
+  /* AND THE OLD SHUDDER STAYS GONE. Removed on request: two performances of one beat
+     fight rather than add, and a sine wave shoving the sprite sideways over a drawn
+     reaction reads as the picture vibrating. This is the guard against it creeping
+     back the next time someone wants the fright to feel stronger. */
+  expect(maxWob, 'no procedural wobble on top of the art').toBe(0);
+  expect(maxLean, 'and no procedural lean either').toBe(0);
+
+  // scare itself still runs: it drives the sweat and the gulp, which are separate cues
+  expect(maxScare, 'the fright amplitude still exists for the other cues').toBeGreaterThan(0.2);
 });
 
 /* A MISSED SWIPE IS ANSWERED BY SOUND, NOT MOTION.
