@@ -621,7 +621,7 @@ test.describe('the hanging row', () => {
         const gs = G.gapsThisPhase;
         const hang = (G.l1 && G.l1.shapes || []).filter(s => s.state === "hang");
         return {
-          gaps: gs.map(g => ({ w: g.x1 - g.x0, near: g.x0 - G.worldX, slots: g.slots.length })),
+          gaps: gs.map(g => ({ w: g.x1 - g.x0, throat: g.throat || (g.x1 - g.x0), near: g.x0 - G.worldX, slots: g.slots.length })),
           jumpEnabled: G.jumpEnabled,
           narrowestPiece: hang.length ? Math.min(...hang.map(s => s.w)) : 0
         };
@@ -632,13 +632,16 @@ test.describe('the hanging row', () => {
       expect(r.jumpEnabled, `phase ${i + 1} jump is disabled`).toBe(false);
 
       for (const g of r.gaps) {
-        // one bridge per hole: a plank that is half one shape and half another is not a thing
-        expect(g.slots, `phase ${i + 1} slots per crevasse`).toBe(1);
+        // one or two polygons per hole: the 3-answer phases bridge one wide ditch with two
+        expect(g.slots, `phase ${i + 1} slots per crevasse`).toBeGreaterThanOrEqual(1);
+        expect(g.slots, `phase ${i + 1} slots per crevasse`).toBeLessThanOrEqual(2);
         // the near lip is past the character, who stops at the edge
         expect(g.near, `phase ${i + 1} near lip`).toBeGreaterThan(430 + 200);
-        // and the narrowest option still reaches across it
-        expect(r.narrowestPiece, `phase ${i + 1} piece spans its hole`)
-          .toBeGreaterThanOrEqual(g.w);
+        // and the narrowest option still reaches across the THROAT, where it wedges —
+        // the mouth above it is deliberately wider (L1.mouth), which is the visible gap
+        expect(r.narrowestPiece, `phase ${i + 1} piece spans its share of the throat`)
+          .toBeGreaterThanOrEqual(g.throat / g.slots);
+        expect(g.w, `phase ${i + 1} mouth is wider than the throat`).toBeGreaterThan(g.throat);
       }
     }
   });

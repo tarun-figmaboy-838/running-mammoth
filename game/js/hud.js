@@ -1,6 +1,8 @@
 /* HUD controller — owns every DOM element outside the canvas and mirrors the
    engine's HUD state onto it. The engine never touches the DOM itself. */
 
+import { shapeRing } from './option-shapes.js';
+
 export class Hud {
   /** A stage point where the zoomed canvas actually draws it. */
   static toView(view, p) {
@@ -22,13 +24,15 @@ export class Hud {
       restart: root.getElementById('btn-restart'),
       resume: root.getElementById('btn-resume'),
       paused: root.getElementById('paused'),
-      verdict: root.getElementById('verdict'),
       hand: root.getElementById('hand-hint'),
       jump: root.getElementById('btn-jump'),
       instruction: root.getElementById('instruction'),
       pill: root.getElementById('instruction-pill'),
       text: root.getElementById('instruction-text'),
       complete: root.getElementById('complete'),
+      stamps: root.getElementById('win-stamps'),
+      winCount: root.getElementById('win-count'),
+      winTotal: root.getElementById('win-total'),
       replay: root.getElementById('btn-replay'),
       /* oops and retry are gone from the markup: a crash recovers by itself now and
          there is no failure panel. The lookups are not kept "just in case" — every
@@ -64,64 +68,29 @@ export class Hud {
     }
   }
 
-  /** A short-lived tick or cross, positioned over the crossing being worked on.
-
-      IT IS NOW ACTUALLY POSITIONED. The comment above claimed it was, and it never
-      was: nothing here set left or top, and the stylesheet had no .verdict rule but
-      the two background-image lines — so the element was a 0x0 block pinned to the
-      top-left of the HUD, and the tick and the cross were invisible for every answer
-      the game has ever been given. The engine now publishes `verdictAt` in stage
-      coordinates and this converts it to percentages, exactly as the idle hand does,
-      so it lands over the crevasse at any viewport size. */
-  updateVerdict(h) {
-    const el = this.el.verdict;
-    if (!el) return;
-    if (!h.verdict) {
-      /* Both, unconditionally. The reset used to sit inside a check on el.hidden, so
-         once anything else had already hidden the element — as the animationend
-         handler below now does — _verdictWas was never cleared, and the NEXT verdict
-         of the same kind was treated as a repeat and never shown. Two wrong answers
-         in a row would have marked only the first. */
-      el.hidden = true;
-      this._verdictWas = '';
-      return;
-    }
-    if (h.verdictAt) {
-      /* Mapped through the view transform, because a phase zooms the canvas about a
-         point and this mark is placed in stage coordinates — over the crossing, which
-         is exactly the thing the zoom moves furthest. Unmapped it drifted off the
-         crevasse by tens of pixels at 1.08 and would have looked like a positioning
-         bug in the mark rather than a missing transform. */
-      const v = Hud.toView(h.view, h.verdictAt);
-      el.style.left = (v.x / 1920 * 100).toFixed(2) + '%';
-      el.style.top = (v.y / 1080 * 100).toFixed(2) + '%';
-    }
-    /* AND RE-SHOW IT IF SOMETHING HID IT. This guard exists so the pop is not
-       restarted on every frame of the mark's life, and on its own it was wrong the
-       moment the animationend handler started hiding the element: the CSS animation is
-       900ms of wall clock while G.verdictT is 0.9s of GAME time, so the element gets
-       hidden first and the engine can still be reporting the same verdict afterwards.
-       A second identical verdict then matched _verdictWas, returned here, and never
-       came back — which is the exact bug the unconditional reset below was added to
-       fix, reintroduced one line higher up.
-
-       Checking el.hidden as well means the only thing this skips is a mark that is
-       already on screen showing the right glyph. */
-    if (h.verdict === this._verdictWas && !el.hidden) return;
-    this._verdictWas = h.verdict;
-    el.dataset.mark = h.verdict;
-    el.hidden = false;
-    el.style.animation = 'none';
-    void el.offsetWidth;
-    el.style.animation = '';
-  }
+  /* There is no verdict mark any more. A tick and a cross used to be positioned here,
+     over the crossing; a right answer now throws confetti from the engine's own
+     particle layer and a wrong one gets no mark at all — see cutShape(). */
 
   /* The idle hand. Positioned in stage coordinates converted to percentages, so it
      lands on the rope at any viewport size rather than at a fixed pixel offset. */
   updateHand(h) {
     const el = this.el.hand;
     if (!el) return;
-    if (!h.handHint) { if (!el.hidden) el.hidden = true; return; }
+    /* ONE HAND, EVER. The tutorial puts its own hand on the rope for the cut step
+       and this idle hint fires after 13s of no input — which the tutorial spends
+       waiting for exactly that swipe. So both were up together, two hands on two
+       different animations demonstrating the same gesture. The tutorial’s is the
+       one that stays: it is placed on the rope the step is about, and it is the
+       hand the player was already being taught to follow. */
+    if (this._tutHand === undefined) {
+      const d = el.ownerDocument || document;
+      this._tutHand = d.getElementById('tut-hand');
+      this._tutLayer = d.getElementById('tutorial');
+    }
+    const tutoring = this._tutHand && !this._tutHand.hidden &&
+                     this._tutLayer && !this._tutLayer.hidden;
+    if (!h.handHint || tutoring) { if (!el.hidden) el.hidden = true; return; }
     // the demonstration hand points at a rope, so it moves with the view as well
     const p = Hud.toView(h.view, h.handHint);
     el.style.left = (p.x / 1920 * 100).toFixed(2) + '%';
@@ -129,7 +98,44 @@ export class Hud {
     if (el.hidden) el.hidden = false;
   }
 
-  /** @param {{onJump:Function,onPause:Function,onReplay:Function}} handlers */
+  /* THE ENDING'S STAMPS AND COUNT. One gold coin per crossing, embossed with the shape
+     that mended it (the engine publishes the kinds as mendedKinds), landing one after
+     another while the count climbs and a coin sounds through the handlers. The polygon is
+     the shape's own verified ring (shapeRing), normalised into the coin — so the stamp is
+     the geometry the learner actually counted, not a decorative glyph. */
+  showWin(h) {
+    const row = this.el.stamps, count = this.el.winCount, total = this.el.winTotal;
+    if (!row) return;
+    const kinds = (h.mendedKinds || '').split(',').filter(Boolean);
+    row.innerHTML = '';
+    if (total) total.textContent = String(kinds.length || 7);
+    if (count) count.textContent = '0';
+    kinds.forEach((kind, i) => {
+      const el = document.createElement('span');
+      el.className = 'win-stamp';
+      el.style.setProperty('--i', i);
+      const pts = shapeRing(kind);
+      if (pts && pts.length) {
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        for (const p of pts) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+        const s = 80 / Math.max(x1 - x0, y1 - y0, 1e-6), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+        const d = pts.map(p => ((p.x - cx) * s + 50).toFixed(1) + ',' + ((p.y - cy) * s + 50).toFixed(1)).join(' ');
+        el.innerHTML = '<svg viewBox="0 0 100 100" aria-hidden="true"><polygon points="' + d + '"/></svg>';
+      }
+      row.appendChild(el);
+    });
+    clearTimeout(this._winTimer);
+    let i = 0;
+    const tick = () => {
+      i++;
+      if (count) count.textContent = String(i);
+      if (this.handlers && this.handlers.onStamp) this.handlers.onStamp();
+      if (i < kinds.length) this._winTimer = setTimeout(tick, 170);
+    };
+    if (kinds.length) this._winTimer = setTimeout(tick, 820);   // as the first stamp lands
+  }
+
+  /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
   bind(handlers) {
     this.handlers = handlers;
 
@@ -220,23 +226,6 @@ export class Hud {
     window.addEventListener('keydown', this._onKey, true);
     window.addEventListener('pointerdown', this._onPtr, true);
 
-    /* THE MARK IS HIDDEN WHEN ITS ANIMATION ENDS, not when the engine's timer expires.
-       The two disagree, and on a slow machine they disagree by seconds: verdictPop runs
-       for 900ms of WALL clock and finishes at opacity 0 (fill mode "both"), while
-       G.verdictT counts down 0.9s of GAME time — and game time runs slower than wall
-       clock whenever the renderer cannot hold 30fps. On a soft renderer at ~9fps that
-       is nearly three seconds, so for two of them the element sat there present, sized
-       and completely invisible.
-
-       Nothing was visibly wrong, but "shown" and "visible" describing different things
-       is the kind of state that makes an interface impossible to reason about — and it
-       is what made tests/polish.spec.mjs fail intermittently under load, which is the
-       symptom that found it. */
-    if (this.el.verdict) {
-      this._onVerdictEnd = () => { if (this.el.verdict) this.el.verdict.hidden = true; };
-      this.el.verdict.addEventListener('animationend', this._onVerdictEnd);
-    }
-
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
     this.checkOrientation();
@@ -295,7 +284,6 @@ export class Hud {
       }
     }
 
-    this.updateVerdict(h);
     this.updateHand(h);
     if (this._soundWas !== h.soundOn) { this._soundWas = h.soundOn; this.soundLabel(h.soundOn); }
     // the hint asks for attention only once the learner has been stuck a while
@@ -309,7 +297,10 @@ export class Hud {
       this.el.jump.classList.toggle('pulse', h.jumpPulse);
     }
 
-    if (this.el.complete.hidden === h.complete) this.el.complete.hidden = !h.complete;
+    if (this.el.complete.hidden === h.complete) {
+      this.el.complete.hidden = !h.complete;
+      if (h.complete) this.showWin(h);
+    }
 
     /* NO FAILURE PANEL TO SYNC. This block showed the Ouch card and, when it opened,
        focused TRY AGAIN so a keyboard player could press Space straight away. Both are
@@ -325,9 +316,7 @@ export class Hud {
     clearTimeout(this._flashT);
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('orientationchange', this._onResize);
-    if (this.el.verdict && this._onVerdictEnd) {
-      this.el.verdict.removeEventListener('animationend', this._onVerdictEnd);
-    }
+
     if (this._onKey) window.removeEventListener('keydown', this._onKey, true);
     if (this._onPtr) window.removeEventListener('pointerdown', this._onPtr, true);
   }

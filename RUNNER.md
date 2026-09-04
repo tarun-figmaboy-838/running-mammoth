@@ -729,3 +729,134 @@ wedges in and the ice grows out to meet it*.
 - Do not clip the plug's silhouette. Anything that crops it changes which shape the
   learner is shown.
 - If a plug ever needs to be bigger, deepen `waterDepth` — do not grow past it.
+
+## 11. The feedback round — what changed and why (September 2026)
+
+Ten client items, worked in this order. Each is a rule now, not a preference.
+
+### The pointer, and where to cut
+
+- **The canvas shows an arrow, and the browser's own hand only over a rope that can be
+  cut** (`main.js`, `.stage.on-rope`). A hand shown everywhere says nothing; the
+  scissors cursor that preceded it was a DOM follower on its own rAF loop that touch
+  players never saw. `cursor: pointer` is what every player already knows means "this
+  does something".
+- **The cut guide is thin gold dashes with a soft glow, 60 px above each block**
+  (`drawCutGuide`). Same height as the tutorial hand (`Tutorial.ropeBox`), so hand and
+  guide agree. Dashes with butt caps — round caps turned 17 px dashes into 28 px
+  capsules. Gold because white was measured invisible against the sky. Every rope gets
+  one, so the marks can never hint at the answer.
+
+### The tutorial highlight
+
+- **The subject glows along its own outline** — nothing behind it comes with it.
+  `game.renderFocus(canvas, kind)` re-draws one subject alone (character, rock, gap or
+  block row) onto `#tut-focus`, and the stylesheet glows that canvas by its alpha. Contact
+  shadows, fog, halos and vapour are switched off for the focus render (`bare`/`only`
+  flags) because each is a soft alpha shape that would glow as a shape. The JUMP button,
+  a DOM element, is lifted (`.tut-lift`) and given the same glow. A copied rectangle of
+  the game canvas was the previous construction and it brought the sky with it.
+- **One hand on screen, ever.** `Hud.updateHand` yields to the tutorial hand whenever the
+  tutorial layer has one up.
+- **The dialogue box is a cartoon panel:** navy keyline, amber inner rim, a snow cap made
+  of repeating radial gradients, a gloss highlight, and a tail outlined in the same navy
+  (`paint-order: stroke fill`).
+
+### Confetti, not marks
+
+A right answer showers confetti across the stage (`particles.confetti(CFG.W, 64)`); the
+whole-phase mend showers more; the crossing sealing adds a little. **There is no tick
+and no cross** any more — `#verdict`, `.verdict`, `check.svg` and `wrong.svg` are gone.
+A wrong answer keeps only the world's response (the whistle, the splash, the character).
+No star glints in a celebration either: confetti was the ask.
+
+### The gap
+
+- **The hole has a mouth and a throat.** The plug is capped by the cavity (a piece lands
+  at the size it was cut, see §10, and the cavity is 234 px), so a straight-walled hole
+  could never be wider than ~243. The walls now step in: the MOUTH — the visible cut in
+  the platform — is `L1.mouth` (1.3) times the plug width, and `L1.throatDepth` (30 px)
+  below the walking line the walls reach the THROAT, plug width minus `bearing` (0.03),
+  where the answer wedges — its top FLUSH with the platforms. The shoulders between mouth
+  and throat are closed by an ice collar drawn behind the plug (`drawCrossingCollar`);
+  there is no deck and no snow band over the answer any more. Phase 1: throat 229, mouth
+  ~298. The curriculum test asserts the piece spans its share of the throat and the mouth
+  is wider than it.
+- **Two polygons in one ditch.** Phases 6 and 7 have three answers and two ditches: the
+  extra answer goes to the last ditch, which is twice as wide at the throat and bridged
+  by two pieces side by side (`share` in `layoutPhase`).
+- **The walls are the platform's own stone.** `rock-band.webp` (the sheet's stone base)
+  is tiled down each side inside the hole with a jagged inner edge and darkens with
+  depth (`GroundManager._wallArt`); the carved caps sit at the lips above it.
+- **Rocks are 80% of the delivered size** (`CFG.obstacle` 112/184) — a shorter hop.
+- **Shapes hang higher** (`optionY` 470): long ropes over the crossing, as in the reference.
+  `ditchGap` 120 → 150 makes a three-hole stretch read longer.
+- **The lips are carved ice from the supplied platform art** (`GroundManager.drawCap`,
+  `cap-l.webp`/`cap-r.webp` cut from `art-source/sheets/pathui.png`): snow top on the walking line, ice
+  band and rock base scaled to the path's own face height, inner edge faded into the
+  tile, face reaching 8 px into the hole. `brokenEdge` remains only as the fallback
+  before the art loads. **Collision is unchanged**: the hole is still `_ditchPath`; only
+  the picture of its edge changed.
+
+### Obstacle spacing
+
+`CFG.obstacle.runRoomS` 1.2 → 3.4 s: about 2280 px between rocks instead of 1134. Each
+rock is its own event with a run between; `PHASE_RUN` waits for the last rock, so no
+stretch is cut short.
+
+### Not done, and why
+
+- **"Tribbling" (item 4)** — `tribble.png` in Downloads is a bear-cub sheet (run, skid,
+  look down, tremble). It is a second character, not an effect. Slotting it in is a
+  character-roster task (`CFG.characters`, `tools/slice-char.mjs`) and needs the brief to
+  say whether the bear is playable or the friend at the end.
+- **A cartoon post-process (item 3)** — not applied; the comedy layer is `CFG.juice`.
+  A whole-frame stylisation is the one thing most likely to eat the readability of the
+  hanging shapes, which is the game.
+
+### The sound kit (item 5)
+
+The supplied kit lives in `tools/sound-kit/` (API.md, calibration, fetch/measure/verify
+tools, soundboard) and ships as `game/js/sfx.js`, a classic script loaded on both
+schemes before the game. `AudioManager.kit(name, opts)` plays a kit cue and returns false
+when the kit is absent, so every call site falls through to the local palette:
+
+| game event | plays |
+| --- | --- |
+| walked into a rock | `bonk` |
+| rope cut | `slice` |
+| wrong chunk hits the water | `splat`; the fall is `fallingWhistle` |
+| wrong answer | `wrong` — never `sadTrombone` (this game does not laugh at the learner) |
+| right answer | `correct`, pitch rising with the streak; phase done → `levelUp` |
+| chunk arrives on its rope | `bubble` |
+| boings, missed-jump whiff, glints, prize, rock tick | `boing`, `swoosh`, `sparkle`, `gem`, `tick` |
+| landing / UI tap when the recordings are unavailable | `land`, `click` |
+
+The six delivered recordings stay primary and are never layered with a kit cue. Voice
+cap 3, pitch jitter on every shot, key `C pentatonic`, kit master 0.5 to match the
+game's bus; the sound toggle mutes both contexts. Music ducking stays in the engine.
+
+### The ending (item 10 polish) and the comic voice
+
+The card in the sky is gone. The friend SPEAKS the ending: a `.win-bubble` in the same
+cartoon construction as the tutorial box, tail on the bear, holding a title that bounces
+letter by letter, a count that climbs as seven gold coins land — each embossed with the
+verified ring of the shape that mended that crossing (`Hud.showWin`, from the engine's
+`mendedKinds`) with a coin sound per stamp — and three sparks. Confetti drizzles for as
+long as the screen is up (`COMPLETE` in `update`). Play again stands on the ice to the
+right of the two friends and glows without moving (a filter animation, so it is still a
+stable target).
+
+The kit's master is 0.85 so the comedy leads the mix. The character's gags run on the
+kit's comedy voices — squeak (gasp), honk (trunk toot), cuckoo (double-take), ratchet
+(knocking knees) — and a rock coming into range plays `anticipate`. Each tutorial bubble
+pops (`popIn`) as its words change; the pop animation now actually restarts on every
+sentence (it compared the text after writing it, so it only ever fired once).
+
+### A performance rule learned the hard way
+
+`.tut-focus` is a full-stage canvas with a drop-shadow glow. Animating that filter meant
+re-blurring 1920×1080 of alpha every frame; on a software renderer the whole game ran at
+1.7 fps while a tutorial step was up (found by the file:// test, which drives the game
+with the tutorial on). The glow is static now — 29.9 fps on the same renderer. Rule: never
+animate a filter on a stage-sized element; animate filters only on small ones.

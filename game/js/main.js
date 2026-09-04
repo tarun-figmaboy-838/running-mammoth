@@ -117,12 +117,45 @@ function startTutorial() {
   requestAnimationFrame(tick);
 }
 
+/* THE HAND ONLY OVER A ROPE. The canvas keeps an arrow; when the pointer is over a rope
+   that can be cut right now, the stage gets .on-rope and the stylesheet swaps in the
+   browser's hand. Decided on pointermove, not per frame: it only has to be right when
+   the pointer moves, and reading the debug state on a move is far cheaper than a rAF
+   loop for something most players (touch) never see at all. The reach is generous —
+   it is an invitation, not the hit test, which lives in the engine. */
+{
+  const stage = document.getElementById('stage');
+  const REACH = 130;
+  const overRope = e => {
+    let G; try { G = game.debug(); } catch (err) { return false; }
+    if (!G || G.state !== 'PHASE_ACTIVE' || !G.l1 || !stage) return false;
+    const r = stage.getBoundingClientRect();
+    if (!r.width) return false;
+    const sx = (e.clientX - r.left) / r.width * 1920, sy = (e.clientY - r.top) / r.height * 1080;
+    const k = G.zoom || 1;
+    const px = k > 1.0005 ? G.zoomVX + (sx - G.zoomVX) / k : sx;
+    const py = k > 1.0005 ? G.zoomVY + (sy - G.zoomVY) / k : sy;
+    for (const s of G.l1.shapes) {
+      if (s.state !== 'hang') continue;
+      const ax = s.anchorX === undefined ? s.x : s.anchorX;
+      if (py < s.y - (s.h || 200) / 2 + 40 && Math.abs(px - ax) < REACH) return true;
+    }
+    return false;
+  };
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerType && e.pointerType !== 'mouse') return;
+    if (stage) stage.classList.toggle('on-rope', overRope(e));
+  }, { passive: true });
+  canvas.addEventListener('pointerleave', () => { if (stage) stage.classList.remove('on-rope'); });
+}
+
 game.setOptions(options);
 
 hud.bind({
   onJump: () => game.jump(),
   onPause: paused => game.setPaused(paused),
   onReplay: () => game.restart(),
+  onStamp: () => game.sfx('stamp'),
   onRetry: () => game.retryObstacle(),
   // returns the new state so the HUD can swap the glyph without asking again
   onSound: () => game.toggleSound(),

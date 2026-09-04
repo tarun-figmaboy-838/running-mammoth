@@ -246,6 +246,11 @@
 
    The one survivor is .card-hero just below, which the Ouch panel still uses. */
 
+/* The scissors cursor’s stylesheet was here — .cursor, .cur-half, .cur-blade,
+   .cur-loop, .cur-arm, .cur-rivet and .stage.cursor-on. The pointer is now an
+   ordinary CSS cursor on #game-canvas and the "where to cut" it existed to say is
+   drawn on the ropes themselves, so all of it is gone. */
+
 /* ================== THE TUTORIAL LAYER ==================
 
    A spotlight, a dialogue box and a Skip, positioned by js/tutorial.js in percentages
@@ -309,65 +314,58 @@
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
   pointer-events: none;
+  /* Eased in, so the world softens rather than being replaced between two frames. It
+     is the same idea as a camera pulling focus, and it is the difference between the
+     step feeling staged and feeling like a hard cut. */
+  animation: tutVeilIn 260ms ease-out both;
 }
-/* THE FOCUS, LIFTED OVER THE SHEET — and nothing else.
+@keyframes tutVeilIn { from { opacity: 0; } to { opacity: 1; } }
+/* THE FOCUS — THE SUBJECT GLOWING ALONG ITS OWN OUTLINE.
 
-   No glow and no oval fade. Both were here and both rebuilt the spotlight this was
-   supposed to replace: a warm drop-shadow around a softly feathered ellipse IS a light
-   shining on the scene, however it is constructed. What is wanted is simply that the
-   part being talked about is not behind the sheet.
+   This canvas holds one thing: the subject of the step, drawn alone by the engine
+   (renderFocus) with nothing behind it. drop-shadow follows the element's ALPHA, so on
+   a canvas that is transparent everywhere but the subject, the glow is the subject's
+   silhouette and nothing else — the character lit along his outline, not a spot or a
+   panel with him in it.
 
-   So this is the region, sharp, with a rounded corner and a hairline of white to say
-   it is a panel lifted above the blur rather than a hole in it. Being a plain rounded
-   rectangle is also what makes it read as deliberate: a soft-edged blob looks like an
-   effect, a clean edge looks like a decision. */
-.tut-cut {
+   Two shadows, tight and wide: the tight one is the edge light that says "this one",
+   the wide one is the warmth that lifts him off the dimmed scene. Gold, because gold
+   is what this game uses for "yours to act on" — the button, the cut line, the rim of
+   the dialogue box. A slow breath on the glow keeps a frozen frame from looking dead. */
+.tut-focus {
   position: absolute;
-  translate: -50% -50%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  /* NO SHAPE AT ALL — no border, no corner, no shadow, no glow.
-
-     Three versions of this were wrong in two opposite directions. A feathered oval
-     with a warm drop-shadow was a spotlight however it was built. Replacing it with a
-     rounded rectangle and a white hairline swapped a light for a SQUARE stuck on the
-     scene, which is just as much a piece of interface drawn over the artwork.
-
-     What is wanted is that the focus is simply not behind the sheet. So the edges are
-     feathered away to nothing and there is no outline of any kind: the only thing the
-     eye can see is that this part of the picture is sharp and the rest is not. The
-     feather is generous and reaches the very edge, so there is no boundary to read as
-     a shape — which is what separates this from the oval: that one had a glow and a
-     brightening ON the edge, and this one has nothing there at all. */
-  /* 50%, WHICH IS THE ONLY VALUE THAT REACHES THE EDGE.
-
-     A radial-gradient size is a percentage of the BOX, so 74% gave a radius half again
-     as long as the box half-width — the gradient ran off the element before it got
-     anywhere near transparent, and the mask was still about half opaque AT the edge.
-     That is a hard boundary, which is the rectangular step that kept coming back
-     however the stops were tuned. At 50% the gradient spans exactly to the edge, so
-     transparent at 100% really is transparent where the element ends.
-
-     Sharp across the middle 70%, fading over the outer 30%. That ratio is what decides
-     how much sharp area there is: a longer fade needs a bigger region to keep the
-     subject out of it, and a bigger region means less of the sheet is visible. 70/30 on
-     a region 1.42x the subject puts the whole subject in the sharp core with a ~130px
-     softening beyond it, and leaves the sheet covering everything else. */
-  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%,
-                        #000 0%, #000 70%, transparent 100%);
-  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%,
-                #000 0%, #000 70%, transparent 100%);
+  filter: drop-shadow(0 0 clamp(5px, 0.5vw, 10px) rgba(255, 201, 77, 0.95))
+          drop-shadow(0 0 clamp(14px, 1.5vw, 28px) rgba(255, 186, 56, 0.6));
+  /* NO ANIMATION ON THIS GLOW. It is a drop-shadow on a full-stage canvas, and animating
+     it means re-blurring 1920x1080 of alpha every frame: measured at 1.5 frames a second
+     on a software renderer, which starved the whole game while a tutorial step was up.
+     Static, the browser filters it once and composites the result. The lifted button
+     keeps its breath - it is a small element. */
 }
-.tut-cut[hidden] { display: none; }
+@keyframes tutFocusBreathe {
+  0%, 100% { filter: drop-shadow(0 0 clamp(5px, 0.5vw, 10px) rgba(255, 201, 77, 0.95))
+                     drop-shadow(0 0 clamp(14px, 1.5vw, 28px) rgba(255, 186, 56, 0.55)); }
+  50%      { filter: drop-shadow(0 0 clamp(7px, 0.7vw, 14px) rgba(255, 210, 100, 1))
+                     drop-shadow(0 0 clamp(20px, 2.1vw, 40px) rgba(255, 186, 56, 0.75)); }
+}
+.tut-focus[hidden] { display: none; }
 
 /* A DOM CONTROL RAISED ABOVE THE SHEET while the tutorial is introducing it. 41 is one
    above .tutorial, so the control is sharp and fully lit while everything else sits
    behind the blur — the same result the copied focus panel gets for canvas targets,
    achieved the way DOM allows. Removed again the moment the step moves on. */
 .tut-lift {
-  /* Raised above the sheet and otherwise untouched. No halo: the control being the
-     only sharp, fully-lit thing on the screen already says "this one", and a glow
-     around it is the ring this whole approach exists to avoid. */
+  /* Raised above the sheet, and glowing along its own outline exactly like a canvas
+     subject on .tut-focus — one treatment for every highlighted thing, character or
+     control. !important because the button carries a filter of its own. */
   z-index: 41 !important;
+  filter: drop-shadow(0 0 clamp(5px, 0.5vw, 10px) rgba(255, 201, 77, 0.95))
+          drop-shadow(0 0 clamp(14px, 1.5vw, 28px) rgba(255, 186, 56, 0.6)) !important;
+  animation: tutFocusBreathe 2.6s ease-in-out infinite;
 }
 
 /* THE HAND. It taps, on the spot being explained, and it IS the instruction to tap —
@@ -431,133 +429,204 @@
    screen. .tut-veil says the same thing with the game’s own picture instead: what is
    being pointed at is simply the part still in focus.
 */
-/* THE DIALOGUE BOX.
+/* THE DIALOGUE BOX — A STONE TABLET, built to the supplied reference.
 
-   IT SIZES ITSELF TO ITS WORDS. `width: max-content` under a `max-width` ceiling means
-   a four-word step gets a small box and a long one wraps at a readable measure — no
-   fixed width to tune per string, and no string that can overflow.
+   What the reference actually is, as construction rather than as a mood: a warm tan
+   slab with a mottled stone surface, generously rounded corners, NO keyline at all,
+   and a hard dark shadow offset down and to the right. The tail is a swept fold at
+   ONE END of the bottom edge, not a triangle in the middle.
 
-   IT POINTS AT WHAT IT IS TALKING ABOUT. The tail is what makes this a speech bubble
-   rather than a floating panel, and it FLIPS: the script sets data-side to "above" or
-   "below" depending on whether there was room over the spotlight, and the tail is drawn
-   on the opposite edge so it always aims at the light. A fixed tail would point away
-   from the thing being explained exactly when the box had to move, which is worse than
-   having no tail at all.
+   Two of those are load-bearing and easy to get wrong:
 
-   The tail is a rotated square, not a border triangle: a triangle cannot carry the navy
-   keyline and the white inner rim the box has, so it reads as a paper cutout stuck to a
-   painted panel. A square rotated 45deg keeps both. */
+   NO OUTLINE. Every previous version of this box had a keyline, and the keyline is
+   what made it read as interface: a drawn border says "this is a UI element", while a
+   slab with only a shadow says "this is an object sitting there". The separation is
+   done entirely by the offset shadow.
+
+   ONE SHADOW OVER BOTH PARTS. The face and the tail are two elements, so shadowing
+   them separately would draw a shadow along the seam between them — which is exactly
+   the "detached" look. The filter sits on their shared parent instead, and a
+   drop-shadow follows the union of the subtree alpha, so the two shapes cast one
+   shadow as a single silhouette.
+
+   Tan on an ice field is also the strongest contrast available, and stone belongs in
+   this world in a way a glossy blue panel never did. */
 .tut-bubble {
   position: absolute;
   translate: -50% -50%;
   width: max-content;
-  max-width: min(78vw, 620px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(8px, 0.9vw, 16px);
-  padding: clamp(16px, 1.7vw, 32px) clamp(24px, 2.5vw, 46px);
-  /* CHUNKIER AND ROUNDER. The old box was a tidy web panel: a thin rim, a modest
-     radius, and a level edge. A cartoon speech bubble is fat-rimmed, very round, and
-     sits slightly off-square — the tilt is what stops it reading as a dialog and is
-     the cheapest single thing that makes it look drawn rather than laid out. */
-  border-radius: clamp(26px, 2.8vw, 54px);
-  border: clamp(4px, 0.45vw, 8px) solid #17547F;
-  background: linear-gradient(180deg, #FFFEF7 0%, #F2FAFF 58%, #D6EEFC 100%);
-  /* NO EXTRUDED SLAB, and that is what fixes the detached pointer.
-
-     There was a hard `0 15px 0 #0E3E60` under the box — a navy bar standing proud of
-     its bottom edge. The tail hangs off that same edge, so the slab sat BETWEEN the box
-     and its own pointer: a stripe of navy across the join, with the white triangle
-     apparently floating below it. Every attempt to fix the tail geometry was chasing
-     the wrong thing, because the gap was the shadow.
-
-     It also made the box read as a UI panel. A cartoon speech bubble is a fat outline
-     and a soft shadow underneath, not an extruded block with a lip.
-     A single soft shadow lifts it off the scene and leaves the tail joined. */
-  box-shadow:
-    inset 0 0 0 clamp(4px, 0.42vw, 8px) rgba(255, 255, 255, 0.98),
-    inset 0 clamp(-14px, -1.3vw, -8px) clamp(18px, 1.9vw, 34px) rgba(120, 190, 226, 0.34),
-    0 clamp(10px, 1.05vw, 20px) clamp(22px, 2.3vw, 44px) rgba(6, 32, 60, 0.5);
+  max-width: min(62vw, 500px);
+  padding: clamp(15px, 1.6vw, 30px) clamp(21px, 2.2vw, 41px);
   text-align: center;
-  rotate: -1.4deg;
+  rotate: -1.1deg;
   animation: tutBubbleIn 380ms cubic-bezier(.2, 1.8, .35, 1) both;
 }
-/* THE TAIL — TWO CLIPPED TRIANGLES, and the third attempt at it.
+.tut-bubble[hidden] { display: none; }
 
-   First it was a rotated square in front of the box with two of its four borders set
-   transparent to fake the join. It read as detached, because the box carries a thick
-   white inner rim and the tail did not: along the join there was navy against white
-   with a visible seam, and two stubby border ends poking out sideways.
+/* The shape layer: face + tail, and the one shadow that wraps them both. */
+.tut-shape {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(14, 62, 96, 0.42));
+}
 
-   Then it was the same square moved BEHIND with z-index -1, so the box would paint
-   over its inner half. That cannot work here and the reason is worth keeping: the box
-   has a `rotate`, a transform creates a stacking context, and z-index -1 is then
-   clamped INSIDE that context — so the diamond stayed in front, now with all four
-   borders showing. It looked worse than what it replaced.
+/* THE SLAB. The mottling is four very soft radial gradients at low alpha over a flat
+   tan — enough to break the surface up so it reads as stone rather than as a filled
+   rectangle, without a texture file and without any pattern the eye can lock onto.
+   A single flat colour here looks like cardboard; a visible repeat looks like tiling. */
+.tut-face {
+  position: absolute;
+  inset: 0;
+  border-radius: clamp(22px, 2.4vw, 46px);
+  background:
+  /* BRIGHT ICE WITH A CHUNKY AMBER RIM — the game's own two colours.
 
-   Two clipped triangles have no stacking dependency at all. ::before is the navy
-   outline and ::after is the fill inset within it, both pointing away from the box and
-   overlapping its edge by a pixel so there is no gap to see. The outline meets the
-   box's own navy border, which is the same colour, so the join disappears without
-   anything having to be hidden. */
-.tut-bubble::before,
-.tut-bubble::after {
+     The tan stone matched the supplied reference faithfully and was the wrong call for
+     this game: nothing else on the stage is warm brown, so however well it was built
+     it read as an object borrowed from somewhere else. The palette here is ice blue
+     with amber for anything the player acts on — the cover, the jump button, every
+     highlight — and a panel that speaks for the game should be made of those.
+
+     What is KEPT from the reference is everything that was actually right about it:
+     the generous corner radius, the swept fold of a tail, the hard offset shadow doing
+     the separating, and one flat face rather than four concentric bands.
+
+     Near-white at the top into light ice below, so dark text has maximum contrast at
+     the top where the words sit. */
+    radial-gradient(50% 42% at 26% 20%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 72%),
+    radial-gradient(40% 44% at 80% 76%, rgba(96, 168, 214, 0.22), rgba(96, 168, 214, 0) 74%),
+    linear-gradient(178deg, #FBFEFF 0%, #EAF7FF 46%, #C9E9FB 100%);
+  /* THE CHUNKY RIM. An inset ring rather than a border, so it cannot change the box's
+     size as the text rewraps — and amber, which is what this game uses for "this is
+     yours to act on". Thick, because chunky is the brief. */
+  box-shadow:
+    inset 0 0 0 clamp(4px, 0.42vw, 8px) #F2A93B,
+    inset 0 0 0 clamp(7px, 0.74vw, 14px) #FFD98A;
+  /* THE KEYLINE. A cartoon speech box has a thick dark outline — it is what makes it
+     read as a drawn object rather than a filled rectangle, and it is the same navy
+     the option blocks are rimmed with, so the box is drawn in the game's own line.
+     (An earlier note here argued against any outline; the box without one was called
+     too basic, and it was.) Absolutely positioned with inset 0, so the border sits
+     inside the box and changes no measurement the script relies on. */
+  border: clamp(3px, 0.32vw, 6px) solid #0C3352;
+}
+/* THE SNOW CAP. A drift lying along the top edge with drips hanging off it — the same
+   cap the wooden sign wears, so the two panels are visibly of one world. Built from a
+   repeating radial gradient (the drips) under a flat white band (the drift); no image,
+   and it stretches with the box however the sentence wraps. Kept inside the rounded
+   corners so it never pokes past them. */
+.tut-face::before {
   content: "";
   position: absolute;
-  left: 50%;
-  translate: -50% 0;
-  width: clamp(26px, 2.7vw, 50px);
-  height: clamp(16px, 1.7vw, 30px);
+  left: 7%;
+  right: 7%;
+  top: calc(-1 * clamp(4px, 0.42vw, 8px));
+  height: clamp(15px, 1.6vw, 30px);
+  pointer-events: none;
+  background:
+    linear-gradient(#FFFFFF, #FFFFFF) 0 0 / 100% 46% no-repeat,
+    radial-gradient(circle at 50% 0, #FFFFFF 57%, rgba(255, 255, 255, 0) 60%)
+      0 0 / clamp(28px, 3vw, 56px) 100% repeat-x;
+  border-radius: 999px 999px 0 0;
+  filter: drop-shadow(0 clamp(1px, 0.16vw, 3px) 0 rgba(122, 176, 226, 0.6));
 }
-/* the navy outline, the full size */
-.tut-bubble::before { background: #17547F; }
-/* the fill, narrower and shorter so the outline shows all round it */
-.tut-bubble::after {
-  width: clamp(16px, 1.7vw, 31px);
-  height: clamp(10px, 1.05vw, 19px);
-}
-/* box ABOVE the light: the tail hangs off the bottom and points down at it, and takes
-   the blue foot of the gradient because that is the edge it grows out of */
-/* Box ABOVE the target: the tail points down. The outline starts 2px inside the box's
-   own border so the two navies merge with no seam; the fill starts inside that. */
-.tut-bubble[data-side="above"]::before {
-  top: 100%;
-  margin-top: calc(clamp(4px, 0.45vw, 8px) * -1);
-  clip-path: polygon(50% 100%, 0 0, 100% 0);
-}
-.tut-bubble[data-side="above"]::after {
-  top: 100%;
-  margin-top: calc(clamp(4px, 0.45vw, 8px) * -1 - 1px);
-  clip-path: polygon(50% 100%, 0 0, 100% 0);
-  background: #D6EEFC;
-}
-/* box BELOW the light: the tail sits on top, points up, and takes the pale top */
-.tut-bubble[data-side="below"]::before {
-  bottom: 100%;
-  margin-bottom: calc(clamp(4px, 0.45vw, 8px) * -1);
-  clip-path: polygon(50% 0, 0 100%, 100% 100%);
-}
-.tut-bubble[data-side="below"]::after {
-  bottom: 100%;
-  margin-bottom: calc(clamp(4px, 0.45vw, 8px) * -1 - 1px);
-  clip-path: polygon(50% 0, 0 100%, 100% 100%);
-  background: #FFFEF7;
-}
-@keyframes tutBubbleIn {
-  from { scale: .7;  rotate: -7deg; translate: -50% calc(-50% + 16px); }
-  to   { scale: 1;   rotate: -1.4deg; translate: -50% -50%; }
+/* A GLOSS. One soft highlight in the upper-left, the way every cartoon panel is lit,
+   so the face reads as a glazed surface rather than flat paint. */
+.tut-face::after {
+  content: "";
+  position: absolute;
+  left: 9%;
+  top: 14%;
+  width: 34%;
+  height: 26%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 72%);
+  pointer-events: none;
 }
 
-.tut-text {
-  /* Heavier and a shade larger: this is the only text on the screen and it is being
-     read by someone learning to read. */
-  font: 800 clamp(18px, 1.95vw, 36px)/1.28 "Baloo 2", system-ui, sans-serif;
-  color: #0E3E60;
-  /* stops a two-line step leaving one orphan word on the second line */
-  text-wrap: balance;
-  letter-spacing: .005em;
+/* THE TAIL — a swept fold, aimed by the script.
+
+   `left` is set from JS as an offset in stage units from the box centre, so it lands on
+   whatever is being described even when the box itself has been clamped to the stage.
+   It overlaps the face by a couple of pixels and carries the same base tan, so there is
+   no seam to see: the clip-path makes the swept shape, and having no outline means
+   there is no edge that has to line up with anything. */
+/* BIGGER, and a fold rather than a notch. The reference tail is roughly a quarter of
+   the box wide and a third of it tall — a substantial piece of the silhouette. At
+   58x50 it was a nick in the edge, which is most of why the shape read as wrong. */
+.tut-tail {
+  position: absolute;
+  left: 50%;
+  width: clamp(48px, 5vw, 94px);
+  height: clamp(40px, 4.2vw, 78px);
+  translate: -50% 0;
 }
+.tut-tail svg { display: block; width: 100%; height: 100%; overflow: visible; }
+/* The amber rim colour, so the fold reads as the same rimmed object continuing rather
+   than as a pale flap hanging off it. A fold turned away from the light is darker than
+   the face, and here that darker value is the rim's. */
+.tut-tail-path {
+  fill: #F2A93B;
+  /* The same navy keyline as the face, so the fold is outlined as part of the same
+     drawn object. Its top edge is buried under the face's own border (the tail
+     overlaps the face by a few pixels), so no line shows across the join. Round
+     joins and caps keep every turn soft; paint-order puts the stroke UNDER the fill
+     so the line is a keyline on the outside rather than a band eating into the fold. */
+  stroke: #0C3352;
+  stroke-width: 9;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke fill;
+}
+/* Box ABOVE the target: the fold hangs from the bottom edge and points down. */
+.tut-bubble[data-side="above"] .tut-tail {
+  top: 100%;
+  margin-top: -4px;
+}
+/* Box BELOW the target: the same path flipped, so it points up at the target. */
+.tut-bubble[data-side="below"] .tut-tail {
+  bottom: 100%;
+  margin-bottom: -4px;
+  scale: 1 -1;
+}
+
+/* THE WORDS sit above the shape layer, and take none of its shadow. Dark brown rather
+   than navy: on tan, navy reads as a colour borrowed from somewhere else, and the
+   contrast is worse. */
+.tut-text {
+  position: relative;
+  z-index: 1;
+  /* Deep navy on near-white ice, which is the highest contrast this palette offers —
+     roughly 12:1, well past what a child learning to read needs. Brown on tan measured
+     about half that and was the readability complaint. */
+  font: 800 clamp(19px, 2.05vw, 38px)/1.26 "Baloo 2", system-ui, sans-serif;
+  color: #0C3352;
+  text-wrap: balance;
+  letter-spacing: .004em;
+  /* One white line under each glyph, which lifts the letters off the ice without an
+     outline. An outline would fight the amber rim for attention. */
+  text-shadow: 0 clamp(1px, 0.1vw, 2px) 0 rgba(255, 255, 255, 0.9);
+}
+/* IT LANDS. A slab of stone arriving should have weight, so it comes in from above,
+   overshoots past its resting angle, and settles — rather than fading up on the spot.
+   Three keyframes instead of two is what buys the settle: without the middle one the
+   easing curve alone cannot overshoot rotation AND scale and come back.
+
+   This is the whole of the added drama. Nothing here touches the game: it is one
+   element's own transform, on a layer with pointer-events off, over a simulation that
+   is already paused for the step. */
+@keyframes tutBubbleIn {
+  0%   { scale: .62; rotate: -11deg; translate: -50% calc(-50% - 34px); }
+  62%  { scale: 1.05; rotate: 1.6deg; translate: -50% calc(-50% + 5px); }
+  100% { scale: 1;   rotate: -1.1deg; translate: -50% -50%; }
+}
+
+/* The old .tut-text block that used to live here is gone. It came AFTER the new one and
+   set color: #0E3E60 — navy, from when the box was blue-white ice — so it won on source
+   order and the stone tablet rendered with navy text. Two rules for one selector, the
+   second silently beating the first, is a cascade collision rather than a colour choice;
+   the tablet's own rule above is the only one now. */
 
 /* NO BUTTON. There was a "Got it" pill here. The hand replaced it: a finger tapping
    on the thing being explained is understood by a child who cannot read the sentence
@@ -583,7 +652,9 @@
 .tut-skip:hover { background: rgba(6, 32, 60, 0.72); }
 
 @media (prefers-reduced-motion: reduce) {
-  .tut-veil { -webkit-backdrop-filter: brightness(0.6); backdrop-filter: brightness(0.6); }
+  .tut-veil { -webkit-backdrop-filter: brightness(0.6); backdrop-filter: brightness(0.6); animation: none; }
+  .tut-focus, .tut-lift { animation: none; }
+  .tut-bubble { animation: none; scale: 1; rotate: -1.1deg; translate: -50% -50%; }
   .tut-hand, .tut-hand::after { animation: none; }
   .tut-hand[data-gesture="sweep"] { animation: none; translate: -50% -50%; }
   /* still ARRIVES at its resting values rather than being parked mid-pop */
@@ -622,21 +693,17 @@
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-.overlay-ending .card {
-  position: absolute;
-  left: 50%;
-  top: clamp(14px, 2.2vh, 40px);
-  translate: -50% 0;
-  pointer-events: auto;
-}
 /* PLAY AGAIN, pinned to the bottom of the stage rather than sitting in the panel.
    It is the only thing to do on this screen, so it gets a place of its own where a
    thumb already rests — and being out of the card is what let the card move up and
    uncover the characters. */
 .btn-replay {
   position: absolute;
-  left: 50%;
-  bottom: clamp(16px, 3.2vh, 54px);
+  /* ON THE ICE, right of the two friends: standing on the snow like a signpost at the
+     end of the road, in the half of the stage that was empty. Bottom edge on the
+     walking line (26% up a 1080 stage), so it reads as a thing in the world. */
+  left: 68%;
+  bottom: 26%;
   translate: -50% 0;
   pointer-events: auto;
   min-width: clamp(200px, 22vw, 380px);
@@ -653,37 +720,163 @@
      A press must never be a movement anyway: on touch the finger covers the control
      at the moment it would travel. It pops in once to draw the eye, then holds still
      to be pressed. */
-  animation: cardPop 420ms cubic-bezier(.2, 1.5, .4, 1) both;
+  /* pop in once, then GLOW rather than move — a glow animates filter, never transform,
+     so the target is still and Playwright's stability check agrees */
+  animation: cardPop 420ms cubic-bezier(.2, 1.5, .4, 1) both, replayGlow 1.8s ease-in-out 700ms infinite;
+}
+@keyframes replayGlow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(255, 201, 77, 0)); }
+  50%      { filter: drop-shadow(0 0 clamp(10px, 1vw, 20px) rgba(255, 201, 77, 0.95)); }
+}
+
+/* ================== THE ENDING BUBBLE ==================
+   The same cartoon panel as the tutorial box — ice face, navy keyline, amber rim, snow
+   cap, gloss, outlined tail — because it is the same kind of object: someone speaking.
+   Here the speaker is the friend, and the tail sits on him. Top-anchored (the tutorial
+   box is centre-anchored), so it has its own arrival keyframes. */
+.win-bubble {
+  position: absolute;
+  left: 55%;
+  top: 2%;
+  width: min(50vw, 920px);
+  translate: -50% 0;
+  rotate: -1.4deg;
+  pointer-events: none;
+  animation: winIn 520ms cubic-bezier(.2, 1.7, .35, 1) both;
+}
+@keyframes winIn {
+  0%   { scale: .6;  rotate: -12deg; translate: -50% -40px; opacity: 0; }
+  60%  { scale: 1.05; rotate: 1.4deg; translate: -50% 6px;  opacity: 1; }
+  100% { scale: 1;   rotate: -1.4deg; translate: -50% 0;    opacity: 1; }
+}
+.win-shape {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(14, 62, 96, 0.42));
+}
+.win-face {
+  position: absolute;
+  inset: 0;
+  border-radius: clamp(26px, 2.8vw, 54px);
+  background:
+    radial-gradient(50% 42% at 26% 20%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 72%),
+    radial-gradient(40% 44% at 80% 76%, rgba(96, 168, 214, 0.22), rgba(96, 168, 214, 0) 74%),
+    linear-gradient(178deg, #FBFEFF 0%, #EAF7FF 46%, #C9E9FB 100%);
+  box-shadow:
+    inset 0 0 0 clamp(4px, 0.42vw, 8px) #F2A93B,
+    inset 0 0 0 clamp(7px, 0.74vw, 14px) #FFD98A;
+  border: clamp(3px, 0.32vw, 6px) solid #0C3352;
+}
+.win-face::before {
+  content: "";
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  top: calc(-1 * clamp(4px, 0.42vw, 8px));
+  height: clamp(16px, 1.7vw, 32px);
+  pointer-events: none;
+  background:
+    linear-gradient(#FFFFFF, #FFFFFF) 0 0 / 100% 46% no-repeat,
+    radial-gradient(circle at 50% 0, #FFFFFF 57%, rgba(255, 255, 255, 0) 60%) 0 0 / clamp(30px, 3.2vw, 60px) 100% repeat-x;
+  border-radius: 999px 999px 0 0;
+  filter: drop-shadow(0 clamp(1px, 0.16vw, 3px) 0 rgba(122, 176, 226, 0.6));
+}
+.win-tail {
+  position: absolute;
+  left: 15%;
+  top: 100%;
+  width: clamp(56px, 5.6vw, 100px);
+  height: clamp(48px, 4.8vw, 86px);
+  translate: -50% 0;
+  margin-top: -4px;
+  transform-origin: 50% 0;
+  rotate: 8deg;                           /* leaning toward the bear, who is down and to the left */
+}
+.win-tail svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.win-tail-path { fill: #F2A93B; stroke: #0C3352; stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; paint-order: stroke fill; }
+.win-body {
+  position: relative;
+  z-index: 1;
+  padding: clamp(20px, 2.2vw, 40px) clamp(24px, 2.6vw, 48px) clamp(16px, 1.7vw, 32px);
+  text-align: center;
+}
+/* THE TITLE bounces one letter at a time — a wave runs along the word, then it rests. */
+.win-title {
+  margin: 0;
+  font: 800 clamp(44px, 5vw, 96px)/1 "Baloo 2", system-ui, sans-serif;
+  color: #FFFFFF;
+  -webkit-text-stroke: clamp(2px, 0.28vw, 5px) #0C3352;
+  paint-order: stroke fill;
+  letter-spacing: .01em;
+  text-shadow: 0 clamp(3px, 0.3vw, 6px) 0 #0C3352;
+}
+.win-title span { display: inline-block; animation: winLetter 2.2s cubic-bezier(.4, 0, .3, 1) infinite; animation-delay: calc(var(--i) * 70ms); }
+.win-title .sp { width: .28em; }
+@keyframes winLetter {
+  0%, 30%, 100% { translate: 0 0; rotate: 0deg; }
+  10%           { translate: 0 -0.16em; rotate: -5deg; }
+  20%           { translate: 0 0.02em; rotate: 2deg; }
+}
+.win-sub {
+  margin: clamp(6px, 0.6vw, 12px) 0 clamp(12px, 1.3vw, 24px);
+  font: 800 clamp(20px, 2.1vw, 40px)/1.2 "Baloo 2", system-ui, sans-serif;
+  color: #0C3352;
+}
+.win-sub b {
+  display: inline-block;
+  min-width: 1.2em;
+  font-size: 1.35em;
+  color: #F2A93B;
+  -webkit-text-stroke: clamp(1px, 0.14vw, 2.5px) #7A4A0A;
+  paint-order: stroke fill;
+}
+/* SEVEN STAMPS — gold coins, each embossed with the shape that mended its crossing, landing
+   one after another with a coin sound. A collection, which is what "seven crossings"
+   should feel like. */
+.win-stamps { display: flex; justify-content: center; gap: clamp(6px, 0.7vw, 14px); flex-wrap: wrap; }
+.win-stamp {
+  width: clamp(34px, 3.4vw, 64px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #FFE58A, #F2A93B 62%, #C77A14 100%);
+  box-shadow: inset 0 0 0 clamp(2px, 0.2vw, 4px) #7A4A0A, 0 clamp(3px, 0.3vw, 6px) 0 #7A4A0A;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  scale: .2;
+  animation: stampIn 460ms cubic-bezier(.2, 1.7, .4, 1) forwards;
+  animation-delay: calc(var(--i) * 170ms + 520ms);
+}
+.win-stamp svg { width: 66%; height: 66%; overflow: visible; }
+.win-stamp polygon { fill: #BFEBFF; stroke: #0C3352; stroke-width: 7; stroke-linejoin: round; paint-order: stroke fill; }
+@keyframes stampIn {
+  0%   { opacity: 0; scale: .2;  rotate: -30deg; }
+  70%  { opacity: 1; scale: 1.15; rotate: 6deg; }
+  100% { opacity: 1; scale: 1;   rotate: 0deg; }
+}
+.win-spark {
+  position: absolute;
+  color: #FFE58A;
+  font-size: clamp(22px, 2.4vw, 46px);
+  -webkit-text-stroke: 2px #0C3352;
+  paint-order: stroke fill;
+  pointer-events: none;
+  animation: winSpark 1.6s ease-in-out infinite;
+}
+.win-spark.s1 { left: -3%; top: -10%; }
+.win-spark.s2 { right: -2%; top: 16%; animation-delay: .5s; }
+.win-spark.s3 { left: 30%; bottom: -8%; animation-delay: 1s; }
+@keyframes winSpark {
+  0%, 100% { opacity: .25; scale: .6; rotate: 0deg; }
+  50%      { opacity: 1;   scale: 1.1; rotate: 25deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .win-bubble, .win-title span, .win-stamp, .win-spark, .btn-replay { animation: none; }
+  .win-stamp { opacity: 1; scale: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .btn-replay { animation: none; translate: -50% 0; } }
 
-/* ---------- THE WIN PANEL ----------
-   card-fun already gives it the thick navy rim, the honey starburst, the tilt and the
-   bounce. This is what makes it read as the BIGGEST moment rather than just another
-   panel: a wider box so the heading can be large, a warmer ground, and a heading
-   scaled past the one on any other panel.
-
-   It deliberately does not add a second starburst, a second shadow or a second
-   animation on top of card-fun. Stacking celebrations is how a reward screen ends up
-   busier than it is exciting — the character on the canvas behind is already
-   celebrating with a sparkle shower, and this panel should not compete with it. */
-.card-win {
-  max-width: min(86vw, 760px);
-  /* a touch warmer than the Ouch card: this one is a prize, not a consolation */
-  background:
-    radial-gradient(120% 78% at 50% 4%, rgba(255, 241, 196, 0.98), rgba(255, 241, 196, 0) 66%),
-    linear-gradient(180deg, #FFFBEA 0%, #F0F9FF 56%, #C6E8FB 100%) !important;
-}
-.card-win h1 {
-  /* the largest type in the game, because this is the largest moment in it */
-  font-size: clamp(46px, 5.4vw, 104px) !important;
-}
-.card-win p {
-  font: 700 clamp(15px, 1.6vw, 30px)/1.35 "Baloo 2", system-ui, sans-serif;
-  color: #14496F;
-  margin: 0 0 clamp(12px, 1.3vw, 24px) !important;
-  text-wrap: balance;
-}
 /* AMBER, NOT GREEN. It carries .btn-chunky for the rim-and-face construction the
    button family uses, and then overrides the face colour: the family's own face is
    green, which belongs to no other pixel in this game — the cover, the jump button and

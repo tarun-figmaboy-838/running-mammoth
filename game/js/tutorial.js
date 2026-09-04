@@ -60,9 +60,10 @@ export class Tutorial {
     this.el = {
       layer: root.getElementById('tutorial'),
       veil: root.getElementById('tut-veil'),
-      cut: root.getElementById('tut-cut'),
+      focus: root.getElementById('tut-focus'),
       canvas: root.getElementById('game-canvas'),
       bubble: root.getElementById('tut-bubble'),
+      tail: root.getElementById('tut-tail'),
       text: root.getElementById('tut-text'),
       hand: root.getElementById('tut-hand'),
       skip: root.getElementById('tut-skip')
@@ -97,8 +98,28 @@ export class Tutorial {
       {
         id: 'meet',
         at: g => ['RUN_SEGMENT_1', 'JUMP_CHALLENGE_1'].includes(g.state),
-        spot: () => ({ x: 430, y: 690, rx: 165, ry: 215, world: true }),
+        /* WHERE HE ACTUALLY IS, not where he usually is.
+
+           This was a hardcoded y of 690 and that is only right when he is standing on
+           the path with all four feet down. He bobs as he runs and he leaves the ground
+           entirely when he jumps, so the focus pointed at whatever happened to be below
+           him — and because the copy is taken from the canvas at that point, what got
+           lifted over the blur was a patch of sky and ice while the character himself
+           stayed blurred somewhere above it. The dialogue box was then placed clear of
+           the empty patch rather than clear of him, which is why it still landed across
+           his head after the placement maths had been fixed.
+
+           feetY is the line he is drawn from, so the body sits directly above it. */
+        spot: () => {
+          let feet = 840;
+          try {
+            const p = this.game._player && this.game._player();
+            if (p && typeof p.feetY === 'number') feet = p.feetY;
+          } catch (e) { /* fall back to the path line */ }
+          return { x: 430, y: feet - 200, rx: 165, ry: 205, world: true };
+        },
         text: 'This is your mammoth. He runs all by himself!',
+        focus: 'mammoth',
         advance: 0, pause: true
       },
       {
@@ -115,6 +136,7 @@ export class Tutorial {
           return sx === null ? null : { x: sx, y: 780, rx: 150, ry: 140, world: true };
         },
         text: 'A rock in the way! He cannot walk through it.',
+        focus: 'rock',
         advance: 0, pause: true
       },
       {
@@ -158,6 +180,7 @@ export class Tutorial {
           return { x: cx, y: 900, r: Math.max(185, (gp.x1 - gp.x0) * 0.62), world: true };
         },
         text: 'The ice broke! This gap is far too wide to jump.',
+        focus: 'gap',
         advance: 0, pause: true
       },
       {
@@ -167,6 +190,7 @@ export class Tutorial {
         at: g => !!g.l1 && g.state === 'PHASE_ACTIVE' && this.rowBox(g) !== null,
         spot: g => this.rowBox(g),
         text: 'Blocks of ice are hanging on ropes up here.',
+        focus: 'blocks',
         advance: 0, pause: true
       },
       {
@@ -252,12 +276,10 @@ export class Tutorial {
       x: (b.x + b.width / 2 - s.x) / s.width * W,
       y: (b.y + b.height / 2 - s.y) / s.height * H,
       r: Math.max(b.width / s.width * W, b.height / s.height * H) / 2 + pad,
-      /* A DOM TARGET IS RAISED ABOVE THE SHEET, NOT COPIED FROM THE CANVAS.
-         The focus panel works by copying pixels off the game canvas — and the JUMP
-         button is not on the canvas, it is an element. Copying that region would have
-         lifted a snapshot of the empty SKY behind the button and drawn it over the top,
-         hiding the very control being introduced behind a picture of nothing. So a DOM
-         target names its selector and gets lifted in the stacking order instead. */
+      /* A DOM TARGET IS RAISED ABOVE THE SHEET. Canvas subjects are re-drawn by the
+         engine onto the focus canvas; the JUMP button is not on the canvas, it is an
+         element, so it names its selector and is lifted in the stacking order instead —
+         where the stylesheet gives it the same gold outline glow (.tut-lift). */
       dom: sel
     };
   }
@@ -326,6 +348,7 @@ export class Tutorial {
       if (el) el.classList.remove('tut-lift');
       this._lifted = null;
     }
+    this.hideFocus();
     if (this.el.layer) this.el.layer.hidden = true;
   }
 
@@ -436,7 +459,7 @@ export class Tutorial {
        and a 2.4s cap: long enough to read four words, short enough to get out of the
        way before anyone is ready to act. */
     const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
-    this.show(this.toView(box, g), text, describing, s.hand || null, keepBox);
+    this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null);
 
     // and a describing step moves on once it has been up long enough to read
     if (describing && this.t >= this.readTime(text)) this.next();
@@ -468,14 +491,31 @@ export class Tutorial {
     return out;
   }
 
+  /* ---- the focus canvas ---- */
+  showFocus(kind) {
+    const f = this.el.focus;
+    if (!f) return;
+    const key = kind + ':' + this.step;
+    if (this._focusKey !== key) {
+      this._focusKey = key;
+      try { this.game.renderFocus(f, kind); }
+      catch (e) { /* nothing to lift: the sheet and the words still read */ }
+    }
+    if (f.hidden) f.hidden = false;
+  }
+  hideFocus() {
+    const f = this.el.focus;
+    if (f && !f.hidden) f.hidden = true;
+    this._focusKey = null;
+  }
+
   /* ---- the layer ---- */
-  show(box, text, describing, gesture, keepBox) {
+  show(box, text, describing, gesture, keepBox, focus) {
     const L = this.el.layer;
     if (!L) return;
     if (!box) {
       if (!L.hidden) L.hidden = true;
-      if (this.el.cut && !this.el.cut.hidden) this.el.cut.hidden = true;
-      this._cutKey = null;
+      this.hideFocus();
       return;
     }
     if (L.hidden) L.hidden = false;
@@ -485,9 +525,7 @@ export class Tutorial {
        moving game. On those steps the veil and the copy are both off and only the
        words and the hand remain. */
     if (this.el.veil) this.el.veil.hidden = !describing;
-    if ((!describing || box.dom) && this.el.cut && !this.el.cut.hidden) {
-      this.el.cut.hidden = true; this._cutKey = null;
-    }
+    if (!describing || box.dom) this.hideFocus();
 
     const pc = (v, of) => (v / of * 100).toFixed(2) + '%';
     /* Each axis as a percentage of ITS OWN axis, which is the only way a percentage
@@ -497,20 +535,19 @@ export class Tutorial {
     const rx = box.rx !== undefined ? box.rx : box.r;
     const ry = box.ry !== undefined ? box.ry : box.r;
 
-    /* THE FOCUS, COPIED OFF THE GAME CANVAS AND DRAWN OVER THE BLUR.
+    /* THE FOCUS: THE SUBJECT, DRAWN ALONE, GLOWING ALONG ITS OWN OUTLINE.
      *
-     * The veil blurs the whole screen; this puts the region being explained back on
-     * top of it, sharp. It has to be a copy because canvas pixels cannot be lifted
-     * above a DOM overlay — there is no z-index for part of a bitmap.
+     * A rectangle of the game canvas used to be copied here and lifted over the blur.
+     * It brought the sky and ice behind the subject with it, so what sat over the
+     * sheet was a patch of picture with a shape of its own — an oval, then a rounded
+     * square — and every version read as a spotlight or a panel stuck on the scene.
      *
-     * Copied ONCE per step, not per frame, and that is safe rather than lucky: every
-     * step that shows the veil has paused the game, so the pixels underneath are not
-     * changing. Re-copying every frame would also mean reading back from the canvas 60
-     * times a second, which is the single most expensive thing available here.
+     * Now the engine re-draws the subject by itself onto the focus canvas
+     * (game.renderFocus) and the stylesheet glows that canvas by its alpha. The alpha
+     * IS the subject's silhouette, so the glow follows the character's outline, the
+     * rock's, the row's — and no background comes with it, because none was drawn.
      *
-     * The source rectangle is in the canvas own pixel space, which is the stage space
-     * with the phase zoom already baked in — so the view-mapped box is exactly right
-     * and no further correction is needed. */
+     * Once per step, not per frame: every step that shows this has frozen the game. */
     /* Lift a DOM target above the sheet for as long as it is the focus, and put it back
        afterwards. Tracked so exactly one element is ever lifted. */
     const wantLift = describing && box.dom ? box.dom : null;
@@ -525,31 +562,17 @@ export class Tutorial {
       }
       this._lifted = wantLift;
     }
-
-    const cut = this.el.cut, src = this.el.canvas;
-    if (cut && src && describing && !box.dom) {
-      const key = [Math.round(box.x), Math.round(box.y), Math.round(rx), Math.round(ry), this.step].join(':');
-      cut.style.left = pc(box.x, W);
-      cut.style.top = pc(box.y, H);
-      cut.style.width = pc(rx * 2 * 1.42, W);
-      cut.style.height = pc(ry * 2 * 1.42, H);
-      if (cut.hidden) cut.hidden = false;
-      if (this._cutKey !== key) {
-        this._cutKey = key;
-        /* Copied LARGER than the target: the mask holds full opacity only across
-           the middle third, so the region has to be wider than the thing it is showing
-           or the subject itself lands in the fade. */
-        const GROW = 1.42;   // matches the 70/30 mask above
-        const w = Math.max(2, Math.round(rx * 2 * GROW)), h = Math.max(2, Math.round(ry * 2 * GROW));
-        cut.width = w; cut.height = h;
-        const c = cut.getContext('2d');
-        c.clearRect(0, 0, w, h);
-        try {
-          c.drawImage(src, Math.round(box.x - rx * 1.42), Math.round(box.y - ry * 1.42), w, h, 0, 0, w, h);
-        } catch (e) { /* a tainted canvas off the disk: the blur alone still reads */ }
-      }
-    }
+    if (describing && focus && !box.dom) this.showFocus(focus);
     const b = this.el.bubble;
+    /* THE WORDS GO IN FIRST, because the box cannot be placed until its height is
+       known and its height depends on how many lines the sentence wraps to. It used to
+       be written afterwards, so the placement worked off a guessed 130px half-height
+       while the real box measured anywhere from 147 to 213. */
+    const fresh = !!(this.el.text && this.el.text.textContent !== text);
+    if (b && fresh) {
+      this.el.text.textContent = text;
+      this._boxH = 0;                 // force a re-measure on the new wrap
+    }
     if (b) {
       /* IT MUST FIT ON THE STAGE, whichever side it goes.
        *
@@ -563,10 +586,32 @@ export class Tutorial {
        * with room wins; if neither has room the box is clamped inside and kept on the
        * side with more of it. HALF is the box's own half-height — it is centred on the
        * y it is given, so that much has to be inside the edge at either end. */
-      const HALF = 130;
-      const GAP = 40;
-      const upY = box.y - ry - GAP;
-      const dnY = box.y + ry + GAP;
+      /* MEASURED, AND THE CENTRE IS OFFSET BY IT — which is the fix for the panel
+       * sitting on top of the character.
+       *
+       * The box is positioned by its CENTRE (translate: -50% -50%), and the old code
+       * put that centre at `subjectTop - GAP`. That is where its bottom EDGE belongs,
+       * so the box hung half its own height down into the subject: for the mammoth,
+       * 213px of box centred at y 435 covered everything from 328 to 541 while the
+       * character starts around 470. Seventy pixels of panel across his back and head,
+       * every time.
+       *
+       * The height is now read off the laid-out element rather than assumed. 130 was a
+       * guess and the real box is 147-213 depending on how the sentence wraps, so even
+       * the sign of the error changed with the text. */
+      const st = this.root.getElementById('stage');
+      if (!this._boxH && st) {
+        const r = b.getBoundingClientRect();
+        // back into stage units, so one number works at every viewport size
+        if (r.height && st.clientHeight) this._boxH = r.height / st.clientHeight * H;
+        if (r.width && st.clientWidth) this._boxW = r.width / st.clientWidth * W;
+      }
+      const HALF = (this._boxH || 200) / 2;
+      /* Room for the tail plus clear air. The tail is ~30 stage px, and a panel that
+         merely touches the subject still reads as resting on it. */
+      const GAP = 54;
+      const upY = box.y - ry - GAP - HALF;      // bottom edge clears the subject top
+      const dnY = box.y + ry + GAP + HALF;      // top edge clears the subject bottom
       const upFits = upY - HALF > 0;
       const dnFits = dnY + HALF < H;
       let above, y;
@@ -577,17 +622,53 @@ export class Tutorial {
         above = (box.y - ry) > (H - (box.y + ry));
         y = clampN(above ? upY : dnY, HALF + 8, H - HALF - 8);
       }
-      b.style.left = pc(Math.min(Math.max(box.x, 320), W - 320), W);
+      /* THE BOX IS CLAMPED TO THE STAGE; THE TAIL IS NOT.
+       *
+       * The box has to stay on screen, so its centre is clamped away from the edges.
+       * The tail was pinned to the middle of the box, which means that every time the
+       * clamp moved the box the tail stopped pointing at the thing being described —
+       * and the further the target was towards an edge, the further out the tail
+       * pointed. On the JUMP button, which sits in the bottom-right corner, it was off
+       * by hundreds of pixels: an arrow confidently indicating empty ice.
+       *
+       * So the box is placed under the clamp as before, and then the tail is offset
+       * INSIDE it by however much the clamp moved it — which lands the tail on the
+       * target whatever the box had to do. Kept clear of the rounded corners, because a
+       * tail growing out of a curve looks detached however well it is aimed. */
+      const bx = Math.min(Math.max(box.x, 320), W - 320);
+      b.style.left = pc(bx, W);
       b.style.top = pc(y, H);
       b.dataset.side = above ? 'above' : 'below';
+      if (this.el.tail) {
+        /* THE OFFSET IS A PERCENTAGE OF THE BOX, NOT OF THE STAGE.
+
+           `left` on the tail resolves against its containing block — the box — so
+           expressing the offset as a percentage of the 1920 stage put it nowhere near
+           where it was meant to be: at zero offset it came out as `left: 0%`, which
+           with the -50% translate parks the tail on the box's LEFT EDGE. Measured 165px
+           adrift on a step where no clamping had happened at all, so the error was
+           present even in the easy case.
+
+           Both `off` and `_boxW` are in stage units, so their ratio is the fraction of
+           the box to move by, and 50% + that lands the tail on the target. */
+        const boxW = this._boxW || 420;
+        const inset = 56;                       // clear of the corner radius
+        const off = clampN(box.x - bx, -(boxW / 2 - inset), boxW / 2 - inset);
+        this.el.tail.style.left = (50 + off / boxW * 100).toFixed(2) + '%';
+      }
     }
-    /* RESTART THE POP WHEN THE WORDS CHANGE. A CSS animation runs once when the element
+    /* RESTART THE POP WHEN THE WORDS CHANGE — the text itself is written further up,
+       before the placement, because the placement needs its height. A CSS animation
        appears and never again, so without this only the FIRST step of six would arrive
        with any motion and the rest would silently swap their text — a player would not
        notice the box had said something new. */
-    if (this.el.text && this.el.text.textContent !== text) {
-      this.el.text.textContent = text;
+    /* `fresh` was read BEFORE the words were written above. Comparing again here always
+       found them equal, so the pop restarted on the first step only and every later
+       sentence swapped in silently — the very fault this block exists to prevent. */
+    if (fresh) {
       if (b) { b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; }
+      // a bubble arriving pops: the kit's pop, or the local bloop
+      if (keepBox && this.game.sfx) { try { this.game.sfx('popIn'); } catch (e) { /* silent is fine */ } }
     }
     /* THE HAND ONLY WHERE A FINGER IS WANTED, and dead centre on the control.
 

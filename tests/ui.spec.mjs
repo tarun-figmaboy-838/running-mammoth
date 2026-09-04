@@ -22,7 +22,9 @@ test.describe('ui', () => {
     const svgs = await page.evaluate(async () => {
       const names = [
         'icons/sound-on', 'icons/sound-off', 'icons/pause', 'icons/play', 'icons/restart',
-        'icons/hint', 'icons/check', 'icons/wrong', 'tutorial/hand-slash'
+        'icons/hint'
+        /* icons/check and icons/wrong are gone with the verdict mark: a right answer
+           showers confetti and a wrong one gets no mark (see cutShape). */
         /* The six shapes/*.svg glyphs are gone from this list because the files are
            gone. They were drawn on the instruction card until it became one line of
            text, and were then kept "in case anything ever puts them back" — which is
@@ -216,11 +218,13 @@ test.describe('ui', () => {
     expect(pe, 'the instruction must never swallow a cut').toBe('none');
   });
 
-  test('a correct answer pops a tick, a wrong one pops a cross', async ({ page }) => {
+  test('a right answer throws confetti, a wrong one gets no mark', async ({ page }) => {
     // cuts through the api rather than the pointer, so fast-forward is safe here
     await boot(page, { fast: 4 });
     await force(page, 'GLACIER_BREAK_1');
     await waitState(page, 'PHASE_ACTIVE', 45_000);
+    const confetti = () => page.evaluate(() =>
+      window.iceAgeGame._particles().list.filter(p => !p.dead && p.kind === 'confetti').length);
 
     const bad = await page.evaluate(() => {
       const G = window.iceAgeGame.debug();
@@ -230,20 +234,25 @@ test.describe('ui', () => {
     });
     expect(bad).toBeTruthy();
     await page.evaluate(k => window.iceAgeGame._cut(k), bad);
-    await expect(page.locator('#verdict')).toHaveAttribute('data-mark', 'no', { timeout: 3000 });
+    await page.waitForTimeout(300);
+    // no celebration for being wrong — and no cross either: the falling chunk is the answer
+    expect(await confetti(), 'confetti after a wrong answer').toBe(0);
 
     await waitState(page, 'PHASE_ACTIVE', 25_000);
     const good = await page.evaluate('window.iceAgeGame.debug().l1.unfilled[0]');
     await page.evaluate(k => window.iceAgeGame._cut(k), good);
-    await expect(page.locator('#verdict')).toHaveAttribute('data-mark', 'ok', { timeout: 3000 });
-    // and it gets out of the way rather than blocking play
-    await expect(page.locator('#verdict')).toBeHidden({ timeout: 4000 });
+    await expect.poll(confetti, { timeout: 3000 }).toBeGreaterThan(20);
   });
 
   test('the idle hand appears only after a long wait, and leaves on contact', async ({ page }) => {
-    await boot(page);
+    /* Fast-forwarded to reach the phase: the collapse is a fixed duration in GAME time
+       and this runner sets the frame rate, so 30s of wall clock is not reliably enough
+       under parallel workers — see the note at the top of helpers.mjs. Safe here
+       because nothing below aims at a moving target: the hint is summoned by setting
+       idleHand directly, and it is dismissed by contact ANYWHERE on the canvas. */
+    await boot(page, { fast: 4 });
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, 'PHASE_ACTIVE', 30_000);
+    await waitState(page, 'PHASE_ACTIVE', 45_000);
     await expect(page.locator('#hand-hint')).toBeHidden();
 
     await page.evaluate('window.iceAgeGame.debug().idleHand = 99');

@@ -124,7 +124,13 @@ test.describe('assets', () => {
                      (await (await fetch('/js/option-shapes.js')).text());
       const css = await (await fetch('/css/screens.css')).text();
       const found = new Set();
-      for (const m of engine.matchAll(/['"](assets\/[^'"]+)['"]/g)) found.add(m[1]);
+      /* A reference is a FILE. The obstacle loader builds its filenames
+         ('assets/env/obs-' + kind + '.webp'), so the bare prefix is a string in the
+         source but never something the game requests; matching it produced a phantom
+         404. Anything without an extension is a prefix or a directory, and is skipped. */
+      for (const m of engine.matchAll(/['"](assets\/[^'"]+)['"]/g)) {
+        if (/\.[a-z0-9]+$/i.test(m[1])) found.add(m[1]);
+      }
       for (const m of css.matchAll(/url\("\.\.\/(assets\/[^"]+)"\)/g)) found.add(m[1]);
       return [...found];
     });
@@ -144,7 +150,7 @@ test.describe('assets', () => {
          carry their own rim, gloss and lettering, and their pressed state is drawn
          rather than restyled. A vector version of one of those is not a thing that
          exists. Everything else under assets/ui stays SVG. */
-      const RASTER_OK = ['assets/ui/icons/touch.png', 'assets/ui/sign.webp',
+      const RASTER_OK = ['assets/ui/icons/touch.png', 'assets/ui/sign-l.webp', 'assets/ui/sign-m.webp', 'assets/ui/sign-r.webp',
                          'assets/ui/btn-normal.webp', 'assets/ui/btn-pressed.webp',
                          'assets/ui/btn-play.webp', 'assets/ui/btn-play-pressed.webp',
                          'assets/ui/btn-tryagain.webp'];

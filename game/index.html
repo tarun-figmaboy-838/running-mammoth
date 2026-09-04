@@ -56,7 +56,6 @@
         </button>
 
         <!-- a brief mark over the crossing: cause and effect, without a modal -->
-        <div class="verdict" id="verdict" aria-hidden="true" hidden></div>
 
         <!-- shown only after a long idle: demonstrates the cut, never performs it -->
         <div class="hand-hint" id="hand-hint" aria-hidden="true" hidden></div>
@@ -86,18 +85,43 @@
                the scene; blurring everything else says the same thing using only the
                game's own picture, which is what a camera does when it pulls focus. -->
           <div class="tut-veil" id="tut-veil" aria-hidden="true"></div>
-          <!-- THE FOCUS, ABOVE THE BLUR. The veil blurs the WHOLE screen with no hole
-               in it; this canvas then draws the focused region back on top, sharp, at
-               the place it belongs. So the layering is literally "blur sheet, then the
-               thing in focus over it" rather than a hole cut in the blur.
+          <!-- THE FOCUS, ABOVE THE BLUR: the subject of the step, drawn ALONE by the
+               engine onto this transparent canvas (game.renderFocus), which the
+               stylesheet then glows along its alpha — so the character, the rock or
+               the row of blocks is lit along its own outline, and nothing else comes
+               with it. A copied rectangle of the game canvas lived here before and
+               brought the sky behind the subject along with it. -->
+          <canvas class="tut-focus" id="tut-focus" width="1920" height="1080" aria-hidden="true" hidden></canvas>
+          <!-- THE STONE TABLET. The shape is its own layer, and that split is what
+               makes the tail read as part of the slab rather than stuck onto it.
 
-               A copy is needed because the focus is CANVAS pixels — the mammoth, the
-               ditch, the row of blocks. Part of a canvas cannot be lifted above an
-               overlay, so the region is copied once per step. Once is enough: every
-               step that shows this has frozen the game, so there is nothing moving to
-               keep in sync. -->
-          <canvas class="tut-cut" id="tut-cut" aria-hidden="true"></canvas>
+               `tut-shape` holds the face and the tail and nothing else, and the drop
+               shadow lives on IT. A drop-shadow follows the union of its subtree's
+               alpha, so one shadow wraps box and tail as a single silhouette, which is
+               what a shadow under one solid object looks like. Putting that filter on
+               the bubble itself would shadow the TEXT too, giving every letter its own
+               hard offset copy.
+
+               The tail is separate because it has to MOVE: it is aimed at the thing
+               being described, not pinned to the middle of the box. -->
           <div class="tut-bubble" id="tut-bubble" role="status" aria-live="polite">
+            <div class="tut-shape" aria-hidden="true">
+              <div class="tut-face"></div>
+              <!-- The tail is an SVG because the reference's is CURVED: it sweeps out of
+                   the bottom edge, bellies to one side and comes back to a point, with a
+                   concave inner edge. clip-path polygons cannot curve, and the polygon
+                   version of this read as a small notch rather than a fold of stone. -->
+              <div class="tut-tail" id="tut-tail">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  <!-- Rounded at every turn, including the tip. The first path came to a sharp
+                       point and read as a spike stuck to the panel rather than a fold of the
+                       same soft object: nothing else in this game has a hard point on it.
+                       The Q curves do the sweep and the tip is a short arc, so the whole
+                       outline is continuous curvature. -->
+                  <path class="tut-tail-path" d="M4 0 L94 0 Q90 32 64 68 Q56 80 50 92 Q44 96 40 90 Q40 68 26 50 Q12 32 4 20 Z"/>
+                </svg>
+              </div>
+            </div>
             <span class="tut-text" id="tut-text"></span>
           </div>
           <!-- The hand is the whole interaction. No button: a tapping hand over the
@@ -105,7 +129,7 @@
                sentence yet, and it points at WHERE to tap rather than sitting in a box
                saying "Got it". It is the supplied touch.png, already used for the swipe
                hint, so the two gestures are the same hand. -->
-          <div class="tut-hand" id="tut-hand" aria-hidden="true"></div>
+          <div class="tut-hand" id="tut-hand" aria-hidden="true" hidden></div>
           <button class="tut-skip" id="tut-skip" type="button">Skip</button>
         </div>
 
@@ -165,10 +189,28 @@
              either: the real character is on the canvas behind, celebrating, and a
              second still picture of him on the panel was competing with that. -->
         <div class="overlay overlay-ending" id="complete" hidden>
-          <div class="card card-fun card-win">
-            <h1>You did it!</h1>
-            <p>All seven crossings mended.</p>
+          <!-- THE FRIEND SPEAKS. The ending used to be a card parked in the sky with no
+               relationship to the two characters under it. It is a speech bubble now, in
+               the same cartoon construction as the tutorial box, with its tail on the
+               bear: he says it. Inside: the title, letter by letter, a count that climbs
+               as seven stamps land (one per crossing, each stamped with the shape that
+               mended it), and sparks. Built by hud.js from the engine's mendedKinds. -->
+          <div class="win-bubble" id="win-bubble" role="status" aria-live="polite">
+            <div class="win-shape" aria-hidden="true">
+              <div class="win-face"></div>
+              <div class="win-tail"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="win-tail-path" d="M4 0 L94 0 Q90 32 64 68 Q56 80 50 92 Q44 96 40 90 Q40 68 26 50 Q12 32 4 20 Z"/></svg></div>
+            </div>
+            <div class="win-body">
+              <h1 class="win-title" aria-label="You did it!"><span style="--i:0">Y</span><span style="--i:1">o</span><span style="--i:2">u</span><span class="sp" style="--i:3">&nbsp;</span><span style="--i:4">d</span><span style="--i:5">i</span><span style="--i:6">d</span><span class="sp" style="--i:7">&nbsp;</span><span style="--i:8">i</span><span style="--i:9">t</span><span style="--i:10">!</span></h1>
+              <p class="win-sub"><b id="win-count">0</b> / <span id="win-total">7</span> crossings mended</p>
+              <div class="win-stamps" id="win-stamps" aria-hidden="true"></div>
+            </div>
+            <span class="win-spark s1" aria-hidden="true">✦</span>
+            <span class="win-spark s2" aria-hidden="true">✦</span>
+            <span class="win-spark s3" aria-hidden="true">✦</span>
           </div>
+          <!-- Play again stands ON the ice to the right of the friends, like a signpost at
+               the end of the road — the only thing to do, in the empty half of the stage. -->
           <button class="btn-chunky btn-replay" id="btn-replay" type="button">
             <span class="btn-chunky-face"><span class="btn-chunky-label">Play again</span></span>
           </button>
@@ -221,6 +263,12 @@
 
        `nomodule` is not the mechanism here — that targets browsers WITHOUT module
        support, which is a different question from the page's origin. -->
+  <!-- THE SOUND KIT. A classic script that defines window.SFX: forty-five synthesised
+       effects with measured trims, per-sound voice caps, pitch jitter and a musical
+       key. It has no imports and loads the same way on file:// and http://, so it
+       sits outside the module/bundle switch below. The engine reaches it through
+       AudioManager.kit() and keeps its own palette as the fallback. -->
+  <script src="js/sfx.js"></script>
   <script>
     (function () {
       var s = document.createElement('script');

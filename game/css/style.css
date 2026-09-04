@@ -66,7 +66,24 @@ a:hover { color: var(--ice-pale); }
   height: 100%;
   display: block;
   touch-action: none;          /* swipe gestures belong to the game, not the browser */
-  cursor: crosshair;
+  /* NO CROSSHAIR. There was one on the canvas permanently — presumably put there for
+     the cut gesture — which meant a targeting reticle sat over the title screen, over
+     the cover art, and through every stretch of running: about ninety per cent of the
+     time, with nothing whatsoever to aim at. A crosshair is a promise that precision
+     matters here, and for most of this game it does not.
+
+     AN ARROW, EXCEPT OVER A ROPE THAT CAN BE CUT. The browser's own `pointer` hand is
+     the one every player knows from every link and button, and it means one thing:
+     "this does something". So it appears exactly where a sweep does something — over
+     a hanging rope while the puzzle is live — and nowhere else. A hand shown all the
+     time says nothing, which is the same mistake as the scissors that used to live
+     here (a DOM cursor on its own rAF loop, invisible to every touch player). The
+     switch is made in main.js from the pointer position; this is only the resting state.
+     WHERE to cut is said by the marching cut line (drawCutGuide) for everyone, finger
+     or mouse. */
+  cursor: default;
+}
+.stage.on-rope #game-canvas { cursor: pointer;
 }
 
 /* ---------- HUD ---------- */
@@ -151,11 +168,18 @@ a:hover { color: var(--ice-pale); }
   box-sizing: border-box;
   min-height: var(--sign-h);
 
-  /* the two ends, held at their natural size; only the middle stretches */
-  border-style: solid;
-  border-color: transparent;
-  border-width: 0 calc(248 * var(--k)) 0 calc(244 * var(--k));
-  border-image: url("../assets/ui/sign.webp") 0 248 0 244 fill stretch;
+  /* THREE LAYERS, NOT A 9-SLICE. The plank was one image sliced with border-image, and
+     however flat the column the cut landed on, a hairline showed at each cap on some
+     screens: the browser resamples the cap and the stretched middle separately, and
+     at a fractional cap width the boundary pixel is covered by neither. Three files
+     fix it structurally — the middle is drawn 2px wider than the room between the caps
+     and UNDER them, so the boundary pixel is always covered by the middle and there is
+     no seam for a resampler to find. The caps keep their natural size (auto 100%) and
+     only the middle stretches, exactly as before. */
+  background:
+    url("../assets/ui/sign-l.webp") left center / auto 100% no-repeat,
+    url("../assets/ui/sign-r.webp") right center / auto 100% no-repeat,
+    url("../assets/ui/sign-m.webp") center center / calc(100% - 679 * var(--k) + 2px) 100% no-repeat;
 
   /* CENTRED ON THE WOOD, both ways. Two things were off before:
 
@@ -170,8 +194,10 @@ a:hover { color: var(--ice-pale); }
      centred on 280 exactly. 214 still clears the snow, which reaches down to about
      213 in the middle columns where the text actually is (it dips to 187 only at the
      two ends, under the caps). */
-  padding: calc(214 * var(--k)) calc(60 * var(--k))
-           calc(127 * var(--k)) calc(60 * var(--k));
+  /* the caps are part of the padding now (there is no border): 340 and 339 art-px of
+     cap plus the 60 of clear wood either side of the words */
+  padding: calc(214 * var(--k)) calc(399 * var(--k))
+           calc(127 * var(--k)) calc(400 * var(--k));
 
   animation: pillIn 240ms cubic-bezier(.2,1.3,.4,1) both;
 }
@@ -554,47 +580,8 @@ a:hover { color: var(--ice-pale); }
 .icon-btn[data-icon="play"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/play.svg");      mask-image: url("../assets/ui/icons/play.svg"); }
 .icon-btn[data-icon="restart"]   .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/restart.svg");   mask-image: url("../assets/ui/icons/restart.svg"); }
 
-/* ---------- the verdict mark ----------
-   A tick or a cross over the crossing, for about a second after an answer.
-
-   THIS BLOCK WAS MISSING. Only the two background-image rules below existed, so the
-   element had no position, no size and no box: a 0x0 div at the top-left of the HUD
-   with a picture set on it, which draws nothing. From the outside that is
-   indistinguishable from a verdict that never fires, and the test that guards it
-   asserts on the data-mark attribute — which was always being set correctly. The
-   exact same fault is documented on .hand-hint above; this is its twin.
-
-   It is placed by the HUD from the engine's own stage coordinates, the way the idle
-   hand is, so it lands on the crevasse at any viewport size — and it pops with a
-   springy overshoot, because a verdict should arrive rather than appear. */
-.verdict {
-  position: absolute;
-  width: clamp(52px, 5.6vw, 108px);
-  aspect-ratio: 1;
-  /* centred on the point the engine gives */
-  transform: translate(-50%, -50%);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-  pointer-events: none;
-  z-index: 6;
-  filter: drop-shadow(0 clamp(3px, 0.31vw, 6px) clamp(6px, 0.63vw, 12px) rgba(6, 26, 56, 0.5));
-  animation: verdictPop 900ms cubic-bezier(.34, 1.56, .64, 1) both;
-}
-.verdict[hidden] { display: none; }
-/* in with an overshoot, held, then away upward — a stamp, not a fade */
-@keyframes verdictPop {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-14deg); }
-  26%  { opacity: 1; transform: translate(-50%, -50%) scale(1.14) rotate(4deg); }
-  40%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-  76%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-  100% { opacity: 0; transform: translate(-50%, -58%) scale(.92) rotate(0deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .verdict { animation: none; opacity: 1; transform: translate(-50%, -50%); }
-}
-.verdict[data-mark="ok"] { background-image: url("../assets/ui/icons/check.svg"); }
-.verdict[data-mark="no"] { background-image: url("../assets/ui/icons/wrong.svg"); }
+/* The verdict mark (a tick or a cross over the crossing) is gone: a right answer
+   throws confetti from the engine and a wrong one gets no mark. See cutShape(). */
 
 /* At a phone-landscape stage the panel is proportionally much wider, and at 46% it
    reached the first rope. Narrowing it there keeps the rule "the interface never

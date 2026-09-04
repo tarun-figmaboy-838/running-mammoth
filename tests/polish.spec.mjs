@@ -101,29 +101,27 @@ async function toPhase(page, phase = 0, budget = 120000) {
   await waitState(page, 'PHASE_ACTIVE', budget);
 }
 
-test('the verdict mark renders, and lands over the crevasse', async ({ page }) => {
+test('a right answer showers confetti across the stage', async ({ page }) => {
   await boot(page, { fast: 4 });
   await toPhase(page);
-  /* Real time to look at it: the mark is up for 0.9s of GAME time, which at fast=4 is
-     225ms of wall clock — the first attempt sampled it mid-pop and read opacity 0. */
+  /* Real time to look at it: the pieces live about two seconds of GAME time, which
+     at fast=4 would be gone before the screenshot. */
   await realTime(page);
-  const bad = await page.evaluate(() => {
-    const g = window.iceAgeGame.debug();
-    const b = g.l1.shapes.find(s => s.state === 'hang' && !g.l1.unfilled.includes(s.kind));
-    return b ? b.kind : null;
+  const good = await page.evaluate(() => window.iceAgeGame.debug().l1.unfilled[0]);
+  await page.evaluate(k => window.iceAgeGame._cut(k), good);
+  await page.waitForTimeout(140);
+  const c = await page.evaluate(() => {
+    const G = window.iceAgeGame.debug();
+    const ps = window.iceAgeGame._particles().list.filter(p => !p.dead && p.kind === 'confetti');
+    const xs = ps.map(p => p.x);
+    return { n: ps.length, minX: Math.min(...xs), maxX: Math.max(...xs) };
   });
-  await page.evaluate(k => window.iceAgeGame._cut(k), bad);
-  await page.waitForTimeout(420);          // past the pop's overshoot, well before it leaves
-  const v = await box(page, '#verdict');
-  const stage = await box(page, '#stage');
-  console.log('VERDICT', JSON.stringify(v), 'STAGE', stage.w + 'x' + stage.h);
-  await page.screenshot({ path: 'test-results/qa-verdict.png' });
-  expect(v.hidden, 'shown').toBe(false);
-  expect(v.w, 'has a width').toBeGreaterThan(24);
-  expect(v.h, 'has a height').toBeGreaterThan(24);
-  expect(Number(v.opacity), 'and is actually opaque').toBeGreaterThan(0.5);
-  // over the crevasse, which sits right of centre
-  expect(v.x).toBeGreaterThan(stage.x + stage.w * 0.3);
+  console.log('CONFETTI', JSON.stringify(c));
+  await page.screenshot({ path: 'test-results/qa-confetti.png' });
+  expect(c.n, 'pieces in the air').toBeGreaterThan(20);
+  // a SHOWER: across the whole stage, not a burst from one spot
+  expect(c.minX, 'reaches the left').toBeLessThan(400);
+  expect(c.maxX, 'reaches the right').toBeGreaterThan(1520);
 });
 
 test('the fright actually plays when he sees the ditch', async ({ page }) => {
