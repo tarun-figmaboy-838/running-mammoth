@@ -3674,6 +3674,11 @@ export function createGame(canvas, hooks = {}) {
        no state of his own to keep, and it cannot drift out of step with anything. */
     const bob = reduced ? 0 : Math.sin(G.t * 1.6) * 4;
     ctx.translate(sx, CFG.surfaceY + 6 + bob);
+    /* MIRRORED, so he faces the friend who is arriving. The delivered art looks to its
+       right; the mammoth runs in from the LEFT and stops on the bear's left, so unflipped
+       the two of them stood back to back at the one moment the picture is about them
+       meeting. */
+    ctx.scale(-1, 1);
     ctx.drawImage(img, -w / 2, -h, w, h);
     ctx.restore();
   }
