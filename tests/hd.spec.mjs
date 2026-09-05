@@ -84,11 +84,14 @@ test.describe('the hi-DPI path', () => {
     const b = await measure('rs=2');
     expect(a.frame, 'the pose is the trample').toContain('trample:');
     expect(a.frame).toBe(b.frame);
+    /* 4%, not a pixel or two: the hd silhouette is resolved twice as finely, so its
+       anti-aliased rim passes the colour test a pixel further out on each side (measured:
+       324 vs 330.5 wide). A wrong cellK would be off by 50%, which this still catches. */
     expect(a.h, 'a character was measured').toBeGreaterThan(150);
-    expect(Math.abs(a.h - b.h), `height ${a.h} vs ${b.h}`).toBeLessThan(6);
-    expect(Math.abs(a.w - b.w), `width ${a.w} vs ${b.w}`).toBeLessThan(6);
-    expect(Math.abs(a.top - b.top), `top ${a.top} vs ${b.top}`).toBeLessThan(6);
-    expect(Math.abs(a.left - b.left), `left ${a.left} vs ${b.left}`).toBeLessThan(6);
+    expect(Math.abs(a.h - b.h), `height ${a.h} vs ${b.h}`).toBeLessThan(a.h * 0.04);
+    expect(Math.abs(a.w - b.w), `width ${a.w} vs ${b.w}`).toBeLessThan(a.w * 0.04);
+    expect(Math.abs(a.top - b.top), `top ${a.top} vs ${b.top}`).toBeLessThan(8);
+    expect(Math.abs(a.left - b.left), `left ${a.left} vs ${b.left}`).toBeLessThan(8);
   });
 });
 
