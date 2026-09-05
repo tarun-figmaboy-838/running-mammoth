@@ -578,3 +578,116 @@ fixed-step simulation.
   `verify-mix.js`, which do run headless and do catch regressions.
 - **Per-device output profiles.** One master level for phone, tablet and
   desktop speakers.
+
+---
+
+## 7. `juice.js` — game feel
+
+Squash, pop, shake, dust, hitstop. Ships with your build (~29 KB). Uses `sfx.js`
+when it is loaded, works without it.
+
+```html
+<script src="src/sfx.js"></script>
+<script src="src/juice.js"></script>
+<script>
+  Juice.stage(document.getElementById('game'));   // once
+  Juice.impact(elephant, { power: 1.3 });
+</script>
+```
+
+### Why it cannot break your animations
+
+Every effect is a Web Animations API animation with `composite: 'add'`. The
+browser composes it **on top of** whatever transform your render loop is
+writing, every frame. Juice never assigns to `element.style.transform`, never
+wraps your nodes, and never touches your loop.
+
+Two guarantees follow, and both are tested:
+
+- **No conflict.** Your loop keeps writing `translate(...)`; juice adds
+  `scale(1.2) rotate(3deg)` over it. Neither overwrites the other.
+- **No accumulation.** Every keyframe track starts and ends at identity with
+  `fill: 'none'`, so firing an effect ten thousand times leaves the element
+  exactly where it started. A sprite that slowly deforms over a play session is
+  the classic failure here.
+
+If a browser lacks additive composition, transform effects are **skipped rather
+than applied**, because applying them would overwrite your transform. Particles,
+flashes and sound still run. Check `Juice.additive` to see which path you are on.
+
+### Combos
+
+One call fires visual and audio from the same trigger. Two call sites drift
+apart, and drift is what reads as cheap.
+
+| Call | What happens |
+| --- | --- |
+| `Juice.impact(el, {power})` | Squash, dust, screen shake, hitstop, `land` |
+| `Juice.trample(el)` | Anticipation, then deep squash, dust ring, shake, hitstop, `land`+`splat` |
+| `Juice.bonk(el)` | Squash, dizzy sway, stars, `bonk` |
+| `Juice.collect(el, {label})` | Pop, burst, sparkle, floating label, escalating `coin` |
+| `Juice.celebrate(el)` | Tada, confetti, `levelUp` |
+| `Juice.fail(el)` | Droop, wobble, `sadTrombone` |
+| `Juice.appear(el)` | Pop in, sparkle, `pop` |
+| `Juice.refuse(el)` | Shake, `wrong` |
+
+`collect` escalates by default: repeated pickups rise in pitch, and the run
+resets after a pause. Pass `streak: false` for a flat cue.
+
+### Single effects
+
+Element: `pop` `squash` `stretch` `wobble` `shake` `nudge` `hop` `spin` `dizzy`
+`tada` `droop` `anticipate` `flash`
+
+Squash and stretch are volume-preserving — wider means shorter — which is what
+makes them read as physical rather than as scaling.
+
+Screen: `shakeScreen` `punchZoom` `flashScreen` `hitstop`
+
+Particles (one canvas, not N DOM nodes): `burst` `dust` `stars` `confetti`
+`sparkle` `popText`. The canvas carries `pointer-events: none`; an overlay that
+forgets this is the standard way to make a game look fine and stop responding.
+
+### Hitstop
+
+A few frames of stillness at the moment of contact reads as weight. It is the
+most under-used trick in game feel.
+
+```js
+// in your loop
+var dt = realDelta * Juice.timeScale;
+```
+
+That one line is what makes hitstop reach *gameplay*. Without it, `hitstop()`
+still freezes juice animations and particles, so the punch lands, just softer.
+
+### Config
+
+```js
+Juice.configure({
+  intensity: 1,           // global amplitude multiplier
+  reducedMotion: 'auto',  // 'auto' | true | false
+  particles: true,
+  sound: true,
+  maxParticles: 320
+});
+Juice.clear();            // cancel everything, for scene transitions
+```
+
+Reduced motion **damps to 35% rather than disabling**, and drops screen shake
+entirely. A child who needs less movement still needs to know their tap
+registered.
+
+### Limits
+
+- **Rotation and scale pivot on the element's own centre.** If your game sets a
+  custom `transform-origin`, juice inherits it. Usually right, occasionally not.
+- **`Juice.stage()` needs a positioned ancestor.** It sets `position: relative`
+  on your stage if the computed position is `static`. If that breaks your
+  layout, position the stage yourself first.
+- **Screen shake moves the whole stage**, including any HUD inside it. Put UI
+  that must stay still outside the stage element.
+- **Not tested on a device.** Everything here is verified headlessly against a
+  stubbed DOM. Frame pacing, particle cost on a low-end tablet, and how heavy
+  the shake feels in a child's hands are all open questions until you run it on
+  the target hardware.

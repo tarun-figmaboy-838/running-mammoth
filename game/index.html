@@ -92,36 +92,12 @@
                with it. A copied rectangle of the game canvas lived here before and
                brought the sky behind the subject along with it. -->
           <canvas class="tut-focus" id="tut-focus" width="1920" height="1080" aria-hidden="true" hidden></canvas>
-          <!-- THE STONE TABLET. The shape is its own layer, and that split is what
-               makes the tail read as part of the slab rather than stuck onto it.
-
-               `tut-shape` holds the face and the tail and nothing else, and the drop
-               shadow lives on IT. A drop-shadow follows the union of its subtree's
-               alpha, so one shadow wraps box and tail as a single silhouette, which is
-               what a shadow under one solid object looks like. Putting that filter on
-               the bubble itself would shadow the TEXT too, giving every letter its own
-               hard offset copy.
-
-               The tail is separate because it has to MOVE: it is aimed at the thing
-               being described, not pinned to the middle of the box. -->
+          <!-- THE SPEECH BUBBLE — the supplied Bubble.svg, drawn as geometry so it fits any
+               sentence: js/bubble.js builds the rounded body and the swept tail for the
+               box the words need, with the tail on the edge that faces the subject. The
+               shape is one SVG layer under the words; nothing is stretched. -->
           <div class="tut-bubble" id="tut-bubble" role="status" aria-live="polite">
-            <div class="tut-shape" aria-hidden="true">
-              <div class="tut-face"></div>
-              <!-- The tail is an SVG because the reference's is CURVED: it sweeps out of
-                   the bottom edge, bellies to one side and comes back to a point, with a
-                   concave inner edge. clip-path polygons cannot curve, and the polygon
-                   version of this read as a small notch rather than a fold of stone. -->
-              <div class="tut-tail" id="tut-tail">
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                  <!-- Rounded at every turn, including the tip. The first path came to a sharp
-                       point and read as a spike stuck to the panel rather than a fold of the
-                       same soft object: nothing else in this game has a hard point on it.
-                       The Q curves do the sweep and the tip is a short arc, so the whole
-                       outline is continuous curvature. -->
-                  <path class="tut-tail-path" d="M4 0 L94 0 Q90 32 64 68 Q56 80 50 92 Q44 96 40 90 Q40 68 26 50 Q12 32 4 20 Z"/>
-                </svg>
-              </div>
-            </div>
+            <svg class="tut-shape" id="tut-shape" aria-hidden="true"><path class="tut-face" d=""/></svg>
             <span class="tut-text" id="tut-text"></span>
           </div>
           <!-- The hand is the whole interaction. No button: a tapping hand over the
@@ -196,10 +172,7 @@
                as seven stamps land (one per crossing, each stamped with the shape that
                mended it), and sparks. Built by hud.js from the engine's mendedKinds. -->
           <div class="win-bubble" id="win-bubble" role="status" aria-live="polite">
-            <div class="win-shape" aria-hidden="true">
-              <div class="win-face"></div>
-              <div class="win-tail"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="win-tail-path" d="M4 0 L94 0 Q90 32 64 68 Q56 80 50 92 Q44 96 40 90 Q40 68 26 50 Q12 32 4 20 Z"/></svg></div>
-            </div>
+            <svg class="win-shape" id="win-shape" aria-hidden="true"><path class="win-face" d=""/></svg>
             <div class="win-body">
               <h1 class="win-title" aria-label="You did it!"><span style="--i:0">Y</span><span style="--i:1">o</span><span style="--i:2">u</span><span class="sp" style="--i:3">&nbsp;</span><span style="--i:4">d</span><span style="--i:5">i</span><span style="--i:6">d</span><span class="sp" style="--i:7">&nbsp;</span><span style="--i:8">i</span><span style="--i:9">t</span><span style="--i:10">!</span></h1>
               <p class="win-sub">Momo found his friend — home at last!</p>

@@ -49,6 +49,8 @@ const W = 1920, H = 1080;
 const clampN = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
 
 
+import { fitBubble } from './bubble.js';
+
 export class Tutorial {
   /**
    * @param {Document} root
@@ -63,7 +65,7 @@ export class Tutorial {
       focus: root.getElementById('tut-focus'),
       canvas: root.getElementById('game-canvas'),
       bubble: root.getElementById('tut-bubble'),
-      tail: root.getElementById('tut-tail'),
+      shape: root.getElementById('tut-shape'),
       text: root.getElementById('tut-text'),
       hand: root.getElementById('tut-hand'),
       skip: root.getElementById('tut-skip')
@@ -350,6 +352,7 @@ export class Tutorial {
     }
     this.hideFocus();
     if (this.el.layer) this.el.layer.hidden = true;
+    this._bubbleKey = null;
   }
 
   pause() {
@@ -639,22 +642,19 @@ export class Tutorial {
       b.style.left = pc(bx, W);
       b.style.top = pc(y, H);
       b.dataset.side = above ? 'above' : 'below';
-      if (this.el.tail) {
-        /* THE OFFSET IS A PERCENTAGE OF THE BOX, NOT OF THE STAGE.
-
-           `left` on the tail resolves against its containing block — the box — so
-           expressing the offset as a percentage of the 1920 stage put it nowhere near
-           where it was meant to be: at zero offset it came out as `left: 0%`, which
-           with the -50% translate parks the tail on the box's LEFT EDGE. Measured 165px
-           adrift on a step where no clamping had happened at all, so the error was
-           present even in the easy case.
-
-           Both `off` and `_boxW` are in stage units, so their ratio is the fraction of
-           the box to move by, and 50% + that lands the tail on the target. */
-        const boxW = this._boxW || 420;
-        const inset = 56;                       // clear of the corner radius
-        const off = clampN(box.x - bx, -(boxW / 2 - inset), boxW / 2 - inset);
-        this.el.tail.style.left = (50 + off / boxW * 100).toFixed(2) + '%';
+      /* THE TAIL POINTS AT THE SUBJECT. The box is clamped onto the stage; the tail is
+         not — it leaves the edge facing the subject at whatever point along that edge is
+         nearest to it, and leans toward it, so it lands on the target however far the
+         clamp moved the box. Rebuilt only when the box or the aim changes: fitBubble
+         reads the box's layout, which is not something to do sixty times a second. */
+      const boxW = this._boxW || 420;
+      const at = clampN(0.5 + (box.x - bx) / boxW, 0.14, 0.86);
+      const lean = box.x < bx ? -1 : 1;
+      const key = [above ? 'a' : 'b', at.toFixed(2), lean, text].join('|');
+      if (this._bubbleKey !== key && this.el.shape) {
+        this._bubbleKey = key;
+        // the box ABOVE the subject hangs its tail BELOW, toward the subject, and vice versa
+        fitBubble(this.el.shape, b, { side: above ? 'below' : 'above', at, lean });
       }
     }
     /* RESTART THE POP WHEN THE WORDS CHANGE — the text itself is written further up,

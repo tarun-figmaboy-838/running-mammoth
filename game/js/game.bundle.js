@@ -10,7 +10,7 @@
  * this folder and never the place to make a change.
  *
  * Rebuild:  node tools/build-bundle.mjs
- * In order: polygons.js, option-shapes.js, engine.js, hud.js, frontend.js, tutorial.js, main.js
+ * In order: polygons.js, option-shapes.js, engine.js, bubble.js, hud.js, frontend.js, tutorial.js, main.js
  */
 (function () {
 'use strict';
@@ -7855,7 +7855,7 @@ function createGame(canvas, hooks = {}) {
      runs at its authored rate on any display and never stutters with the frame rate.
      A little poof under whichever of them lands on each beat (frames 0/18 the mammoth,
      9/27 the bear) is the one thing added to the drawn animation. */
-  const DUO = { cw: 754, ch: 434, cols: 6, n: 36, fps: 10, feet: 374, mammothCx: 184, bearCx: 610, scale: 1.22 };   // 1.22: air between the bear's raised paws and the banner
+  const DUO = { cw: 717, ch: 376, cols: 6, n: 36, fps: 10, feet: 373, mammothCx: 148, bearCx: 574, scale: 1.22 };   // cells trimmed to the art's bounds; 1.22 leaves air under the banner
   function drawDuo(ctx, a) {
     const img = images.duo;
     if (!img) return;
@@ -8164,6 +8164,108 @@ function createGame(canvas, hooks = {}) {
 }
 
 
+/* ==================== bubble.js ==================== */
+/* THE SPEECH BUBBLE — the supplied Bubble.svg, rebuilt as geometry.
+ *
+ * The asset (game/assets/art/Bubble.svg) is a rounded box with one swept tail hanging off
+ * its bottom edge, a flat yellow fill and a thick black keyline. It cannot be used as an
+ * image: a sentence wraps to any width and height, and stretching the picture would
+ * stretch the stroke and smear the tail. So this draws the same shape for whatever box
+ * the words need, with the tail on whichever edge faces the thing being talked about.
+ *
+ * Measured off the asset (1931 x 1134):
+ *   corner radius     27 / 1909 body width      -> ~1.4% of the width, floored at 22px
+ *   keyline           22 / 1931                 -> ~1.1% of the width; 7px at stage size
+ *   tail base         1293..1676 of 1909        -> ~20% of the body width
+ *   tail length       950.8 -> ~1117            -> ~17% of the body height
+ *   tail tip          x 1275, left of its base  -> the tail LEANS: its tip is off to one
+ *                                                  side of where it leaves the body
+ * Everything below is those proportions, clamped so a short sentence still gets a real
+ * tail and a long one does not get a comically wide one. */
+
+const BUBBLE = {
+  fill: '#F9D201',        // the asset's yellow
+  ink: '#111111',         // the asset's keyline, and the text drawn on it
+  stroke: 7,              // px, at stage size
+  radius: 26,             // px
+  tailBase: 0.2,          // fraction of the body width
+  tailBaseMax: 150,       // px
+  tailLen: 0.17,          // fraction of the body height
+  tailLenMin: 56, tailLenMax: 110
+};
+
+const lim = (v, a, b) => v < a ? a : v > b ? b : v;   // not `clamp`: the bundle shares one scope with engine.js
+const f = n => (Math.round(n * 10) / 10).toString();
+
+/**
+ * The bubble outline for a body of w x h (CSS px), with an optional tail.
+ * @param {number} w  body width
+ * @param {number} h  body height
+ * @param {{at?:number, lean?:number, len?:number}|null} tail
+ *        at    where the tail leaves the bottom edge, 0..1 of the width
+ *        lean  -1 tip to the left, +1 tip to the right (the asset leans left)
+ *        len   tail length in px (default from the proportions above)
+ * @returns {{d:string, tailLen:number}}  the path (tail pointing DOWN; flip the element
+ *          for a tail on top) and how far it reaches below the body
+ */
+function bubblePath(w, h, tail) {
+  const s = BUBBLE.stroke, r = Math.max(22, Math.min(BUBBLE.radius, w * 0.08, h * 0.3));
+  const x0 = s / 2, y0 = s / 2, x1 = w - s / 2, y1 = h - s / 2;
+  let d = `M${f(x0 + r)} ${f(y0)} H${f(x1 - r)} A${f(r)} ${f(r)} 0 0 1 ${f(x1)} ${f(y0 + r)} ` +
+          `V${f(y1 - r)} A${f(r)} ${f(r)} 0 0 1 ${f(x1 - r)} ${f(y1)} `;
+  let tailLen = 0;
+  if (tail) {
+    const bw = Math.min(BUBBLE.tailBaseMax, w * BUBBLE.tailBase);
+    const lean = tail.lean < 0 ? -1 : 1;
+    const cx = lim((tail.at === undefined ? 0.5 : tail.at) * w, r + bw / 2 + 6, w - r - bw / 2 - 6);
+    const L = tail.len || lim(h * BUBBLE.tailLen, BUBBLE.tailLenMin, BUBBLE.tailLenMax);
+    tailLen = L;
+    const b0 = cx - bw / 2, b1 = cx + bw / 2;          // where the tail leaves the body
+    const tipX = cx + lean * bw * 0.62, tipY = y1 + L;   // the tip, off to the leaning side
+    /* Two curves, as in the asset: the outer edge sweeps from the far base corner down to
+       the tip, the inner edge climbs back to the near corner more steeply, which is what
+       gives the tail its belly. Drawn right-to-left along the bottom edge, so the far
+       corner is b1 when the tail leans left and b0 when it leans right. */
+    if (lean < 0) {
+      d += `H${f(b1)} C${f(b1 - bw * 0.08)} ${f(y1 + L * 0.62)}, ${f(tipX + bw * 0.34)} ${f(tipY - L * 0.28)}, ${f(tipX)} ${f(tipY)} ` +
+           `C${f(tipX + bw * 0.06)} ${f(tipY - L * 0.5)}, ${f(b0 + bw * 0.1)} ${f(y1 + L * 0.3)}, ${f(b0)} ${f(y1)} `;
+    } else {
+      d += `H${f(b1)} C${f(b1 - bw * 0.1)} ${f(y1 + L * 0.3)}, ${f(tipX - bw * 0.06)} ${f(tipY - L * 0.5)}, ${f(tipX)} ${f(tipY)} ` +
+           `C${f(tipX - bw * 0.34)} ${f(tipY - L * 0.28)}, ${f(b0 + bw * 0.08)} ${f(y1 + L * 0.62)}, ${f(b0)} ${f(y1)} `;
+    }
+  }
+  d += `H${f(x0 + r)} A${f(r)} ${f(r)} 0 0 1 ${f(x0)} ${f(y1 - r)} V${f(y0 + r)} A${f(r)} ${f(r)} 0 0 1 ${f(x0 + r)} ${f(y0)} Z`;
+  return { d, tailLen };
+}
+
+/**
+ * Fit an <svg><path/></svg> shape layer to an element's current box and draw the bubble
+ * into it. `side` 'below' hangs the tail from the bottom edge; 'above' flips the layer so
+ * the tail rises from the top edge (the flip is done here, on the SVG, never on the text).
+ * @param {SVGSVGElement} svg   the shape layer, absolutely positioned inside the bubble
+ * @param {HTMLElement}   box   the bubble element whose size the words decided
+ * @param {{side?:'below'|'above', at?:number, lean?:number}|null} tail
+ */
+function fitBubble(svg, box, tail) {
+  if (!svg || !box) return 0;
+  /* LAYOUT size, not the transformed rect: the box pops in through a scale animation and
+     getBoundingClientRect reported the shrunken mid-bounce box, so the shape came out
+     narrower than the words. offsetWidth/Height ignore transforms. */
+  const w = Math.max(40, Math.round(box.offsetWidth)), h = Math.max(30, Math.round(box.offsetHeight));
+  const { d, tailLen } = bubblePath(w, h, tail ? { at: tail.at, lean: tail.lean } : null);
+  const H = h + tailLen;
+  svg.setAttribute('viewBox', `0 0 ${w} ${H}`);
+  svg.style.width = w + 'px';
+  svg.style.height = H + 'px';
+  const above = tail && tail.side === 'above';
+  svg.style.top = above ? (-tailLen) + 'px' : '0px';
+  svg.style.transform = above ? 'scaleY(-1)' : 'none';
+  const path = svg.querySelector('path');
+  if (path) path.setAttribute('d', d);
+  return tailLen;
+}
+
+
 /* ==================== hud.js ==================== */
 /* HUD controller — owns every DOM element outside the canvas and mirrors the
    engine's HUD state onto it. The engine never touches the DOM itself. */
@@ -8197,6 +8299,8 @@ class Hud {
       text: root.getElementById('instruction-text'),
       complete: root.getElementById('complete'),
       stamps: root.getElementById('win-stamps'),
+      winBubble: root.getElementById('win-bubble'),
+      winShape: root.getElementById('win-shape'),
       winCount: root.getElementById('win-count'),
       winTotal: root.getElementById('win-total'),
       replay: root.getElementById('btn-replay'),
@@ -8299,6 +8403,11 @@ class Hud {
       if (i < kinds.length) this._winTimer = setTimeout(tick, 170);
     };
     if (kinds.length) this._winTimer = setTimeout(tick, 820);   // as the first stamp lands
+    /* The banner's shape is drawn for the box the words need — the same bubble as the
+       tutorial's, without a tail (nobody in particular is saying it). Once now, and again
+       after the pop-in has settled, because the box measures differently mid-bounce. */
+    const fit = () => { if (this.el.winShape && this.el.winBubble) fitBubble(this.el.winShape, this.el.winBubble, null); };
+    fit(); setTimeout(fit, 600); this._winFit = fit;
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
@@ -8392,6 +8501,8 @@ class Hud {
     window.addEventListener('keydown', this._onKey, true);
     window.addEventListener('pointerdown', this._onPtr, true);
 
+    // the banner's drawn shape follows its box when the window changes
+    window.addEventListener('resize', () => { if (this._winFit && this.el.complete && !this.el.complete.hidden) this._winFit(); });
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
     this.checkOrientation();
@@ -8672,6 +8783,7 @@ const W = 1920, H = 1080;
 const clampN = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
 
 
+
 class Tutorial {
   /**
    * @param {Document} root
@@ -8686,7 +8798,7 @@ class Tutorial {
       focus: root.getElementById('tut-focus'),
       canvas: root.getElementById('game-canvas'),
       bubble: root.getElementById('tut-bubble'),
-      tail: root.getElementById('tut-tail'),
+      shape: root.getElementById('tut-shape'),
       text: root.getElementById('tut-text'),
       hand: root.getElementById('tut-hand'),
       skip: root.getElementById('tut-skip')
@@ -8973,6 +9085,7 @@ class Tutorial {
     }
     this.hideFocus();
     if (this.el.layer) this.el.layer.hidden = true;
+    this._bubbleKey = null;
   }
 
   pause() {
@@ -9262,22 +9375,19 @@ class Tutorial {
       b.style.left = pc(bx, W);
       b.style.top = pc(y, H);
       b.dataset.side = above ? 'above' : 'below';
-      if (this.el.tail) {
-        /* THE OFFSET IS A PERCENTAGE OF THE BOX, NOT OF THE STAGE.
-
-           `left` on the tail resolves against its containing block — the box — so
-           expressing the offset as a percentage of the 1920 stage put it nowhere near
-           where it was meant to be: at zero offset it came out as `left: 0%`, which
-           with the -50% translate parks the tail on the box's LEFT EDGE. Measured 165px
-           adrift on a step where no clamping had happened at all, so the error was
-           present even in the easy case.
-
-           Both `off` and `_boxW` are in stage units, so their ratio is the fraction of
-           the box to move by, and 50% + that lands the tail on the target. */
-        const boxW = this._boxW || 420;
-        const inset = 56;                       // clear of the corner radius
-        const off = clampN(box.x - bx, -(boxW / 2 - inset), boxW / 2 - inset);
-        this.el.tail.style.left = (50 + off / boxW * 100).toFixed(2) + '%';
+      /* THE TAIL POINTS AT THE SUBJECT. The box is clamped onto the stage; the tail is
+         not — it leaves the edge facing the subject at whatever point along that edge is
+         nearest to it, and leans toward it, so it lands on the target however far the
+         clamp moved the box. Rebuilt only when the box or the aim changes: fitBubble
+         reads the box's layout, which is not something to do sixty times a second. */
+      const boxW = this._boxW || 420;
+      const at = clampN(0.5 + (box.x - bx) / boxW, 0.14, 0.86);
+      const lean = box.x < bx ? -1 : 1;
+      const key = [above ? 'a' : 'b', at.toFixed(2), lean, text].join('|');
+      if (this._bubbleKey !== key && this.el.shape) {
+        this._bubbleKey = key;
+        // the box ABOVE the subject hangs its tail BELOW, toward the subject, and vice versa
+        fitBubble(this.el.shape, b, { side: above ? 'below' : 'above', at, lean });
       }
     }
     /* RESTART THE POP WHEN THE WORDS CHANGE — the text itself is written further up,

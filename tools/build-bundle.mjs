@@ -42,6 +42,7 @@ export const ORDER = [
   'polygons.js',
   'option-shapes.js',
   'engine.js',
+  'bubble.js',
   'hud.js',
   'frontend.js',
   'tutorial.js',

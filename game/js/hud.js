@@ -2,6 +2,7 @@
    engine's HUD state onto it. The engine never touches the DOM itself. */
 
 import { shapeRing } from './option-shapes.js';
+import { fitBubble } from './bubble.js';
 
 export class Hud {
   /** A stage point where the zoomed canvas actually draws it. */
@@ -31,6 +32,8 @@ export class Hud {
       text: root.getElementById('instruction-text'),
       complete: root.getElementById('complete'),
       stamps: root.getElementById('win-stamps'),
+      winBubble: root.getElementById('win-bubble'),
+      winShape: root.getElementById('win-shape'),
       winCount: root.getElementById('win-count'),
       winTotal: root.getElementById('win-total'),
       replay: root.getElementById('btn-replay'),
@@ -133,6 +136,11 @@ export class Hud {
       if (i < kinds.length) this._winTimer = setTimeout(tick, 170);
     };
     if (kinds.length) this._winTimer = setTimeout(tick, 820);   // as the first stamp lands
+    /* The banner's shape is drawn for the box the words need — the same bubble as the
+       tutorial's, without a tail (nobody in particular is saying it). Once now, and again
+       after the pop-in has settled, because the box measures differently mid-bounce. */
+    const fit = () => { if (this.el.winShape && this.el.winBubble) fitBubble(this.el.winShape, this.el.winBubble, null); };
+    fit(); setTimeout(fit, 600); this._winFit = fit;
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
@@ -226,6 +234,8 @@ export class Hud {
     window.addEventListener('keydown', this._onKey, true);
     window.addEventListener('pointerdown', this._onPtr, true);
 
+    // the banner's drawn shape follows its box when the window changes
+    window.addEventListener('resize', () => { if (this._winFit && this.el.complete && !this.el.complete.hidden) this._winFit(); });
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
     this.checkOrientation();

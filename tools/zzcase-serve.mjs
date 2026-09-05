@@ -52,7 +52,12 @@ async function exactPath(segments) {
   for (let i = 0; i < segments.length; i++) {
     const name = segments[i];
     if (!name || name === '.' || name === '..') return null;   // no climbing out
-    const have = await entries(dir);
+    let have = await entries(dir);
+    /* A MISS RE-READS THE DIRECTORY ONCE. The listing cache assumed the tree does not
+       change while a test runs — true — but a server left running between runs outlived
+       an asset being ADDED, and reported a real, correctly-cased file as a 404. One
+       re-read on a miss keeps the cache and closes that hole. */
+    if (!have.has(name)) { listings.delete(dir); have = await entries(dir); }
     if (!have.has(name)) return null;
     dir = join(dir, name);
   }

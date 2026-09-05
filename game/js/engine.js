@@ -7078,7 +7078,7 @@ export function createGame(canvas, hooks = {}) {
      runs at its authored rate on any display and never stutters with the frame rate.
      A little poof under whichever of them lands on each beat (frames 0/18 the mammoth,
      9/27 the bear) is the one thing added to the drawn animation. */
-  const DUO = { cw: 754, ch: 434, cols: 6, n: 36, fps: 10, feet: 374, mammothCx: 184, bearCx: 610, scale: 1.22 };   // 1.22: air between the bear's raised paws and the banner
+  const DUO = { cw: 717, ch: 376, cols: 6, n: 36, fps: 10, feet: 373, mammothCx: 148, bearCx: 574, scale: 1.22 };   // cells trimmed to the art's bounds; 1.22 leaves air under the banner
   function drawDuo(ctx, a) {
     const img = images.duo;
     if (!img) return;

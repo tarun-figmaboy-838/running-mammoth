@@ -459,136 +459,35 @@
   padding: clamp(15px, 1.6vw, 30px) clamp(21px, 2.2vw, 41px);
   text-align: center;
   rotate: -1.1deg;
-  animation: tutBubbleIn 380ms cubic-bezier(.2, 1.8, .35, 1) both;
+  /* Pops in, then wobbles gently — a still speech bubble reads as a label; one that
+     breathes reads as someone talking. Rotation only, so the words stay legible. */
+  animation: tutBubbleIn 380ms cubic-bezier(.2, 1.8, .35, 1) both, tutWobble 3.4s ease-in-out 420ms infinite;
+}
+@keyframes tutWobble {
+  0%, 100% { rotate: -1.4deg; }
+  50%      { rotate: -0.4deg; }
 }
 .tut-bubble[hidden] { display: none; }
 
-/* The shape layer: face + tail, and the one shadow that wraps them both. */
+/* THE SHAPE LAYER is one SVG under the words, drawn by js/bubble.js for the box the
+   words need: the supplied Bubble.svg construction — a rounded body, a swept tail off
+   the edge that faces the subject, flat yellow, black keyline. Positioned at the top of
+   the box; for a tail on top the script flips the SVG (never the text) and lifts it by
+   the tail's length. One hard shadow under the whole silhouette, body and tail as one. */
 .tut-shape {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(14, 62, 96, 0.42));
+  filter: drop-shadow(clamp(4px, 0.42vw, 8px) clamp(6px, 0.63vw, 12px) 0 rgba(10, 10, 20, 0.35));
 }
-
-/* THE SLAB. The mottling is four very soft radial gradients at low alpha over a flat
-   tan — enough to break the surface up so it reads as stone rather than as a filled
-   rectangle, without a texture file and without any pattern the eye can lock onto.
-   A single flat colour here looks like cardboard; a visible repeat looks like tiling. */
 .tut-face {
-  position: absolute;
-  inset: 0;
-  border-radius: clamp(22px, 2.4vw, 46px);
-  background:
-  /* BRIGHT ICE WITH A CHUNKY AMBER RIM — the game's own two colours.
-
-     The tan stone matched the supplied reference faithfully and was the wrong call for
-     this game: nothing else on the stage is warm brown, so however well it was built
-     it read as an object borrowed from somewhere else. The palette here is ice blue
-     with amber for anything the player acts on — the cover, the jump button, every
-     highlight — and a panel that speaks for the game should be made of those.
-
-     What is KEPT from the reference is everything that was actually right about it:
-     the generous corner radius, the swept fold of a tail, the hard offset shadow doing
-     the separating, and one flat face rather than four concentric bands.
-
-     Near-white at the top into light ice below, so dark text has maximum contrast at
-     the top where the words sit. */
-    radial-gradient(50% 42% at 26% 20%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 72%),
-    radial-gradient(40% 44% at 80% 76%, rgba(96, 168, 214, 0.22), rgba(96, 168, 214, 0) 74%),
-    linear-gradient(178deg, #FBFEFF 0%, #EAF7FF 46%, #C9E9FB 100%);
-  /* THE CHUNKY RIM. An inset ring rather than a border, so it cannot change the box's
-     size as the text rewraps — and amber, which is what this game uses for "this is
-     yours to act on". Thick, because chunky is the brief. */
-  box-shadow:
-    inset 0 0 0 clamp(4px, 0.42vw, 8px) #F2A93B,
-    inset 0 0 0 clamp(7px, 0.74vw, 14px) #FFD98A;
-  /* THE KEYLINE. A cartoon speech box has a thick dark outline — it is what makes it
-     read as a drawn object rather than a filled rectangle, and it is the same navy
-     the option blocks are rimmed with, so the box is drawn in the game's own line.
-     (An earlier note here argued against any outline; the box without one was called
-     too basic, and it was.) Absolutely positioned with inset 0, so the border sits
-     inside the box and changes no measurement the script relies on. */
-  border: clamp(3px, 0.32vw, 6px) solid #0C3352;
-}
-/* THE SNOW CAP. A drift lying along the top edge with drips hanging off it — the same
-   cap the wooden sign wears, so the two panels are visibly of one world. Built from a
-   repeating radial gradient (the drips) under a flat white band (the drift); no image,
-   and it stretches with the box however the sentence wraps. Kept inside the rounded
-   corners so it never pokes past them. */
-.tut-face::before {
-  content: "";
-  position: absolute;
-  left: 7%;
-  right: 7%;
-  top: calc(-1 * clamp(4px, 0.42vw, 8px));
-  height: clamp(15px, 1.6vw, 30px);
-  pointer-events: none;
-  background:
-    linear-gradient(#FFFFFF, #FFFFFF) 0 0 / 100% 46% no-repeat,
-    radial-gradient(circle at 50% 0, #FFFFFF 57%, rgba(255, 255, 255, 0) 60%)
-      0 0 / clamp(28px, 3vw, 56px) 100% repeat-x;
-  border-radius: 999px 999px 0 0;
-  filter: drop-shadow(0 clamp(1px, 0.16vw, 3px) 0 rgba(122, 176, 226, 0.6));
-}
-/* A GLOSS. One soft highlight in the upper-left, the way every cartoon panel is lit,
-   so the face reads as a glazed surface rather than flat paint. */
-.tut-face::after {
-  content: "";
-  position: absolute;
-  left: 9%;
-  top: 14%;
-  width: 34%;
-  height: 26%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 72%);
-  pointer-events: none;
-}
-
-/* THE TAIL — a swept fold, aimed by the script.
-
-   `left` is set from JS as an offset in stage units from the box centre, so it lands on
-   whatever is being described even when the box itself has been clamped to the stage.
-   It overlaps the face by a couple of pixels and carries the same base tan, so there is
-   no seam to see: the clip-path makes the swept shape, and having no outline means
-   there is no edge that has to line up with anything. */
-/* BIGGER, and a fold rather than a notch. The reference tail is roughly a quarter of
-   the box wide and a third of it tall — a substantial piece of the silhouette. At
-   58x50 it was a nick in the edge, which is most of why the shape read as wrong. */
-.tut-tail {
-  position: absolute;
-  left: 50%;
-  width: clamp(48px, 5vw, 94px);
-  height: clamp(40px, 4.2vw, 78px);
-  translate: -50% 0;
-}
-.tut-tail svg { display: block; width: 100%; height: 100%; overflow: visible; }
-/* The amber rim colour, so the fold reads as the same rimmed object continuing rather
-   than as a pale flap hanging off it. A fold turned away from the light is darker than
-   the face, and here that darker value is the rim's. */
-.tut-tail-path {
-  fill: #F2A93B;
-  /* The same navy keyline as the face, so the fold is outlined as part of the same
-     drawn object. Its top edge is buried under the face's own border (the tail
-     overlaps the face by a few pixels), so no line shows across the join. Round
-     joins and caps keep every turn soft; paint-order puts the stroke UNDER the fill
-     so the line is a keyline on the outside rather than a band eating into the fold. */
-  stroke: #0C3352;
-  stroke-width: 9;
+  fill: #F9D201;
+  stroke: #111111;
+  stroke-width: 7;
   stroke-linejoin: round;
   stroke-linecap: round;
-  paint-order: stroke fill;
-}
-/* Box ABOVE the target: the fold hangs from the bottom edge and points down. */
-.tut-bubble[data-side="above"] .tut-tail {
-  top: 100%;
-  margin-top: -4px;
-}
-/* Box BELOW the target: the same path flipped, so it points up at the target. */
-.tut-bubble[data-side="below"] .tut-tail {
-  bottom: 100%;
-  margin-bottom: -4px;
-  scale: 1 -1;
 }
 
 /* THE WORDS sit above the shape layer, and take none of its shadow. Dark brown rather
@@ -600,13 +499,17 @@
   /* Deep navy on near-white ice, which is the highest contrast this palette offers —
      roughly 12:1, well past what a child learning to read needs. Brown on tan measured
      about half that and was the readability complaint. */
-  font: 800 clamp(19px, 2.05vw, 38px)/1.26 "Baloo 2", system-ui, sans-serif;
-  color: #0C3352;
+  /* READABLE FOR A CHILD FIRST. Black ink on the asset's yellow is the highest contrast
+     in the game; the size is up a step and the lines airier, and the box's max-width
+     keeps a line to about 30 characters, which is what a new reader can hold. The comedy
+     is in the shape, the pop and the wobble — not in the letters. */
+  font: 800 clamp(22px, 2.35vw, 44px)/1.32 "Baloo 2", system-ui, sans-serif;
+  color: #111111;                       /* the asset's ink, on its yellow */
   text-wrap: balance;
   letter-spacing: .004em;
   /* One white line under each glyph, which lifts the letters off the ice without an
      outline. An outline would fight the amber rim for attention. */
-  text-shadow: 0 clamp(1px, 0.1vw, 2px) 0 rgba(255, 255, 255, 0.9);
+  text-shadow: none;
 }
 /* IT LANDS. A slab of stone arriving should have weight, so it comes in from above,
    overshoots past its resting angle, and settles — rather than fading up on the spot.
@@ -756,51 +659,13 @@
 }
 .win-shape {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(14, 62, 96, 0.42));
+  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(10, 10, 20, 0.38));
 }
-.win-face {
-  position: absolute;
-  inset: 0;
-  border-radius: clamp(26px, 2.8vw, 54px);
-  background:
-    radial-gradient(50% 42% at 26% 20%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 72%),
-    radial-gradient(40% 44% at 80% 76%, rgba(96, 168, 214, 0.22), rgba(96, 168, 214, 0) 74%),
-    linear-gradient(178deg, #FBFEFF 0%, #EAF7FF 46%, #C9E9FB 100%);
-  box-shadow:
-    inset 0 0 0 clamp(4px, 0.42vw, 8px) #F2A93B,
-    inset 0 0 0 clamp(7px, 0.74vw, 14px) #FFD98A;
-  border: clamp(3px, 0.32vw, 6px) solid #0C3352;
-}
-.win-face::before {
-  content: "";
-  position: absolute;
-  left: 7%;
-  right: 7%;
-  top: calc(-1 * clamp(4px, 0.42vw, 8px));
-  height: clamp(16px, 1.7vw, 32px);
-  pointer-events: none;
-  background:
-    linear-gradient(#FFFFFF, #FFFFFF) 0 0 / 100% 46% no-repeat,
-    radial-gradient(circle at 50% 0, #FFFFFF 57%, rgba(255, 255, 255, 0) 60%) 0 0 / clamp(30px, 3.2vw, 60px) 100% repeat-x;
-  border-radius: 999px 999px 0 0;
-  filter: drop-shadow(0 clamp(1px, 0.16vw, 3px) 0 rgba(122, 176, 226, 0.6));
-}
-.win-tail {
-  position: absolute;
-  display: none;                          /* the banner speaks for the scene; no tail */
-  left: 15%;
-  top: 100%;
-  width: clamp(56px, 5.6vw, 100px);
-  height: clamp(48px, 4.8vw, 86px);
-  translate: -50% 0;
-  margin-top: -4px;
-  transform-origin: 50% 0;
-  rotate: 8deg;                           /* leaning toward the bear, who is down and to the left */
-}
-.win-tail svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.win-tail-path { fill: #F2A93B; stroke: #0C3352; stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; paint-order: stroke fill; }
+.win-face { fill: #F9D201; stroke: #111111; stroke-width: 8; stroke-linejoin: round; }
 .win-body {
   position: relative;
   z-index: 1;
@@ -827,19 +692,19 @@
 .win-sub {
   margin: clamp(6px, 0.6vw, 12px) 0 clamp(12px, 1.3vw, 24px);
   font: 800 clamp(20px, 2.1vw, 40px)/1.2 "Baloo 2", system-ui, sans-serif;
-  color: #0C3352;
+  color: #111111;
 }
 .win-count {
   margin: 0 0 clamp(10px, 1.1vw, 20px);
   font: 800 clamp(17px, 1.7vw, 32px)/1.2 "Baloo 2", system-ui, sans-serif;
-  color: #1C5A85;
+  color: #3A2A00;
 }
 .win-count b {
   display: inline-block;
   min-width: 1.2em;
   font-size: 1.35em;
-  color: #F2A93B;
-  -webkit-text-stroke: clamp(1px, 0.14vw, 2.5px) #7A4A0A;
+  color: #B05A00;
+  -webkit-text-stroke: clamp(1px, 0.14vw, 2.5px) #3A2A00;
   paint-order: stroke fill;
 }
 /* SEVEN STAMPS — gold coins, each embossed with the shape that mended its crossing, landing
@@ -883,7 +748,7 @@
   50%      { opacity: 1;   scale: 1.1; rotate: 25deg; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .win-bubble, .win-title span, .win-stamp, .win-spark, .btn-replay { animation: none; }
+  .win-bubble, .win-title span, .win-stamp, .win-spark, .btn-replay, .tut-bubble { animation: none; }
   .win-stamp { opacity: 1; scale: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .btn-replay { animation: none; translate: -50% 0; } }

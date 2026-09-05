@@ -926,3 +926,13 @@ celebration GIF, sliced to `assets/char/duo-celebrate.webp` (6×6 of 754×434, n
 the ending is the big kind (14–28 px) — shower of 130, then 34 every 2.2 s. The words are a
 banner across the top ("Momo found his friend — home at last!" over the climbing count and
 the seven stamps), and Play again is bottom-centre. Source GIF: `art-source/gif/celebrate-duo.gif`.
+
+### The dialogue boxes are the supplied bubble
+
+Both boxes — the tutorial's and the ending banner — are `game/assets/art/Bubble.svg`
+rebuilt as geometry (`js/bubble.js`): rounded body, one swept tail off the edge facing
+the subject, flat `#F9D201`, black keyline. `bubblePath(w, h, tail)` draws the shape for
+whatever box the words need; `fitBubble(svg, box, {side, at, lean})` fits it to a live
+element, flipping the SVG (never the text) for a tail on top. The tutorial aims the tail
+at its target and rebuilds only when the box or the aim changes; the banner has no tail
+and refits on resize. Every knob is in `BUBBLE` (fill, ink, stroke, radius, tail size).
