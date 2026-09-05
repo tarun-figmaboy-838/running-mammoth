@@ -4285,38 +4285,15 @@ class GroundManager {
      stretch of the same water. */
   /* THE RIVER LIVES. The water band at the foot of the stage was a gradient with nine
      drifting streaks — correct, and dead. Four small things, all on the game clock and
-     none of them touching play, make it a place: a bright broken CREST riding the wave;
-     snow-capped FLOES from the platform sheet drifting with the world at 0.6x (they are
-     far below, so they move slower) and bobbing on the wave; a FISH, now and then, a dark
-     shape gliding under the surface with its tail flicking; and BUBBLES rising near the
-     shore. Drawn after the platform, so the floes can break the water line. Kept small
-     and few: the band is fifty pixels tall and it is scenery, not a second game. */
+     none of them touching play, make it a place: a FISH, now and then, a dark shape
+     gliding under the surface with its tail flicking, and BUBBLES rising near the shore.
+     A dashed crest and drifting floes were here too and were asked off: on a fifty-pixel
+     band they read as clutter. Scenery, not a second game. */
   drawRiverLife(ctx, worldX, t) {
     const wy = CFG.surfaceY + CFG.levelOne.waterDepth;
     if (wy > CFG.H) return;
     const band = CFG.H - wy;
     ctx.save();
-    ctx.strokeStyle = 'rgba(236,252,255,0.85)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
-    ctx.setLineDash([26, 38]); ctx.lineDashOffset = -t * 40;
-    ctx.beginPath();
-    for (let px = -10; px <= CFG.W + 10; px += 12) { const y = this.waterY(px, t) + 3; if (px === -10) ctx.moveTo(px, y); else ctx.lineTo(px, y); }
-    ctx.stroke(); ctx.setLineDash([]);
-    const fl = this.floes || [];
-    if (fl.length) {
-      const spacing = 620, off = worldX * 0.6;
-      for (let k = Math.floor((off - 200) / spacing); k <= Math.floor((off + CFG.W + 200) / spacing); k++) {
-        const img = fl[Math.abs(k) % fl.length];
-        const seed = ((Math.abs(k) * 7919) % 97) / 97;
-        const sx = k * spacing - off + seed * 300;
-        if (sx < -160 || sx > CFG.W + 160) continue;
-        const w = 46 + seed * 22, h = w * img.height / img.width;
-        const y = this.waterY(sx, t) + 4 - h * 0.62 + Math.sin(t * 1.3 + k) * 1.5;
-        ctx.save();
-        ctx.translate(sx, y); ctx.rotate(Math.sin(t * 0.9 + k * 1.7) * 0.06);
-        ctx.drawImage(img, -w / 2, 0, w, h);
-        ctx.restore();
-      }
-    }
     const period = 9.5, u = (t % period) / period;
     if (u < 0.42) {
       const dir = Math.floor(t / period) % 2 ? -1 : 1;
@@ -4985,8 +4962,6 @@ function createGame(canvas, hooks = {}) {
     // the carved ends of a platform, cut from the supplied pathui.png — see GroundManager.drawCap
     jobs.push(loadImg('assets/env/cap-l.webp').then(i => { images.capL = i; }));
     jobs.push(loadImg('assets/env/cap-r.webp').then(i => { images.capR = i; }));
-    // two small snow-capped chunks off the platform sheet: the floes drifting on the river
-    for (let r = 1; r <= 2; r++) jobs.push(loadImg('assets/env/floe-' + r + '.webp').then(img => { (images.floes = images.floes || [])[r - 1] = img; }));
     // the platform's own stone base, cut from the same sheet: the crevasse walls are tiled from it
     jobs.push(loadImg('assets/env/rock-band.webp').then(i => { images.rockBand = i; }));
 
@@ -8258,7 +8233,6 @@ function createGame(canvas, hooks = {}) {
     ground = new GroundManager(images.path);
     ground.caps = { l: images.capL || null, r: images.capR || null };
     ground.rockBand = images.rockBand || null;
-    ground.floes = (images.floes || []).filter(Boolean);
     obstacles = new ObstacleController(
       [images.rockWide, images.rockTall, ...OBSTACLE_ART.map(k => images['obs:' + k])],
       audio, particles);

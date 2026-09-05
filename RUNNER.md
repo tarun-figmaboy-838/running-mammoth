@@ -949,9 +949,9 @@ hit-stop with a flinch of the frame, shake, and a splat under the thud.
 
 ### The river lives
 
-`GroundManager.drawRiverLife`: a dashed crest riding the wave, snow-capped floes from the
-platform sheet (`floe-1/2.webp`) drifting at 0.6× and bobbing, a fish silhouette gliding under
-the surface every 9.5 s, bubbles near the shore — and a tap on the water splashes (`addTap`).
+`GroundManager.drawRiverLife`: a fish silhouette gliding under the surface every 9.5 s, bubbles
+near the shore, and a tap on the water splashes (`addTap`). A dashed crest and drifting floes
+were tried and taken off as clutter.
 Scenery on the game clock; nothing reads it back into play.
 
 ### The ending, tightened
