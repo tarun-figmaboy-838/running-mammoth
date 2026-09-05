@@ -2683,15 +2683,15 @@ class ParticleManager {
 
      Staggered by `delay` rather than all released together, so it falls as a shower
      over a couple of seconds instead of one sheet crossing the screen. */
-  confetti(stageW, n = 80) {
+  confetti(stageW, n = 80, big = false) {
     const hue = ['#FFC93C', '#FF7BAC', '#5AD2F4', '#8CE07A', '#FFF2B8', '#C58CFF'];
     this.spawn(n, i => ({
       x: Math.random() * stageW,
       y: -40 - Math.random() * 260,
       vx: rand(-70, 70),
       vy: rand(150, 330),
-      r: rand(7, 15),
-      dur: rand(2.4, 4.2),
+      r: big ? rand(14, 28) : rand(7, 15),      // big: the ending's pieces have to read from the sofa
+      dur: big ? rand(3.2, 5.2) : rand(2.4, 4.2),
       kind: 'confetti',
       rot: rand(0, 6.28), vr: rand(-5, 5),
       sp: rand(1.6, 3.4),
@@ -4919,6 +4919,8 @@ function createGame(canvas, hooks = {}) {
        states, and putting him in CFG.characters would make him look like something the
        player could be. */
     jobs.push(loadImg('assets/char/bear.webp').then(i => { images.bear = i; }));
+    // the two of them dancing: the delivered 36-frame GIF as a 6x6 sheet at native size
+    jobs.push(loadImg('assets/char/duo-celebrate.webp').then(i => { images.duo = i; }));
     // one painted block per shape the curriculum can name
     for (const [id, s] of Object.entries(optionShapes)) {
       jobs.push(loadImg(s.image).then(i => { images['shape:' + id] = i; }));
@@ -5003,12 +5005,12 @@ function createGame(canvas, hooks = {}) {
         G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
         audio.setDuck(1); mammoth.setState('RUN'); break;
       case 'COMPLETE':
-        G.moving = false; G.complete = true; G.jumpEnabled = false; G.instruction = ''; G.drizzleAt = 0;
+        G.moving = false; G.complete = true; G.jumpEnabled = false; G.instruction = ''; G.drizzleAt = 0; G.duoFrame = -1;
         mammoth.setState('CELEBRATE'); particles.poof(CFG.mammothX, CFG.surfaceY, 6, 1.1);
         /* CONFETTI, from above the whole stage rather than from the character. A burst
            thrown off one point reads as an impact; confetti has to fall on everything,
            which is what makes it a celebration rather than another particle effect. */
-        if (!reduced) particles.confetti(CFG.W, 90);
+        if (!reduced) particles.confetti(CFG.W, 130, true);
         // a proper shower for the end of the journey, thrown from over his head
         particles.sparkle(CFG.mammothX + 40, CFG.surfaceY - 320, reduced ? 8 : 26, 340);
         audio.fanfare();
@@ -6771,7 +6773,7 @@ function createGame(canvas, hooks = {}) {
         /* A LIGHT DRIZZLE OF CONFETTI for as long as the ending is up. The opening shower
            falls and is gone in three seconds, and the screen that stays is the one the
            player looks at — it should keep celebrating. Small handfuls, spaced out. */
-        if (!reduced && G.st - (G.drizzleAt || 0) > 2600) { G.drizzleAt = G.st; particles.confetti(CFG.W, 22); }
+        if (!reduced && G.st - (G.drizzleAt || 0) > 2200) { G.drizzleAt = G.st; particles.confetti(CFG.W, 34, true); }
         break;
       }
       case 'FINAL_RUN':
@@ -7846,6 +7848,35 @@ function createGame(canvas, hooks = {}) {
     fx.restore();
   }
 
+  /* THE CELEBRATION SHEET. 36 frames of 754x434 in a 6x6 grid, authored at 100ms a frame
+     (10fps). Measured off the frames: the feet sit on row 374, and the mammoth's centre
+     is 184px in from the left; he is drawn 1.3x, which puts him at the size he runs at,
+     with his x where he stopped. Frames are indexed off the state clock, so the dance
+     runs at its authored rate on any display and never stutters with the frame rate.
+     A little poof under whichever of them lands on each beat (frames 0/18 the mammoth,
+     9/27 the bear) is the one thing added to the drawn animation. */
+  const DUO = { cw: 754, ch: 434, cols: 6, n: 36, fps: 10, feet: 374, mammothCx: 184, bearCx: 610, scale: 1.22 };   // 1.22: air between the bear's raised paws and the banner
+  function drawDuo(ctx, a) {
+    const img = images.duo;
+    if (!img) return;
+    const f = Math.floor(G.st / (1000 / DUO.fps)) % DUO.n;
+    const sx = (f % DUO.cols) * DUO.cw, sy = Math.floor(f / DUO.cols) * DUO.ch;
+    const k = DUO.scale, w = DUO.cw * k, h = DUO.ch * k;
+    const x = CFG.mammothX - DUO.mammothCx * k, y = CFG.surfaceY - DUO.feet * k;
+    if (f !== G.duoFrame) {
+      G.duoFrame = f;
+      if (!reduced && f % 9 === 0) {
+        const cx = x + (f % 18 === 0 ? DUO.mammothCx : DUO.bearCx) * k;
+        particles.poof(cx, CFG.surfaceY, 3, 0.8);
+      }
+    }
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, sx, sy, DUO.cw, DUO.ch, Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    ctx.restore();
+  }
+
   function render() {
     ctx.clearRect(0, 0, CFG.W, CFG.H);
     // an impact is a random jolt; a quake is a rumble. They are different signals and
@@ -7906,8 +7937,19 @@ function createGame(canvas, hooks = {}) {
     drawRepairedPieces(ctx);
     obstacles.draw(ctx, G.worldX, G.t);
     // behind the character, so the two never fight for the same pixels on arrival
-    drawBear(ctx);
-    mammoth.draw(ctx, G.t);
+    /* THE ENDING IS A DANCE. Once the journey is complete the standing pair cross-fades
+       (300ms) into the delivered two-character celebration sheet — the mammoth bobbing,
+       the bear up on his hind legs waving — so the last screen moves, rather than
+       holding a pose next to a static friend. The mammoth's x is kept, so nothing
+       jumps at the swap. */
+    const duo = G.state === 'COMPLETE' && images.duo ? clamp(G.st / 300, 0, 1) : 0;
+    if (duo < 1) {
+      if (duo > 0) { ctx.save(); ctx.globalAlpha = 1 - duo; }
+      drawBear(ctx);
+      mammoth.draw(ctx, G.t);
+      if (duo > 0) ctx.restore();
+    }
+    if (duo > 0) drawDuo(ctx, duo);
     drawDazeStars(ctx);
     atmos.drawFront(ctx, G.worldX, G.t, reduced);
 

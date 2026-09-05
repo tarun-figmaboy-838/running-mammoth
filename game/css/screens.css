@@ -702,8 +702,10 @@
   /* ON THE ICE, right of the two friends: standing on the snow like a signpost at the
      end of the road, in the half of the stage that was empty. Bottom edge on the
      walking line (26% up a 1080 stage), so it reads as a thing in the world. */
-  left: 68%;
-  bottom: 26%;
+  /* BOTTOM CENTRE, the one thing to do, where a thumb already rests — clear of the
+     dance in the middle and the banner on top. */
+  left: 50%;
+  bottom: 3.5%;
   translate: -50% 0;
   pointer-events: auto;
   min-width: clamp(200px, 22vw, 380px);
@@ -736,9 +738,12 @@
    box is centre-anchored), so it has its own arrival keyframes. */
 .win-bubble {
   position: absolute;
-  left: 55%;
-  top: 2%;
-  width: min(50vw, 920px);
+  /* A BANNER ACROSS THE TOP now, not a speech bubble off the bear: the two of them are
+     dancing in the middle of the stage and the words are the narrator's, so they sit
+     above the scene, centred, with no tail. */
+  left: 50%;
+  top: 1%;
+  width: min(58vw, 1000px);
   translate: -50% 0;
   rotate: -1.4deg;
   pointer-events: none;
@@ -784,6 +789,7 @@
 }
 .win-tail {
   position: absolute;
+  display: none;                          /* the banner speaks for the scene; no tail */
   left: 15%;
   top: 100%;
   width: clamp(56px, 5.6vw, 100px);
@@ -798,13 +804,13 @@
 .win-body {
   position: relative;
   z-index: 1;
-  padding: clamp(20px, 2.2vw, 40px) clamp(24px, 2.6vw, 48px) clamp(16px, 1.7vw, 32px);
+  padding: clamp(14px, 1.5vw, 28px) clamp(24px, 2.6vw, 48px) clamp(12px, 1.3vw, 24px);
   text-align: center;
 }
 /* THE TITLE bounces one letter at a time — a wave runs along the word, then it rests. */
 .win-title {
   margin: 0;
-  font: 800 clamp(44px, 5vw, 96px)/1 "Baloo 2", system-ui, sans-serif;
+  font: 800 clamp(40px, 4.4vw, 84px)/1 "Baloo 2", system-ui, sans-serif;
   color: #FFFFFF;
   -webkit-text-stroke: clamp(2px, 0.28vw, 5px) #0C3352;
   paint-order: stroke fill;
@@ -823,7 +829,12 @@
   font: 800 clamp(20px, 2.1vw, 40px)/1.2 "Baloo 2", system-ui, sans-serif;
   color: #0C3352;
 }
-.win-sub b {
+.win-count {
+  margin: 0 0 clamp(10px, 1.1vw, 20px);
+  font: 800 clamp(17px, 1.7vw, 32px)/1.2 "Baloo 2", system-ui, sans-serif;
+  color: #1C5A85;
+}
+.win-count b {
   display: inline-block;
   min-width: 1.2em;
   font-size: 1.35em;

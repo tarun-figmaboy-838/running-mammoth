@@ -916,3 +916,13 @@ the kit's `correct` at pitch 1 with jitter off, under the kit's thud (also jitte
 phase-done moment is `levelUp` and the journey's end `powerUp`, so neither is mistaken for
 the fit. Before: the chord fired only at phase-done, rose in pitch with the phase number,
 and carried the kit's ±5 % jitter — three reasons it was heard as different per level.
+
+### The ending dances
+
+At COMPLETE the standing pair cross-fades (300 ms) into the delivered two-character
+celebration GIF, sliced to `assets/char/duo-celebrate.webp` (6×6 of 754×434, native size,
+10 fps off the state clock, feet on row 374, drawn 1.3× with the mammoth's x kept — see
+`DUO`/`drawDuo`). A poof lands under whichever of them comes down on each beat. Confetti at
+the ending is the big kind (14–28 px) — shower of 130, then 34 every 2.2 s. The words are a
+banner across the top ("Momo found his friend — home at last!" over the climbing count and
+the seven stamps), and Play again is bottom-centre. Source GIF: `art-source/gif/celebrate-duo.gif`.
