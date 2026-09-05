@@ -916,7 +916,17 @@ const CFG = {
        idle sheets joined the set. It is the slicer's own output and the two must agree
        or the character walks above or below the snow — the tool prints the number it
        needs on every run. */
-    cw: 420, ch: 320, baseGap: 27, scale: 1.12, fps: 15,
+    cw: 420, ch: 320, cols: 6, baseGap: 27, scale: 1.12, fps: 15,
+    /* THE HI-DPI SET. tools/slice-char.mjs writes every sheet twice: the base cell above,
+       and assets/char/hd/ at 1.5x (630x480), cut from the same native-size grids. createGame
+       picks the hd set when the backbuffer renders at 1.15x or more (a hi-DPI laptop, a
+       tablet, a 4K screen) and sets cellK to its factor; the draw divides the sprite scale
+       by cellK, so the character is the same size on stage with 2.25x the pixels. Phones,
+       whose 16:9 stage is capped by a 1080px-tall screen, stay on the base set and pay
+       nothing. cellK is written ONCE, at boot, by createGame. cols: the sheets are
+       six-column grids, not strips — see the slicer for why. */
+    cellK: 1,
+    hd: { k: 1.5, minRenderScale: 1.15 },
     /* THE FRIGHT'S OWN RATE. The delivered sheet is authored at 60ms a frame, so 36
        frames is 2.16s and the sheet has to be walked at 1/0.06 = 16.67fps to play at
        the speed it was drawn for. At 16 it ran 4% slow, which nobody can see; the point
@@ -926,8 +936,10 @@ const CFG = {
     /* The delivered idle is authored at 60ms a frame like the rest, so 16.67fps plays
        it at the speed it was drawn for — 36 frames is a 2.16s breathing loop. */
     idleFps: 16.67,
-    // the tremble is authored at 80ms a frame: 12.5fps plays it at the speed it was drawn
-    trembleFps: 12.5,
+    /* THE TRAMPLE at the edge is authored at 70ms a frame: 14.3fps plays it as drawn. The
+       stomp — his raised front comes down 30px in three frames — lands on frame 20, read
+       off the built sheet (the body's top row: 70 at frames 14-16, 86 at 19, 100 at 21). */
+    trampleFps: 14.3, trampleStomp: 20,
     // 16 frames at 15fps is 1.07s, and the Try Again card comes in at T.knockout
     // (1100ms) — so the crash finishes playing just as the card arrives
     koFps: 15
@@ -964,11 +976,13 @@ const CFG = {
         run: 'assets/char/mammoth-run.webp',
         jump: 'assets/char/mammoth-jump.webp',
         skid: 'assets/char/mammoth-skid.webp',
-        /* THE FRIGHT AT THE EDGE, delivered. SHAKE and LOOK_DOWN had no art at all and
-           fell back to a pose out of the jump sheet — so the one beat the whole puzzle
-           hangs on, the character arriving at a hole in the world and reacting to it,
-           was a still frame with a procedural tremor over it. 36 frames now. */
-        shake: 'assets/char/mammoth-shake.webp',
+        /* THE FRIGHT (mammoth-shake, from art-source/gif/ditch-new.gif) IS SHELVED, not
+           deleted: on request the arrival at the edge is the trample instead, so SHAKE and
+           LOOK_DOWN both play that sheet and there is no second performance to fit in
+           front of it. The built sheet is kept in art-source/shelved/ (both sizes) and the
+           slicer still measures it, so the shared scale does not move; to bring it back,
+           list it here and in `frames` and `hd`, clear `shelved` in tools/slice-char.mjs
+           and rebuild — the SHAKE case in PlayerController still knows how to play it. */
         /* THE CRASH, delivered. KNOCKOUT and HURT read this slot, and with nothing in
            it they read the fright frames BACKWARDS as an improvised recoil — a fair
            trick, and nothing like a crash. This is a whole performance: it runs, hits,
@@ -990,11 +1004,12 @@ const CFG = {
 
            So the 1.5MB is now paying for something. */
         idle: 'assets/char/mammoth-idle.webp',
-        /* THE TREMBLE — standing at the edge, nervous, shifting his weight and glancing
-           about. LOOK_DOWN loops it for as long as the learner thinks. Before this the
-           fright ended on a held frame, and a character who stands stone still at a hole
-           for a minute reads as a hung game; this is the 'tribbling' the brief asked for. */
-        tremble: 'assets/char/mammoth-tremble.webp',
+        /* THE TRAMPLE — the delivered loop the brief called 'Tribbling/Trampling'
+           (art-source/gif/trample-new.gif): standing at the edge he rears up, brings a
+           front foot down, then settles and shifts his weight. LOOK_DOWN loops it for as
+           long as the learner thinks; before this the fright ended on a held frame, and a
+           character who stands stone still at a hole for a minute reads as a hung game. */
+        trample: 'assets/char/mammoth-trample.webp',
         /* The note that used to be here explained why it was absent:
          *
          * mammoth-idle.webp is built by tools/slice-char.mjs and sits in this folder
@@ -1012,7 +1027,16 @@ const CFG = {
       /* Straight from tools/slice-char.mjs — the sheets are built to these counts, so
          the two move together. The run is 20 because the source art had 20 and the
          cycle is distance-driven, so it is simply smoother; nothing else changes. */
-      frames: { run: 36, jump: 10, skid: 36, shake: 36, hurt: 36, idle: 36, tremble: 36 },
+      frames: { run: 36, jump: 10, skid: 36, hurt: 36, idle: 36, trample: 36 },
+      /* The same seven sheets at 1.5x, listed in full rather than derived from the paths
+         above so the asset tests see and fetch them (a built string is invisible to the
+         scanner). Loaded instead of `sheets` when CFG.sprite.hd applies; see there. */
+      hd: {
+        run: 'assets/char/hd/mammoth-run.webp', jump: 'assets/char/hd/mammoth-jump.webp',
+        skid: 'assets/char/hd/mammoth-skid.webp',
+        hurt: 'assets/char/hd/mammoth-hurt.webp', idle: 'assets/char/hd/mammoth-idle.webp',
+        trample: 'assets/char/hd/mammoth-trample.webp'
+      },
       /* The knockout art has a ring of stars and spiral eyes DRAWN IN. The engine's
          own circling stars would be a second set — the fault docs/ANIMATION.md warns
          about. They were off for that reason, and then asked for by name: the sheet's
@@ -1976,6 +2000,8 @@ class AudioManager {
   stamp() { if (this.kit('coin')) return; this._note(7, 0.12, 0.05, 'triangle'); }
   /** The trample's splat, under the landing thud land() already plays. */
   trample() { this.kit('splat', { volume: 0.55, vary: 0 }); }
+  /** The stomp at the edge: a soft thud under the trample loop (first two stamps only). */
+  stomp() { if (!this.kit('land', { volume: 0.4, vary: 0 })) this.trample(); }
   start() {
     if (this.ctx || !this.enabled) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -3215,42 +3241,6 @@ class Atmosphere {
   }
 }
 
-/* For each frame in a horizontal strip, how many pixels of empty space sit below the
-   lowest opaque pixel. Walks up from the bottom and stops at the first opaque row, so
-   it reads about ten rows per frame in practice. Returns null if the sheet is missing
-   or cannot be read, and every caller falls back to the shared baseGap. */
-function measureFootlines(img, frames) {
-  if (!img || !frames) return null;
-  const CW = CFG.sprite.cw, CH = CFG.sprite.ch;
-  try {
-    const c = document.createElement('canvas');
-    c.width = img.naturalWidth || img.width;
-    c.height = img.naturalHeight || img.height;
-    if (!c.width || !c.height) return null;
-    const g = c.getContext('2d', { willReadFrequently: true });
-    g.drawImage(img, 0, 0);
-    const out = [];
-    for (let f = 0; f < frames; f++) {
-      const x0 = f * CW;
-      if (x0 + CW > c.width) { out.push(CFG.sprite.baseGap); continue; }
-      let gap = CFG.sprite.baseGap;
-      // a generous cap: past this the frame is empty and the fallback is right
-      const limit = Math.min(CH, 160);
-      for (let up = 0; up < limit; up++) {
-        const y = Math.min(c.height, CH) - 1 - up;
-        if (y < 0) break;
-        const row = g.getImageData(x0, y, CW, 1).data;
-        let hit = false;
-        for (let i = 3; i < row.length; i += 4) if (row[i] > 12) { hit = true; break; }
-        if (hit) { gap = up; break; }
-      }
-      out.push(gap);
-    }
-    return out;
-  } catch (e) {
-    return null;                          // never let a measurement break the game
-  }
-}
 
 /* HOW FAR A HIT PUSHES HIM BACK, in px. 34 is about a fifth of his body width:
    enough to read as being stopped by something solid at the size he is drawn, and not
@@ -3292,7 +3282,7 @@ class PlayerController {
     this.sheet = img('run'); this.jumpSheet = img('jump');
     this.skidSheet = img('skid'); this.shakeSheet = img('shake');
     this.idleSheet = img('idle');          // the standing loop for LOOK_DOWN
-    this.trembleSheet = img('tremble');    // the nervous loop at the edge
+    this.trampleSheet = img('trample');    // the stamp-and-settle loop at the edge
     this.hurtSheet = img('hurt');          // optional; falls back to reversed shake
     /* NO per-frame correction any more, and that is a fix rather than a removal.
 
@@ -3468,8 +3458,9 @@ class PlayerController {
        visibly reacted to the hole at all. The fallback is now a real duration, which
        is what the procedural shudder below plays across. */
     if (this.state === 'SHAKE' &&
-        this.t > (this.F.shake ? this.F.shake / CFG.sprite.tremorFps
-                               : CFG.comedy.shakeHoldMs / 1000)) this.setState('LOOK_DOWN');
+        this.t > (this.trampleSheet && this.F.trample ? this.F.trample / CFG.sprite.trampleFps   // one whole trample loop
+                  : this.F.shake ? this.F.shake / CFG.sprite.tremorFps
+                  : CFG.comedy.shakeHoldMs / 1000)) this.setState('LOOK_DOWN');
 
     /* ---- NO PROCEDURAL SHUDDER ----
      *
@@ -3589,7 +3580,10 @@ class PlayerController {
   draw(ctx, t, bare) {
     const img = this.sheet;
     const x = CFG.mammothX, y = this.feetY;
-    const CW = CFG.sprite.cw, CH = CFG.sprite.ch, S = this.scale;
+    /* cellK is 1.5 when the hd set is loaded: the cell is bigger and the scale smaller by
+       the same factor, so the character stays the same size on stage. */
+    const kc = CFG.sprite.cellK || 1, COLS = CFG.sprite.cols || 6;
+    const CW = CFG.sprite.cw * kc, CH = CFG.sprite.ch * kc, S = this.scale / kc;
 
     if (!bare) {
     // Soft contact shadow. A flat hard-edged ellipse read as a grey decal sitting on
@@ -3630,7 +3624,13 @@ class PlayerController {
       // Both play the sheet through ONCE and hold the last frame — a looping tremble
       // read as a twitch, and the learner may sit on this pose for minutes.
       case 'SHAKE':
-        if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = Math.min(F.shake - 1, Math.floor(this.t * SP.tremorFps)); }
+        /* THE ARRIVAL IS THE TRAMPLE. He skids to the lip and the first thing he does is
+           rear up and stamp — the delivered loop from its first frame. SHAKE lasts exactly
+           one loop (see update), and LOOK_DOWN restarts its clock at the loop boundary,
+           so the same sheet keeps going and the state change is invisible. The shelved
+           fright sheet is still understood here, for the day it is listed again. */
+        if (this.trampleSheet && F.trample) { sheet = this.trampleSheet; f = Math.floor(this.t * SP.trampleFps) % F.trample; }
+        else if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = Math.min(F.shake - 1, Math.floor(this.t * SP.tremorFps)); }
         else f = J.alert;
         break;
       case 'LOOK_DOWN':
@@ -3648,11 +3648,13 @@ class PlayerController {
            minutes, and a startled face held that long reads as the game having hung. */
         // if (this.idleSheet && F.idle) {
         //   sheet = this.idleSheet; f = Math.floor(this.t * SP.idleFps) % F.idle;
-        /* THE TREMBLE LOOPS while he stands at the hole. The fright (SHAKE) has played
-           once by now and settled him; from here he shifts and glances for as long as
-           the learner takes. The delivered loop, at its authored rate. */
-        if (this.trembleSheet && F.tremble) {
-          sheet = this.trembleSheet; f = Math.floor(this.t * SP.trembleFps) % F.tremble;
+        /* THE TRAMPLE LOOPS while he stands at the hole — the delivered 'Tribbling/
+           Trampling': he rears up, brings a front foot down, then settles and shifts his
+           weight, for as long as the learner takes. SHAKE has already played the first
+           loop; its clock hands over at the loop boundary. The game's update fires a
+           puff, a jolt and a thud on the stomp frame. */
+        if (this.trampleSheet && F.trample) {
+          sheet = this.trampleSheet; f = Math.floor(this.t * SP.trampleFps) % F.trample;
           break;
         }
         if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = F.shake - 1; }
@@ -3736,7 +3738,7 @@ class PlayerController {
     this.lastFrame = f;
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
-      : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : sheet === this.trembleSheet ? 'tremble' : '?';
+      : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : sheet === this.trampleSheet ? 'trample' : '?';
     /* GROUNDED poses are placed on THIS frame's own footline. A run cycle's vertical
        variation is the bob and has to be kept, and an airborne frame's tucked legs are
        the art; but a pose the character holds while standing still has no business
@@ -3772,8 +3774,8 @@ class PlayerController {
     ctx.scale(sqX, sq);
     // the sheets carry a small gap under the footline so nothing is clipped, so the
     // cell is dropped by that gap to put the content baseline on feetY
-    ctx.drawImage(sheet, f * CW, 0, CW, CH,
-                  -CW * S / 2, -CH * S + CFG.sprite.baseGap * S + lift, CW * S, CH * S);
+    ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
+                  -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
     ctx.restore();
   }
 }
@@ -4790,7 +4792,45 @@ const PolygonCutManager = {
 /* ================= main game ================= */
 function createGame(canvas, hooks = {}) {
   const ctx = canvas.getContext('2d');
-  canvas.width = CFG.W; canvas.height = CFG.H;
+  /* THE BACKBUFFER FOLLOWS THE SCREEN'S PIXELS. The game is laid out on a 1920x1080 stage
+     and everything is drawn in those units; the canvas used to be exactly that many pixels
+     and was stretched by CSS, so on a hi-DPI laptop or a 4K screen every edge — ice, ropes,
+     polygons, text — went soft. Now the canvas holds renderScale x (1920x1080) pixels, up
+     to 2x, and render() sets that scale as the base transform, so no drawing code changes.
+     main.js picks the scale from the stage's CSS size times devicePixelRatio (?rs=N forces
+     it) and re-picks it on resize. Phones land on 1: a 16:9 stage capped by a 1080px-tall
+     screen is 1920 device pixels wide, and they pay nothing for this. */
+  let rs = 1, rsCap = 2;
+  function setRenderScale(k) {
+    k = clamp(Math.min(Number(k) || 1, rsCap), 1, 2);
+    const w = Math.round(CFG.W * k), h = Math.round(CFG.H * k);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    rs = k;
+  }
+  setRenderScale(hooks.renderScale || 1);
+  /* THE GUARD ON THAT SCALE. A hi-DPI screen on a weak GPU can be handed a 4K backbuffer it
+     cannot fill at speed, and a sharp game at 20fps is a worse game than a soft one at 60.
+     So it is measured, not assumed: the frame loop keeps a running mean of the frame
+     interval and, once the game is a few seconds in, steps the scale down a quarter
+     whenever that mean sits under 40fps, until it reaches 1 — and caps it there, so a
+     resize cannot put it back. It never steps UP: a scale that flickers is worse than a
+     slightly soft one. Only for an auto-picked scale; ?rs=N is a request and stays. */
+  const scaleForced = !!hooks.renderScaleForced;
+  let fpsMean = 60, fpsClock = 0;
+  function guardScale(dtWall) {
+    if (scaleForced || rs <= 1 || !(dtWall > 0) || dtWall > 0.5) return;
+    fpsMean += (1 / dtWall - fpsMean) * 0.05;
+    fpsClock += dtWall;
+    if (fpsClock > 4 && fpsMean < 40) {
+      rsCap = Math.max(1, rs - 0.25);
+      setRenderScale(rsCap);
+      fpsClock = 0; fpsMean = 60;
+    }
+  }
+  /* And the art set to match, decided once: the hd sheets are 2.25x the pixels, and there
+     is no point decoding them for a screen that cannot show them. */
+  const hdArt = rs >= CFG.sprite.hd.minRenderScale;
+  CFG.sprite.cellK = hdArt ? CFG.sprite.hd.k : 1;
 
   const audio = new AudioManager();
   const particles = new ParticleManager();
@@ -4971,7 +5011,7 @@ function createGame(canvas, hooks = {}) {
        sheets: he is scenery that happens to be a character, he has no animation and no
        states, and putting him in CFG.characters would make him look like something the
        player could be. */
-    jobs.push(loadImg('assets/char/bear.webp').then(i => { images.bear = i; }));
+    jobs.push(loadImg(hdArt ? 'assets/char/hd/bear.webp' : 'assets/char/bear.webp').then(i => { images.bear = i; }));
     // the two of them dancing: the delivered 36-frame GIF as a 6x6 sheet at native size
     jobs.push(loadImg('assets/char/duo-celebrate.webp').then(i => { images.duo = i; }));
     // one painted block per shape the curriculum can name
@@ -4982,7 +5022,8 @@ function createGame(canvas, hooks = {}) {
     for (const ch of CFG.characters) {
       for (const slot of Object.keys(ch.sheets)) {
         const key = ch.id + ':' + slot;
-        jobs.push(loadImg(ch.sheets[slot]).then(i => { images[key] = i; }));
+        const src = hdArt && ch.hd && ch.hd[slot] ? ch.hd[slot] : ch.sheets[slot];
+        jobs.push(loadImg(src).then(i => { images[key] = i; }));
       }
     }
     await Promise.all(jobs);
@@ -5089,7 +5130,8 @@ function createGame(canvas, hooks = {}) {
     if (!img || !G.bearAt) return;
     const sx = G.bearAt - G.worldX;
     if (sx < -300 || sx > CFG.W + 300) return;
-    const k = CFG.sprite.scale * 0.86;          // a cub, so a little smaller
+    // a cub, so a little smaller; the hd bear is cellK bigger, so drawn cellK smaller
+    const k = CFG.sprite.scale * 0.86 / (CFG.sprite.cellK || 1);
     const w = img.width * k, h = img.height * k;
     ctx.save();
     /* A slow breathing bob, so he is alive while he waits. Sine on the shared clock —
@@ -6685,6 +6727,23 @@ function createGame(canvas, hooks = {}) {
         audio.trample();
       }
     } else G.trampled = false;
+    /* THE STOMP AT THE EDGE. SHAKE and LOOK_DOWN loop the delivered trample: he rears up and brings a
+       front foot down on frame CFG.sprite.trampleStomp. A stamp with nothing under it is a
+       drawing of a stamp — so the frame gets a puff of snow at his front feet, a small
+       jolt and a small punch. The thud plays for the first two stamps of a visit only: the
+       learner may stand here for a minute, and a thud every 2.5s becomes a drum. */
+    if ((mammoth.state === 'LOOK_DOWN' || mammoth.state === 'SHAKE') && mammoth.trampleSheet) {
+      const n = (mammoth.char.frames && mammoth.char.frames.trample) || 36;
+      const f = Math.floor(mammoth.t * CFG.sprite.trampleFps) % n;
+      if (f === CFG.sprite.trampleStomp && G.stompF !== f) {
+        if (!reduced) particles.poof(CFG.mammothX + 58, CFG.surfaceY, 4, 0.7);
+        shake(reduced ? 0.6 : 1.6, 120);
+        punch(CFG.juice.punchLand * 0.5, 160, CFG.mammothX, CFG.surfaceY);
+        if (G.stomps < 2) audio.stomp();
+        G.stomps++;
+      }
+      G.stompF = f;
+    } else { G.stompF = -1; G.stomps = 0; }
     particles.update(dt);
     // the last argument is what stops one bump burning all three strikes while
     // the world is stopped behind the Ouch card — see ObstacleController.update
@@ -7966,6 +8025,7 @@ function createGame(canvas, hooks = {}) {
   }
 
   function render() {
+    ctx.setTransform(rs, 0, 0, rs, 0, 0);   // the backbuffer scale; see setRenderScale
     ctx.clearRect(0, 0, CFG.W, CFG.H);
     // an impact is a random jolt; a quake is a rumble. They are different signals and
     // they are summed, so a bonk still punches through a quake.
@@ -8056,6 +8116,7 @@ function createGame(canvas, hooks = {}) {
     if (!last) last = ts;
     let dt = (ts - last) / 1000; last = ts;
     if (paused) return;
+    guardScale(dt);                       // on the wall-clock interval, before the cap
     dt = Math.min(dt, 1 / 30);
     /* Fast-forward STEPS the simulation; it does not scale dt. Multiplying dt would
        give the same game time with each step that much coarser, which changes the jump
@@ -8074,6 +8135,7 @@ function createGame(canvas, hooks = {}) {
     G.phase = 0; G.phasesDone = 0; G.gapsThisPhase = null; G.phaseLayout = null; G.phaseJumped = false;
     G.oops = false; G.hitFx = 0; G.hitObstacle = null; G.hitReturn = null; G.hitCount = 0;
     G.handHint = null; G.idleHand = 0; G.dropReady = false;
+    G.stompF = -1; G.stomps = 0;
     G.shakeAmp = 0; G.shakeLen = 0;
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
@@ -8115,8 +8177,15 @@ function createGame(canvas, hooks = {}) {
       const img = images[cid + ':' + slot];
       if (!img) return null;
       const ch = CFG.characters.find(c => c.id === cid);
-      return { src: img.src, frames: ch ? (ch.frames[slot] || 1) : 1 };
+      const kc = CFG.sprite.cellK || 1;
+      return { src: img.src, frames: ch ? (ch.frames[slot] || 1) : 1,
+               cw: CFG.sprite.cw * kc, ch: CFG.sprite.ch * kc, cols: CFG.sprite.cols || 6 };
     },
+    /** The backbuffer's pixel scale (1..2); see setRenderScale in createGame. */
+    setRenderScale(k) { setRenderScale(k); },
+    renderScale: () => rs,
+    /** Which character art set was loaded: 'hd' (1.5x cells) or 'base'. */
+    artSet: () => hdArt ? 'hd' : 'base',
     setPaused(v) { paused = v; if (!v) last = 0; },
     /* READABLE, so a test can tell a frozen simulation from a slow one. paused is a
        closure variable and there was no way to observe it: a harness had to infer the
@@ -8230,7 +8299,10 @@ function createGame(canvas, hooks = {}) {
     _skipTo(ms) { G.st += ms; },
     /** Drive the character's animation state directly, for an animation audit. */
     _anim(s) { mammoth.setState(s); },
-    _player: () => mammoth
+    _player: () => mammoth,
+    /** Draw one frame now, without advancing the simulation — for a test that wants to
+        measure a deterministic pose on the real backbuffer. */
+    _renderOnce: () => render()
   };
 
   preload().then(() => {
@@ -9644,7 +9716,23 @@ let lastComplete = false;
 const tutFlag = params.get('tutorial');
 const wantTutorial = tutFlag !== '0' && tutFlag !== 'false';
 
+/* THE BACKBUFFER AT SCREEN RESOLUTION. The stage is CSS-fitted to the window; the canvas
+   behind it renders at (stage CSS width x devicePixelRatio) / 1920 times its 1920x1080
+   layout, rounded to a quarter and capped at 2, so a hi-DPI laptop or a 4K screen gets
+   real pixels instead of a stretched 1080p. ?rs=N forces it (the tests use it). */
+const stageEl = document.getElementById('stage');
+const wantScale = () => {
+  const forced = Number(params.get('rs'));
+  if (Number.isFinite(forced) && forced >= 1 && forced <= 2) return forced;
+  const r = stageEl ? stageEl.getBoundingClientRect() : null;
+  const cssW = r && r.width ? r.width : window.innerWidth;
+  const k = cssW * (window.devicePixelRatio || 1) / 1920;
+  return Math.min(2, Math.max(1, Math.round(k * 4) / 4));
+};
+
 const game = createGame(canvas, {
+  renderScale: wantScale(),
+  renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
     /* Straight to the cover. There is no loading curtain: onReady only fires once
        the whole art set has preloaded, so the first thing drawn is already the
@@ -9730,6 +9818,14 @@ function startTutorial() {
 }
 
 game.setOptions(options);
+/* Re-pick the backbuffer scale when the window changes (a zoom, a monitor swap, a rotate).
+   The art set stays as chosen at boot; only the pixel count follows. */
+{
+  let refitTimer = 0;
+  const refit = () => { clearTimeout(refitTimer); refitTimer = setTimeout(() => game.setRenderScale(wantScale()), 120); };
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', refit);
+}
 // decode the recordings now, not on the first tap: a cue that is still loading when it is
 // first needed falls back to a different sound, which is what made the fit sound vary
 game.warmAudio();

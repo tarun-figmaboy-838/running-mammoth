@@ -47,7 +47,7 @@ export const READY = 'window.iceAgeGame && window.iceAgeGame.state() !== "BOOT"'
  *
  * Pass `tutorial: true` for the spec that exercises the tutorial itself.
  */
-export async function boot(page, { skipScreens = true, sound = false, speed = 0, fast = 0, tutorial = false } = {}) {
+export async function boot(page, { skipScreens = true, sound = false, speed = 0, fast = 0, tutorial = false, query = '' } = {}) {
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
@@ -58,6 +58,7 @@ export async function boot(page, { skipScreens = true, sound = false, speed = 0,
   if (speed) q.push('speed=' + speed);
   if (fast) q.push('fast=' + fast);
   q.push('tutorial=' + (tutorial ? '1' : '0'));
+  if (query) q.push(query);                 // anything else, e.g. 'rs=2'
   await page.goto('/index.html' + (q.length ? '?' + q.join('&') : ''));
   /* The game preloads its whole art set before it will start, which is a real
      cold-start cost — give it room rather than hiding it behind a short timeout.

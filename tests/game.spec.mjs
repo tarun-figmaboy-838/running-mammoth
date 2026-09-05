@@ -27,7 +27,7 @@ test.describe('boot', () => {
           const img = new Image();
           img.src = s.src;
           await img.decode();
-          out.push({ id: c.id, slot, frames: s.frames, w: img.naturalWidth, h: img.naturalHeight });
+          out.push({ id: c.id, slot, frames: s.frames, cw: s.cw, ch: s.ch, cols: s.cols, w: img.naturalWidth, h: img.naturalHeight });
         }
       }
       return out;
@@ -36,10 +36,13 @@ test.describe('boot', () => {
        only the delivered GIFs are used; those states fall back to jump poses. */
     expect(sheets.length).toBe(3);
     for (const s of sheets) {
-      // one shared 420x320 cell across every sheet of every character, so a
-      // character never changes size between animations
-      expect(s.h, `${s.id}/${s.slot} height`).toBe(320);
-      expect(s.w, `${s.id}/${s.slot} width`).toBe(420 * s.frames);
+      /* One shared cell across every sheet of every character, so a character never
+         changes size between animations — the base 420x320 cell at DPR 1 (the hd set is
+         the same cell at 1.5x; see tests/hd.spec.mjs). Six columns, not a strip: a strip at
+         the hd cell would pass WebP's 16383px width limit (see tools/slice-char.mjs). */
+      expect(s.cw, `${s.id}/${s.slot} cell`).toBe(420);
+      expect(s.w, `${s.id}/${s.slot} width`).toBe(s.cw * Math.min(s.frames, s.cols));
+      expect(s.h, `${s.id}/${s.slot} height`).toBe(s.ch * Math.ceil(s.frames / s.cols));
     }
   });
 });
@@ -165,10 +168,12 @@ test.describe('the run cycle', () => {
       const d = x.getImageData(0, 0, c.width, c.height).data;
       const bottoms = [];
       for (let f = 0; f < s.frames; f++) {
+        // the frames sit in a six-column grid; measure each within its own cell
+        const cx = (f % s.cols) * s.cw, cy = Math.floor(f / s.cols) * s.ch;
         let low = -1;
-        for (let y = c.height - 1; y >= 0 && low < 0; y--) {
-          for (let px = f * 420; px < (f + 1) * 420; px++) {
-            if (d[(y * c.width + px) * 4 + 3] > 16) { low = y; break; }
+        for (let y = cy + s.ch - 1; y >= cy && low < 0; y--) {
+          for (let px = cx; px < cx + s.cw; px++) {
+            if (d[(y * c.width + px) * 4 + 3] > 16) { low = y - cy; break; }
           }
         }
         bottoms.push(low);

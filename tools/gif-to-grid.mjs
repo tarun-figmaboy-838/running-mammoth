@@ -37,51 +37,23 @@ const OUT = join(CHAR, process.argv[3] || 'run-gif.png');
 const GUTTER = 48;
 const ALPHA = 40;
 
-/** sqrt of the median opaque area per frame of a horizontal-strip sheet. */
-async function sheetSize(file, cells, cellW) {
-  const { data, info } = await sharp(file).ensureAlpha().raw()
-    .toBuffer({ resolveWithObject: true });
-  const { width: W, height: H, channels: C } = info;
-  const areas = [];
-  for (let i = 0; i < cells; i++) {
-    let n = 0;
-    for (let y = 0; y < H; y++) {
-      for (let x = i * cellW; x < (i + 1) * cellW && x < W; x++) {
-        if (data[(y * W + x) * C + 3] > ALPHA) n++;
-      }
-    }
-    if (n) areas.push(Math.sqrt(n));
-  }
-  areas.sort((a, b) => a - b);
-  return areas[areas.length >> 1];
-}
-
-/* ---- the reference: what size the character is in the sheets already shipping ----
+/* ---- the reference: how big the character is, in the GIF's own pixels ----
  *
- * Two things were stale here and both stopped this tool running at all.
+ * This used to be measured off the sheets already shipping — which was circular (the
+ * sheets are built FROM these grids) and, worse, LOSSY: the first sheets were cut at a
+ * character of ~173px (sqrt of opaque area), so every later GIF was pre-scaled DOWN to
+ * match them, to about half its native size, and the slicer then had nothing more to
+ * give a hi-DPI screen. The delivered GIFs carry 280..345px of character; the grids now
+ * keep that. The reference is a CONSTANT chosen at the top of the delivered range so no
+ * GIF is shrunk and none is stretched by more than ~1.2x; the slicer's single scale then
+ * downsamples every grid into its cells, which is the one resampling that costs detail.
  *
- * It named mammoth-shake.webp and mammoth-hurt.webp, which were deleted on request when
- * the game went to delivered GIFs only — so the very first measurement threw "Input file
- * is missing". And it looked for them under CHAR, which is where the GRIDS live; the
- * built sheets are in game/assets/char, which is a different folder and always was.
- *
- * Now it reads the sheets that actually ship, with their real frame counts taken from
- * CFG.characters.frames, and it says which one it could not open rather than dying on a
- * sharp stack trace. Replacing a sheet is fine: the reference is the character's
- * established SIZE, and the sheet being replaced still carries it. */
-const SHEETS_DIR = join(ROOT, 'game', 'assets', 'char');
-const REF = [['mammoth-run.webp', 36], ['mammoth-jump.webp', 10], ['mammoth-skid.webp', 36]];
-const refs = [];
-for (const [f, n] of REF) {
-  const p = join(SHEETS_DIR, f);
-  if (!existsSync(p)) { console.warn('  reference sheet missing, skipping: ' + f); continue; }
-  refs.push(await sheetSize(p, n, 420));
-}
-if (!refs.length) { console.error('no reference sheet could be read from ' + SHEETS_DIR); process.exit(1); }
-refs.sort((a, b) => a - b);
-const refSize = refs[refs.length >> 1];
-console.log('shipping sheets: sqrt(area) medians ' + refs.map(v => v.toFixed(0)).join(', ') +
-            '  -> reference ' + refSize.toFixed(0));
+ * Every grid MUST be built with the same reference, or the character changes size between
+ * animations. Override with --ref N only to rebuild the whole set at once. */
+const refArg = process.argv.find(a => a.startsWith('--ref='));
+const refSize = refArg ? Number(refArg.slice(6)) : 340;
+if (!(refSize > 50)) { console.error('bad --ref'); process.exit(1); }
+console.log('reference character size (sqrt of opaque area): ' + refSize);
 
 /* ---- the GIF ---- */
 const meta = await sharp(GIF).metadata();
@@ -113,7 +85,7 @@ areas.sort((a, b) => a - b);
 const gifSize = areas[areas.length >> 1];
 const k = refSize / gifSize;
 console.log(`gif: ${pages} frames of ${pw}x${ph}, sqrt(area) median ${gifSize.toFixed(0)}`);
-console.log(`pre-scale ${k.toFixed(4)} so the run matches the sheets already shipping`);
+console.log(`pre-scale ${k.toFixed(4)} so the character is ${refSize}px like every other grid`);
 
 /* ---- lay the frames out with gutters, at the matched size ---- */
 const cols = 6, rows = Math.ceil(pages / cols);

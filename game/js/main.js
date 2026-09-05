@@ -64,7 +64,23 @@ let lastComplete = false;
 const tutFlag = params.get('tutorial');
 const wantTutorial = tutFlag !== '0' && tutFlag !== 'false';
 
+/* THE BACKBUFFER AT SCREEN RESOLUTION. The stage is CSS-fitted to the window; the canvas
+   behind it renders at (stage CSS width x devicePixelRatio) / 1920 times its 1920x1080
+   layout, rounded to a quarter and capped at 2, so a hi-DPI laptop or a 4K screen gets
+   real pixels instead of a stretched 1080p. ?rs=N forces it (the tests use it). */
+const stageEl = document.getElementById('stage');
+const wantScale = () => {
+  const forced = Number(params.get('rs'));
+  if (Number.isFinite(forced) && forced >= 1 && forced <= 2) return forced;
+  const r = stageEl ? stageEl.getBoundingClientRect() : null;
+  const cssW = r && r.width ? r.width : window.innerWidth;
+  const k = cssW * (window.devicePixelRatio || 1) / 1920;
+  return Math.min(2, Math.max(1, Math.round(k * 4) / 4));
+};
+
 const game = createGame(canvas, {
+  renderScale: wantScale(),
+  renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
     /* Straight to the cover. There is no loading curtain: onReady only fires once
        the whole art set has preloaded, so the first thing drawn is already the
@@ -150,6 +166,14 @@ function startTutorial() {
 }
 
 game.setOptions(options);
+/* Re-pick the backbuffer scale when the window changes (a zoom, a monitor swap, a rotate).
+   The art set stays as chosen at boot; only the pixel count follows. */
+{
+  let refitTimer = 0;
+  const refit = () => { clearTimeout(refitTimer); refitTimer = setTimeout(() => game.setRenderScale(wantScale()), 120); };
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', refit);
+}
 // decode the recordings now, not on the first tap: a cue that is still loading when it is
 // first needed falls back to a different sound, which is what made the fit sound vary
 game.warmAudio();

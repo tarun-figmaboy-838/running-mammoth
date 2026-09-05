@@ -177,7 +177,10 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
      which aborted it partway and left the animation stuck on frame 0 — and a frozen
      sheet is indistinguishable from a held pose in a screenshot. Asserting on the
      count of distinct frames is what catches that. */
-  expect(sheets, 'the fright is drawn from its own sheet').toEqual(['shake']);
+  /* THE TRAMPLE, since the fright sheet was shelved on request: the arrival at the edge
+     is the delivered rear-up-and-stamp loop, played from its first frame, and LOOK_DOWN
+     carries the same sheet on. One sheet throughout is still the thing to hold. */
+  expect(sheets, 'the arrival is drawn from the trample sheet').toEqual(['trample']);
   expect(distinct, 'and the sheet actually advances').toBeGreaterThan(6);
 
   /* AND THE OLD SHUDDER STAYS GONE. Removed on request: two performances of one beat

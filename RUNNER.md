@@ -961,13 +961,50 @@ him — so the cross-fade moves nobody; the pair then glides to centre stage ove
 card is the title and the seven stamps only, level and smaller; a tap on a stamp pops it and
 rings its coin, a tap on the dancers poofs and honks, a tap on the water splashes.
 
-### The tremble (item 4), and the sheets' size
+### The trample (item 4), and the art at screen resolution
 
-`mammoth-tremble.webp` is the delivered 36-frame nervous loop (`art-source/gif/tremble-new.gif`),
-built through the same pipeline as every other sheet so its size and foot line match. LOOK_DOWN
-plays it at 12.5 fps for as long as the learner thinks; the fright (SHAKE) still plays once
-before it. The slicer now encodes lossy at quality 82 with alpha at 100: seven near-lossless
-sheets (1.4 MB each) would have passed the 12 MB art budget, and painted sprites do not show the
-difference — the set went from 9.7 MB to 3.4 MB.
+`mammoth-trample.webp` is the delivered 36-frame loop the brief called "Tribbling/Trampling"
+(`art-source/gif/trample-new.gif`): standing at the edge he rears up, brings a front foot down,
+then settles and shifts his weight. It is the arrival reaction AND the wait: SHAKE plays it from
+its first frame for exactly one loop and LOOK_DOWN carries it on, at 14.3 fps (its authored 70 ms),
+for as long as the learner thinks. The delivered fright (`ditch-new.gif`) is shelved on request —
+built into `art-source/shelved/` in both sizes and still measured by the slicer, so listing it in
+CFG again is all it takes to bring it back (it also still lists nothing to load). The stomp lands on
+frame 20 (`CFG.sprite.trampleStomp`, read off the built sheet), and the update fires a puff of
+snow at his front feet, a small shake, a small punch and a soft thud on it — the thud for the
+first two stamps of a visit only, so a long think does not become a drum. The guessed tremble
+loop (`tremble-new.gif`) is no longer shipped.
+
+Every slot uses the newest GIF delivered for it: run and jump from the first delivery,
+`skid-new`, `ditch-new` (the fright), `ko-new` (the crash), `idle-new` (the finale),
+`trample-new` (the edge), `celebrate-duo` (the ending dance).
+
+**Resolution.** Three things kept the game soft on good screens, and all three are fixed:
+
+1. `tools/gif-to-grid.mjs` pre-scaled every GIF to the size of the first sheets (~173 px of
+   character, as the square root of the opaque area) — half the delivered size. It now scales
+   to a fixed reference of 340 px, the top of the delivered range, so the grids hold native
+   pixels. Every grid must be built with the same reference (`--ref=N` rebuilds the set).
+2. `tools/slice-char.mjs` writes two sets from those grids: the base 420×320 cell in
+   `game/assets/char/`, and a 1.5× cell (630×480) in `game/assets/char/hd/`, both downsampled
+   from native. Sheets are six-column grids, not strips: a strip at the hd cell would pass
+   WebP's 16383 px limit, and the old 15120 px strips were already past every GPU's texture
+   size. The engine reads `(f % cols, f / cols)`; `CFG.sprite.cellK` (1 or 1.5) is the only
+   number it multiplies by, so the character is the same size on stage either way. The bear
+   has an hd cut too (`hd/bear.webp`, from his 1254 px source).
+3. The canvas was a fixed 1920×1080 stretched by CSS. `createGame` now sizes it at
+   `renderScale × 1920×1080` (up to 2×) and sets that scale as the base transform in
+   `render()`; main.js picks the scale from the stage's CSS width × devicePixelRatio (`?rs=N`
+   forces it) and re-picks it on resize. The hd art set is chosen once, at boot, when the
+   scale is ≥ 1.15. A guard measures the frame rate and, on a machine that cannot fill the
+   bigger buffer (mean under 40 fps after the first seconds), steps the scale down a quarter
+   at a time towards 1 and caps it there — never back up, and never for a forced `?rs=`.
+
+Phones land on scale 1 and the base set: a 16:9 stage capped by a 1080 px-tall screen is 1920
+device pixels wide, so they download and decode what they did before (six sheets, 2.4 MB). A
+hi-DPI laptop, a tablet or a 4K screen gets the hd set (3.7 MB) and a sharp backbuffer. The duo dance sheet is already at
+its GIF's native size and has no hd cut; the painted environment (path, sky, caps) is at its
+delivered resolution. The art budget test now budgets the two sets apart, because a client
+fetches one of them.
 
 The tutorial names what is ahead — rock, log or fossil — from the obstacle's kind (`obstacleName`).

@@ -41,7 +41,7 @@
  *     node tools/slice-char.mjs --contact  also write a contact sheet to inspect
  */
 import sharp from 'sharp';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -120,11 +120,13 @@ const SHEETS = [
      one sheet. The GIFs in art-source/gif are the archive; the grids are build
      intermediates and there is now exactly one per slot. */
   { src: 'skid-new-gif.png',  slot: 'skid',  bob: false },
-  /* THE TREMBLE AT THE EDGE — the delivered 36-frame loop of the character standing
-     nervous, shifting his weight and glancing about. LOOK_DOWN plays it for as long as
-     the learner thinks, which is the 'tribbling' the brief kept asking for: before this
-     the fright ended on a held frame and the character stood stone still at the hole. */
-  { src: 'tremble-gif.png', slot: 'tremble', bob: false },
+  /* THE TRAMPLE AT THE EDGE — the delivered 36-frame loop the brief called
+     'Tribbling/Trampling' (art-source/gif/trample-new.gif): the character rears up and
+     stamps a front foot down, then settles and shifts his weight. LOOK_DOWN plays it for
+     as long as the learner thinks. bob is KEPT: the rear-up lifts the whole body off the
+     ice, and flattening every frame onto the footline would delete the stamp. The stomp
+     lands on frame 12, which the engine reads to fire a puff, a jolt and a thud. */
+  { src: 'trample-gif.png', slot: 'trample', bob: true },
   /* THE FRIGHT AT THE EDGE — the sheet SHAKE and LOOK_DOWN have been missing.
      Both states existed and had no art of their own: they fell back to a pose out of
      the jump sheet, so the one beat the whole puzzle hangs on — the character arriving
@@ -137,7 +139,10 @@ const SHEETS = [
 
      No hurt sheet yet. KNOCKOUT and HURT still fall back through here — see
      PlayerController — which is why the entry below is the shake and not a third slot. */
-  { src: 'ditch-new-gif.png', slot: 'shake', bob: false },
+  /* SHELVED, on request: the arrival at the edge is the trample now. Still measured, so
+     the shared scale does not move, and still built — into art-source/shelved/ rather than
+     the deployed folder — so listing it again in CFG is all it takes to bring it back. */
+  { src: 'ditch-new-gif.png', slot: 'shake', bob: false, shelved: true },
   /* THE KNOCKOUT, delivered. KNOCKOUT and HURT read the `hurt` slot, and with no
      sheet there they read the SHAKE frames BACKWARDS as an improvised recoil — which
      is a reasonable trick and nothing like a crash.
@@ -419,98 +424,117 @@ console.log(`scale ${K.toFixed(4)}  ->  foot line at cell row ${FOOT_ROW}`);
 console.log(`cell ${CW}x${CH}, fill ${FILL}`);
 console.log(`ENGINE: CFG.sprite.baseGap must be ${ENGINE_BASE_GAP}\n`);
 
-/* ---- pass two: build each strip ---- */
+/* ---- pass two: build each sheet, in two sizes ----
+ *
+ * TWO SETS, ONE GEOMETRY. The base set is the 420x320 cell the engine has always drawn;
+ * the hd set is the same cell at 1.5x (630x480), cut from the same grids with the same
+ * foot line, so a hi-DPI screen gets a character with 2.25x the pixels and nothing else
+ * changes: CFG.sprite.cellK is the only number the engine multiplies by. The grids are
+ * built at native GIF size (see gif-to-grid.mjs), so both sets are DOWNSAMPLED from the
+ * delivered pixels — the base at ~0.5x, the hd at ~0.77x — and neither is stretched.
+ *
+ * A GRID, NOT A STRIP. A 36-frame strip at 630px a cell is 22680px wide, past WebP's
+ * 16383px limit and past every mobile GPU's texture size; the old 15120px strips were
+ * already past the GPU (Chrome fell back to software tiling for them). Six columns keeps
+ * every sheet under 4096px on both sides. The engine reads (f % cols, f / cols). */
+const COLS = 6;
+const SETS = [
+  { name: 'base', dir: OUT,             k: 1,   quality: 82 },
+  { name: 'hd',   dir: join(OUT, 'hd'), k: 1.5, quality: 80 }
+];
 const summary = [];
-for (const m of measured) {
-  const n = m.frames.length;
-  const cells = [];
-  let strays = 0;
+for (const set of SETS) {
+  await mkdir(set.dir, { recursive: true });
+  const cw = Math.round(CW * set.k), ch = Math.round(CH * set.k);
+  const Ks = K * set.k, footRow = Math.round(FOOT_ROW * set.k);
+  console.log(`\n== ${set.name} set: cell ${cw}x${ch}, scale ${Ks.toFixed(4)}, foot line at row ${footRow}, baseGap ${ch - footRow}`);
 
-  for (const f of m.frames) {
-    /* How high this frame sits. For a locomotion sheet, measured against the LOWEST
-       frame in its own row — the generator kept a row roughly consistent even when
-       rows are not — so the bob survives. For a held-pose sheet, zero. */
-    // measured in pass one off the row's own FOOT lines, so the bob is real movement
-    const lift = f.lift || 0;
-    const dw = Math.max(1, Math.round(f.w * K));
-    const dh = Math.max(1, Math.round(f.h * K));
-    const dx = Math.round((CW - dw) / 2);
-    /* Positioned by the FOOT LINE. dy is the top of the crop, so it is the contact row
-       less however much of this frame sits above its own feet. */
-    const dy = Math.round(FOOT_ROW - f.above * K - lift * K);
+  for (const m of measured) {
+    const n = m.frames.length;
+    const cells = [];
+    let strays = 0;
+    // a shelved sheet is built and kept, but not where the game would fetch it
+    const outDir = m.shelved ? join(ROOT, 'art-source', 'shelved', set.name) : set.dir;
+    if (m.shelved) await mkdir(outDir, { recursive: true });
 
-    const iso = await isolate(sharp(m.file), f, m.near);
-    strays += iso.erased || 0;
-    /* .png() matters: a resize on a RAW input hands back raw pixels, and composite()
-       cannot parse those - it needs an encoded image. */
-    const cut = await sharp(iso.data, { raw: { width: iso.W, height: iso.H, channels: iso.C } })
-      .resize(dw, dh, { fit: 'fill', kernel: 'lanczos3' })
-      .png().toBuffer();
+    for (const f of m.frames) {
+      // measured in pass one off the row's own FOOT lines, so the bob is real movement
+      const lift = f.lift || 0;
+      const dw = Math.max(1, Math.round(f.w * Ks));
+      const dh = Math.max(1, Math.round(f.h * Ks));
+      const dx = Math.round((cw - dw) / 2);
+      /* Positioned by the FOOT LINE. dy is the top of the crop, so it is the contact row
+         less however much of this frame sits above its own feet. */
+      const dy = Math.round(footRow - f.above * Ks - lift * Ks);
 
-    cells.push(await sharp({
-      create: { width: CW, height: CH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
-    }).composite([{ input: cut, left: dx, top: Math.max(0, dy) }]).png().toBuffer());
-  }
+      const iso = await isolate(sharp(m.file), f, m.near);
+      strays += iso.erased || 0;
+      /* .png() matters: a resize on a RAW input hands back raw pixels, and composite()
+         cannot parse those - it needs an encoded image. */
+      const cut = await sharp(iso.data, { raw: { width: iso.W, height: iso.H, channels: iso.C } })
+        .resize(dw, dh, { fit: 'fill', kernel: 'lanczos3' })
+        .png().toBuffer();
 
-  const strip = sharp({
-    create: { width: CW * n, height: CH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
-  }).composite(cells.map((b, i) => ({ input: b, left: i * CW, top: 0 })));
+      cells.push(await sharp({
+        create: { width: cw, height: ch, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+      }).composite([{ input: cut, left: dx, top: Math.max(0, dy) }]).png().toBuffer());
+    }
 
-  const outName = `mammoth-${m.slot}.webp`;
-  if (!REPORT) {
-    /* LOSSY AT 82, NOT NEAR-LOSSLESS. Near-lossless made every 36-frame sheet about 1.4MB;
-       with a seventh sheet (the tremble) the referenced art passed the 12MB budget the
-       assets test holds, and a phone on a slow connection was paying for a difference no
-       eye can see on painted cartoon sprites. alphaQuality stays at 100 so the edges,
-       which ARE visible, keep their exact silhouettes. */
-    await strip.webp({ quality: 82, effort: 5, alphaQuality: 100 })
-      .toFile(join(OUT, outName));
-  }
+    const cols = Math.min(n, COLS), rows = Math.ceil(n / COLS);
+    const sheet = sharp({
+      create: { width: cw * cols, height: ch * rows, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+    }).composite(cells.map((b, i) => ({ input: b, left: (i % COLS) * cw, top: Math.floor(i / COLS) * ch })));
 
-  // where each frame's lowest pixel ended up, for the crop-safety check
-  const bottoms = [];
-  {
-    const raw = await strip.clone().raw().toBuffer({ resolveWithObject: true });
-    const { data: d, info: inf } = raw;
-    for (let i = 0; i < n; i++) {
-      let low = -1;
-      for (let y = inf.height - 1; y >= 0 && low < 0; y--) {
-        for (let x = i * CW; x < (i + 1) * CW; x++) {
-          if (d[(y * inf.width + x) * inf.channels + 3] > 12) { low = y; break; }
+    const outName = `mammoth-${m.slot}.webp`;
+    if (!REPORT) {
+      /* LOSSY, NOT NEAR-LOSSLESS. Near-lossless made every 36-frame sheet about 1.4MB, and
+         a phone on a slow connection was paying for a difference no eye can see on painted
+         cartoon sprites. alphaQuality stays at 100 so the edges, which ARE visible, keep
+         their exact silhouettes. */
+      await sheet.webp({ quality: set.quality, effort: 5, alphaQuality: 100 })
+        .toFile(join(outDir, outName));
+    }
+
+    // where each frame's lowest and highest pixel ended up, within its own cell
+    const bottoms = [];
+    let top = ch;
+    {
+      const { data: d, info: inf } = await sheet.clone().raw().toBuffer({ resolveWithObject: true });
+      const on = (x, y) => d[(y * inf.width + x) * inf.channels + 3] > 12;
+      for (let i = 0; i < n; i++) {
+        const cx = (i % COLS) * cw, cy = Math.floor(i / COLS) * ch;
+        let low = -1;
+        for (let y = cy + ch - 1; y >= cy && low < 0; y--) {
+          for (let x = cx; x < cx + cw; x++) if (on(x, y)) { low = y - cy; break; }
+        }
+        bottoms.push(low);
+        for (let y = cy; y < cy + ch && y - cy < top; y++) {
+          let hit = false;
+          for (let x = cx; x < cx + cw; x++) if (on(x, y)) { hit = true; break; }
+          if (hit) { top = y - cy; break; }
         }
       }
-      bottoms.push(low);
     }
-  }
-  const lo = Math.min(...bottoms), hi = Math.max(...bottoms);
-  /* The number that matters: where each frame's FEET ended up. On a held-pose sheet
-     these must all be identical, or the character shifts under a pose it is holding. */
-  const feet = m.frames.map(f => Math.round(FOOT_ROW - (f.lift || 0) * K));
-  const fLo = Math.min(...feet), fHi = Math.max(...feet);
-  // the topmost pixel too, so a frame running off the top of its cell is reported here
-  let top = CH;
-  {
-    const raw = await strip.clone().raw().toBuffer({ resolveWithObject: true });
-    const { data: d, info: inf } = raw;
-    for (let y = 0; y < inf.height && top === CH; y++) {
-      for (let x = 0; x < inf.width; x++) {
-        if (d[(y * inf.width + x) * inf.channels + 3] > 12) { top = y; break; }
-      }
-    }
-  }
-  summary.push({ slot: m.slot, n, dropped: m.dropped, rows: m.rows.length,
-                 drift: fHi - fLo, lowest: hi, highest: top,
-                 feet: fLo + '..' + fHi, outName });
-  console.log(`${m.slot.padEnd(6)} ${String(n).padStart(2)} of ${m.found} frames  ${m.rows.length} row(s)  ` +
-              `${m.dropped} speck(s), ${strays} joined stray(s) erased  ` +
-              `feet ${fLo}..${fHi} (bob ${fHi - fLo})  px ${top}..${hi}  ` +
-              `${CW * n}x${CH}  -> ${REPORT ? '(not written)' : outName}`);
+    const hi = Math.max(...bottoms);
+    /* The number that matters: where each frame's FEET ended up. On a held-pose sheet
+       these must all be identical, or the character shifts under a pose it is holding. */
+    const feet = m.frames.map(f => Math.round(footRow - (f.lift || 0) * Ks));
+    const fLo = Math.min(...feet), fHi = Math.max(...feet);
 
-  if (CONTACT && !REPORT) {
-    await sharp(join(OUT, outName))
-      .flatten({ background: { r: 168, g: 214, b: 240 } })
-      .resize({ width: Math.min(CW * n, 3600) })
-      .png().toFile(join(ROOT, 'test-results', `contact-${m.slot}.png`));
+    if (set.name === 'base') {
+      summary.push({ slot: m.slot, n, drift: fHi - fLo, lowest: hi, highest: top });
+    }
+    console.log(`${m.slot.padEnd(7)} ${n} of ${m.found} frames  ${m.rows.length} row(s)  ` +
+                `${m.dropped} speck(s), ${strays} joined stray(s) erased  ` +
+                `feet ${fLo}..${fHi} (bob ${fHi - fLo})  px ${top}..${hi}  ` +
+                `${cw * cols}x${ch * rows}  -> ${m.shelved ? 'SHELVED ' : ''}${set.name}/${REPORT ? '(not written)' : outName}`);
+
+    if (CONTACT && !REPORT && set.name === 'base') {
+      await sharp(join(outDir, outName))
+        .flatten({ background: { r: 168, g: 214, b: 240 } })
+        .resize({ width: Math.min(cw * cols, 3600) })
+        .png().toFile(join(ROOT, 'test-results', `contact-${m.slot}.png`));
+    }
   }
 }
 
