@@ -480,11 +480,11 @@
   top: 0;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(clamp(4px, 0.42vw, 8px) clamp(6px, 0.63vw, 12px) 0 rgba(10, 10, 20, 0.35));
+  filter: drop-shadow(clamp(4px, 0.42vw, 8px) clamp(6px, 0.63vw, 12px) 0 rgba(60, 30, 8, 0.32));
 }
 .tut-face {
   fill: #F9D201;
-  stroke: #111111;
+  stroke: #5A2E0A;                       /* cocoa, not black: the brown the amber buttons are edged with */
   stroke-width: 7;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -504,7 +504,7 @@
      keeps a line to about 30 characters, which is what a new reader can hold. The comedy
      is in the shape, the pop and the wobble — not in the letters. */
   font: 800 clamp(22px, 2.35vw, 44px)/1.32 "Baloo 2", system-ui, sans-serif;
-  color: #111111;                       /* the asset's ink, on its yellow */
+  color: #2A1606;                       /* near-black cocoa: reads as ink on the yellow, matches the keyline */
   text-wrap: balance;
   letter-spacing: .004em;
   /* One white line under each glyph, which lifts the letters off the ice without an
@@ -690,9 +690,9 @@
   top: 0;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(10, 10, 20, 0.38));
+  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(60, 30, 8, 0.34));
 }
-.win-face { fill: #F9D201; stroke: #111111; stroke-width: 8; stroke-linejoin: round; }
+.win-face { fill: #F9D201; stroke: #5A2E0A; stroke-width: 8; stroke-linejoin: round; }
 .win-body {
   position: relative;
   z-index: 1;

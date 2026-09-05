@@ -931,7 +931,7 @@ the seven stamps), and Play again is bottom-centre. Source GIF: `art-source/gif/
 
 Both boxes — the tutorial's and the ending banner — are `game/assets/art/Bubble.svg`
 rebuilt as geometry (`js/bubble.js`): rounded body, one swept tail off the edge facing
-the subject, flat `#F9D201`, black keyline. `bubblePath(w, h, tail)` draws the shape for
+the subject, flat `#F9D201`, a cocoa `#5A2E0A` keyline (black was asked off). `bubblePath(w, h, tail)` draws the shape for
 whatever box the words need; `fitBubble(svg, box, {side, at, lean})` fits it to a live
 element, flipping the SVG (never the text) for a tail on top. The tutorial aims the tail
 at its target and rebuilds only when the box or the aim changes; the banner has no tail
@@ -969,3 +969,5 @@ plays it at 12.5 fps for as long as the learner thinks; the fright (SHAKE) still
 before it. The slicer now encodes lossy at quality 82 with alpha at 100: seven near-lossless
 sheets (1.4 MB each) would have passed the 12 MB art budget, and painted sprites do not show the
 difference — the set went from 9.7 MB to 3.4 MB.
+
+The tutorial names what is ahead — rock, log or fossil — from the obstacle's kind (`obstacleName`).

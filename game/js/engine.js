@@ -1617,7 +1617,9 @@ class AudioManager {
 
   /* ---- the puzzle ---- */
   slice() {
-    if (this.kit('slice', { vary: 0 })) return;          // the same snip every time
+    /* A COMIC SNIP: the kit's slice a little high, and a zip a beat later as the rope
+       lets go — two sounds from one swipe, always the same two (jitter off). */
+    if (this.kit('slice', { pitch: 1.15, vary: 0 })) { this.kit('zip', { delay: 0.06, volume: 0.7, vary: 0 }); return; }
     // cutting the icicle stem: a bright shing, then the stem giving way
     this._noise(0.1, 6200, 'highpass', 0.11, 0.9);
     this._tone(1560, 0.09, 0.04, 'triangle', 2400);
@@ -7416,6 +7418,9 @@ export function createGame(canvas, hooks = {}) {
     mammothState: () => mammoth && mammoth.state,
     mammothFrame: () => mammoth ? mammoth.lastSheet + ':' + mammoth.lastFrame : '-',
     debug: () => G,
+    /** 'rock' | 'log' | 'bone' for an obstacle's kind index — the two delivered rocks sit
+        before the eight sliced pieces in the kinds list. The tutorial names what is ahead. */
+    obstacleName(kind) { return kind < 2 ? 'rock' : ((OBSTACLE_ART[kind - 2] || 'rock').split('-')[0]); },
     /** Create the audio graph and start decoding the recordings BEFORE the first gesture,
         so no cue is ever caught half-loaded. Nothing plays until a real tap resumes it. */
     warmAudio() { try { audio.start(); } catch (e) { /* no audio here */ } },

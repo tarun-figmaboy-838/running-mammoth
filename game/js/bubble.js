@@ -18,7 +18,7 @@
 
 export const BUBBLE = {
   fill: '#F9D201',        // the asset's yellow
-  ink: '#111111',         // the asset's keyline, and the text drawn on it
+  ink: '#5A2E0A',         // a cocoa keyline instead of the asset's black, on request; the amber buttons are edged in the same brown
   stroke: 7,              // px, at stage size
   radius: 26,             // px
   tailBase: 0.2,          // fraction of the body width

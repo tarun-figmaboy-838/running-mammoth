@@ -137,7 +137,9 @@ export class Tutorial {
           const sx = this.rockAhead(g);
           return sx === null ? null : { x: sx, y: 780, rx: 150, ry: 140, world: true };
         },
-        text: 'A rock in the way! He cannot walk through it.',
+        /* NAMED FOR WHAT IS ACTUALLY THERE. The obstacle roster has rocks, fallen logs and
+           fossils; a box saying 'rock' over a log taught a child the wrong word. */
+        text: g => this.thingAhead(g).cap + ' in the way! He cannot walk through it.',
         focus: 'rock',
         advance: 0, pause: true
       },
@@ -163,7 +165,7 @@ export class Tutorial {
         id: 'jumpnow',
         at: () => this.domSpot('#btn-jump', 40) !== null,
         spot: () => this.domSpot('#btn-jump', 40),
-        text: 'Tap it now to jump over the rock!',
+        text: g => 'Tap it now to jump over the ' + this.thingAhead(g).noun + '!',
         advance: 'jumped', pause: false, hand: 'tap', follow: 'Nice hop!'
       },
       {
@@ -224,6 +226,16 @@ export class Tutorial {
       if (sx > 620 && sx < 1500 && (best === null || sx < best)) best = sx;
     }
     return best;
+  }
+
+  /** The nearest obstacle ahead, as words: { noun: 'rock'|'log'|'fossil', cap: 'A rock'|... }. */
+  thingAhead(g) {
+    const list = this.game._obstacles ? this.game._obstacles().list : [];
+    let best = null, bx = Infinity;
+    for (const o of list) { const sx = o.x - g.worldX; if (!o.passed && o.hits < 3 && sx > 300 && sx < bx) { best = o; bx = sx; } }
+    const kind = best && this.game.obstacleName ? this.game.obstacleName(best.kind) : 'rock';
+    const noun = kind === 'log' ? 'log' : kind === 'bone' ? 'fossil' : 'rock';
+    return { noun, cap: 'A ' + noun };
   }
 
   /* THE ROPE OF THE MIDDLE BLOCK, which is where the cut actually happens.
@@ -440,7 +452,7 @@ export class Tutorial {
     /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
        frozen copy belong to describing steps; the hand belongs to asking ones. */
     const describing = typeof s.advance === 'number';
-    const text = this.follow || s.text;
+    const text = this.follow || (typeof s.text === 'function' ? s.text(g) : s.text);
 
     /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
 
@@ -505,7 +517,7 @@ export class Tutorial {
   setWords(text) {
     const el = this.el.text;
     if (!el) return;
-    const KEY = /^(jump|hop|rope|ropes|cut|swipe|rock|gap|ice|blocks?|mammoth|friend)[!.,?]*$/i;
+    const KEY = /^(jump|hop|rope|ropes|cut|swipe|rock|log|fossil|gap|ice|blocks?|mammoth|friend)[!.,?]*$/i;
     const parts = (text || '').split(/(\s+)/);
     let i = 0, powed = false;
     el.textContent = '';

@@ -2394,7 +2394,9 @@ class AudioManager {
 
   /* ---- the puzzle ---- */
   slice() {
-    if (this.kit('slice', { vary: 0 })) return;          // the same snip every time
+    /* A COMIC SNIP: the kit's slice a little high, and a zip a beat later as the rope
+       lets go — two sounds from one swipe, always the same two (jitter off). */
+    if (this.kit('slice', { pitch: 1.15, vary: 0 })) { this.kit('zip', { delay: 0.06, volume: 0.7, vary: 0 }); return; }
     // cutting the icicle stem: a bright shing, then the stem giving way
     this._noise(0.1, 6200, 'highpass', 0.11, 0.9);
     this._tone(1560, 0.09, 0.04, 'triangle', 2400);
@@ -8193,6 +8195,9 @@ function createGame(canvas, hooks = {}) {
     mammothState: () => mammoth && mammoth.state,
     mammothFrame: () => mammoth ? mammoth.lastSheet + ':' + mammoth.lastFrame : '-',
     debug: () => G,
+    /** 'rock' | 'log' | 'bone' for an obstacle's kind index — the two delivered rocks sit
+        before the eight sliced pieces in the kinds list. The tutorial names what is ahead. */
+    obstacleName(kind) { return kind < 2 ? 'rock' : ((OBSTACLE_ART[kind - 2] || 'rock').split('-')[0]); },
     /** Create the audio graph and start decoding the recordings BEFORE the first gesture,
         so no cue is ever caught half-loaded. Nothing plays until a real tap resumes it. */
     warmAudio() { try { audio.start(); } catch (e) { /* no audio here */ } },
@@ -8272,7 +8277,7 @@ function createGame(canvas, hooks = {}) {
 
 const BUBBLE = {
   fill: '#F9D201',        // the asset's yellow
-  ink: '#111111',         // the asset's keyline, and the text drawn on it
+  ink: '#5A2E0A',         // a cocoa keyline instead of the asset's black, on request; the amber buttons are edged in the same brown
   stroke: 7,              // px, at stage size
   radius: 26,             // px
   tailBase: 0.2,          // fraction of the body width
@@ -8973,7 +8978,9 @@ class Tutorial {
           const sx = this.rockAhead(g);
           return sx === null ? null : { x: sx, y: 780, rx: 150, ry: 140, world: true };
         },
-        text: 'A rock in the way! He cannot walk through it.',
+        /* NAMED FOR WHAT IS ACTUALLY THERE. The obstacle roster has rocks, fallen logs and
+           fossils; a box saying 'rock' over a log taught a child the wrong word. */
+        text: g => this.thingAhead(g).cap + ' in the way! He cannot walk through it.',
         focus: 'rock',
         advance: 0, pause: true
       },
@@ -8999,7 +9006,7 @@ class Tutorial {
         id: 'jumpnow',
         at: () => this.domSpot('#btn-jump', 40) !== null,
         spot: () => this.domSpot('#btn-jump', 40),
-        text: 'Tap it now to jump over the rock!',
+        text: g => 'Tap it now to jump over the ' + this.thingAhead(g).noun + '!',
         advance: 'jumped', pause: false, hand: 'tap', follow: 'Nice hop!'
       },
       {
@@ -9060,6 +9067,16 @@ class Tutorial {
       if (sx > 620 && sx < 1500 && (best === null || sx < best)) best = sx;
     }
     return best;
+  }
+
+  /** The nearest obstacle ahead, as words: { noun: 'rock'|'log'|'fossil', cap: 'A rock'|... }. */
+  thingAhead(g) {
+    const list = this.game._obstacles ? this.game._obstacles().list : [];
+    let best = null, bx = Infinity;
+    for (const o of list) { const sx = o.x - g.worldX; if (!o.passed && o.hits < 3 && sx > 300 && sx < bx) { best = o; bx = sx; } }
+    const kind = best && this.game.obstacleName ? this.game.obstacleName(best.kind) : 'rock';
+    const noun = kind === 'log' ? 'log' : kind === 'bone' ? 'fossil' : 'rock';
+    return { noun, cap: 'A ' + noun };
   }
 
   /* THE ROPE OF THE MIDDLE BLOCK, which is where the cut actually happens.
@@ -9276,7 +9293,7 @@ class Tutorial {
     /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
        frozen copy belong to describing steps; the hand belongs to asking ones. */
     const describing = typeof s.advance === 'number';
-    const text = this.follow || s.text;
+    const text = this.follow || (typeof s.text === 'function' ? s.text(g) : s.text);
 
     /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
 
@@ -9341,7 +9358,7 @@ class Tutorial {
   setWords(text) {
     const el = this.el.text;
     if (!el) return;
-    const KEY = /^(jump|hop|rope|ropes|cut|swipe|rock|gap|ice|blocks?|mammoth|friend)[!.,?]*$/i;
+    const KEY = /^(jump|hop|rope|ropes|cut|swipe|rock|log|fossil|gap|ice|blocks?|mammoth|friend)[!.,?]*$/i;
     const parts = (text || '').split(/(\s+)/);
     let i = 0, powed = false;
     el.textContent = '';
