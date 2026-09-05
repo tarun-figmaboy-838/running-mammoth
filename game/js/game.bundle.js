@@ -4945,6 +4945,8 @@ function createGame(canvas, hooks = {}) {
        * the panel is what silently broke the recall control once before. */
       instruction: G.instrHold > 0 ? G.instruction : '',
       jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
+      // TEMPORARY: whether the review control that jumps to the ending may show
+      skippable: G.state !== 'BOOT' && G.state !== 'TITLE' && !G.complete,
       // the shape that mended each crossing, for the ending's stamps — a string, so the
       // HUD's change detection sees one value rather than a fresh array every frame
       mendedKinds: G.complete ? L1.phases.map(p => p.targets[0]).join(',') : '',
@@ -8289,6 +8291,20 @@ function createGame(canvas, hooks = {}) {
        frame an effect exists on rather than guessing at a delay. */
     _particles: () => particles,
     _force(s) { obstacles.reset(); setState(s); },
+    /** TEMPORARY, for reviewing the ending without playing seven phases: every crossing
+        is counted as mended and the run home starts with the friend a short way ahead, so
+        the real sequence plays — arrival, cross-fade into the dance, confetti, the banner
+        with all seven stamps. Remove with the button in index.html, its rule in style.css,
+        the hud.js lines, tests/skip-end.spec.mjs and the RUNNER note. */
+    skipToEnd() {
+      if (G.state === 'BOOT' || G.state === 'TITLE' || G.complete) return false;
+      G.phase = L1.phases.length; G.phasesDone = L1.phases.length;
+      G.oops = false; G.hitObstacle = null; G.hitReturn = null; G.hitFx = 0;
+      obstacles.reset();                            // nothing in the way of the run home
+      setState('FINAL_RUN');
+      G.bearAt = G.worldX + CFG.mammothX + 520 + 900;   // about a second and a half of running
+      return true;
+    },
     /** Slice a hanging option by shape name — lets a test drive a phase to the end. */
     _cut(kind) {
       if (!G.l1) return false;
@@ -8458,6 +8474,7 @@ class Hud {
       paused: root.getElementById('paused'),
       hand: root.getElementById('hand-hint'),
       jump: root.getElementById('btn-jump'),
+      skipEnd: root.getElementById('btn-skip-end'),   // TEMPORARY review control
       instruction: root.getElementById('instruction'),
       pill: root.getElementById('instruction-pill'),
       text: root.getElementById('instruction-text'),
@@ -8596,6 +8613,8 @@ class Hud {
     // pointerdown (not click) so a tap registers on the same frame it lands.
     // preventDefault also suppresses the browser's own :active state, so the
     // pressed look has to be driven by a class or the button never appears to move.
+    // TEMPORARY review control: jump to the ending. Guarded like every other lookup.
+    if (this.el.skipEnd && handlers.onSkipEnd) this.el.skipEnd.addEventListener('click', () => handlers.onSkipEnd());
     this.el.jump.addEventListener('pointerdown', e => {
       e.preventDefault();
       /* Removed and re-added so the tap ring's animation restarts. A class that is
@@ -8748,6 +8767,8 @@ class Hud {
 
     const showJump = h.jumpEnabled && !h.complete;
     if (this.el.jump.hidden === showJump) this.el.jump.hidden = !showJump;
+    // TEMPORARY review control: up whenever the game is playable and not yet complete
+    if (this.el.skipEnd) { const show = !!h.skippable; if (this.el.skipEnd.hidden === show) this.el.skipEnd.hidden = !show; }
 
     if (h.jumpPulse !== this.lastPulse) {
       this.lastPulse = h.jumpPulse;
@@ -9844,6 +9865,8 @@ hud.bind({
   onPause: paused => game.setPaused(paused),
   onReplay: () => game.restart(),
   onStamp: () => game.sfx('stamp'),
+  // TEMPORARY review control: end the tutorial if it is up, then jump to the ending
+  onSkipEnd: () => { if (tut) { tut.finish(); tut = null; } game.skipToEnd(); },
   onRetry: () => game.retryObstacle(),
   // returns the new state so the HUD can swap the glyph without asking again
   onSound: () => game.toggleSound(),

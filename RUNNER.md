@@ -1007,4 +1007,14 @@ its GIF's native size and has no hd cut; the painted environment (path, sky, cap
 delivered resolution. The art budget test now budgets the two sets apart, because a client
 fetches one of them.
 
+### A temporary review control
+
+"Skip to ending" sits bottom-left during play (`#btn-skip-end`). It calls `game.skipToEnd()`,
+which counts every crossing as mended and starts the run home with the friend a short way
+ahead, so the real ending plays: arrival, cross-fade into the dance, confetti, the banner with
+all seven stamps. It is for reviewing the ending, not part of the game, and comes out in one
+pass: the button in `index.html`, its rule in `style.css`, the three `skipEnd` lines in
+`hud.js`, the `onSkipEnd` handler in `main.js`, `skipToEnd`/`skippable` in `engine.js`, and
+`tests/skip-end.spec.mjs`.
+
 The tutorial names what is ahead — rock, log or fossil — from the obstacle's kind (`obstacleName`).

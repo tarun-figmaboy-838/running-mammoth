@@ -27,6 +27,7 @@ export class Hud {
       paused: root.getElementById('paused'),
       hand: root.getElementById('hand-hint'),
       jump: root.getElementById('btn-jump'),
+      skipEnd: root.getElementById('btn-skip-end'),   // TEMPORARY review control
       instruction: root.getElementById('instruction'),
       pill: root.getElementById('instruction-pill'),
       text: root.getElementById('instruction-text'),
@@ -165,6 +166,8 @@ export class Hud {
     // pointerdown (not click) so a tap registers on the same frame it lands.
     // preventDefault also suppresses the browser's own :active state, so the
     // pressed look has to be driven by a class or the button never appears to move.
+    // TEMPORARY review control: jump to the ending. Guarded like every other lookup.
+    if (this.el.skipEnd && handlers.onSkipEnd) this.el.skipEnd.addEventListener('click', () => handlers.onSkipEnd());
     this.el.jump.addEventListener('pointerdown', e => {
       e.preventDefault();
       /* Removed and re-added so the tap ring's animation restarts. A class that is
@@ -317,6 +320,8 @@ export class Hud {
 
     const showJump = h.jumpEnabled && !h.complete;
     if (this.el.jump.hidden === showJump) this.el.jump.hidden = !showJump;
+    // TEMPORARY review control: up whenever the game is playable and not yet complete
+    if (this.el.skipEnd) { const show = !!h.skippable; if (this.el.skipEnd.hidden === show) this.el.skipEnd.hidden = !show; }
 
     if (h.jumpPulse !== this.lastPulse) {
       this.lastPulse = h.jumpPulse;

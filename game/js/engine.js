@@ -4168,6 +4168,8 @@ export function createGame(canvas, hooks = {}) {
        * the panel is what silently broke the recall control once before. */
       instruction: G.instrHold > 0 ? G.instruction : '',
       jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
+      // TEMPORARY: whether the review control that jumps to the ending may show
+      skippable: G.state !== 'BOOT' && G.state !== 'TITLE' && !G.complete,
       // the shape that mended each crossing, for the ending's stamps — a string, so the
       // HUD's change detection sees one value rather than a fresh array every frame
       mendedKinds: G.complete ? L1.phases.map(p => p.targets[0]).join(',') : '',
@@ -7512,6 +7514,20 @@ export function createGame(canvas, hooks = {}) {
        frame an effect exists on rather than guessing at a delay. */
     _particles: () => particles,
     _force(s) { obstacles.reset(); setState(s); },
+    /** TEMPORARY, for reviewing the ending without playing seven phases: every crossing
+        is counted as mended and the run home starts with the friend a short way ahead, so
+        the real sequence plays — arrival, cross-fade into the dance, confetti, the banner
+        with all seven stamps. Remove with the button in index.html, its rule in style.css,
+        the hud.js lines, tests/skip-end.spec.mjs and the RUNNER note. */
+    skipToEnd() {
+      if (G.state === 'BOOT' || G.state === 'TITLE' || G.complete) return false;
+      G.phase = L1.phases.length; G.phasesDone = L1.phases.length;
+      G.oops = false; G.hitObstacle = null; G.hitReturn = null; G.hitFx = 0;
+      obstacles.reset();                            // nothing in the way of the run home
+      setState('FINAL_RUN');
+      G.bearAt = G.worldX + CFG.mammothX + 520 + 900;   // about a second and a half of running
+      return true;
+    },
     /** Slice a hanging option by shape name — lets a test drive a phase to the end. */
     _cut(kind) {
       if (!G.l1) return false;
