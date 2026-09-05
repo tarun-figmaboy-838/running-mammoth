@@ -154,6 +154,15 @@ game.setOptions(options);
 // first needed falls back to a different sound, which is what made the fit sound vary
 game.warmAudio();
 
+/* JUICE on the controls only. The world is canvas and has its own squash, dust and
+   hit-stop; juice.js is for the DOM: the JUMP button hops when pressed, a stamp pops as
+   it lands, the ending banner does a tada, Play again nudges when ignored. Sound and
+   particles stay off — the engine's audio and particle layers are the single owners. */
+if (window.Juice) {
+  try { Juice.stage(document.getElementById('stage')); Juice.configure({ sound: false, particles: false, intensity: 0.9 }); }
+  catch (e) { /* no juice: the controls still work, they just do not bounce */ }
+}
+
 hud.bind({
   onJump: () => game.jump(),
   onPause: paused => game.setPaused(paused),

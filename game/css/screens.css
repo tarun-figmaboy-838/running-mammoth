@@ -511,6 +511,30 @@
      outline. An outline would fight the amber rim for attention. */
   text-shadow: none;
 }
+/* THE WORDS RISE ONE AFTER ANOTHER — 55ms apart, a small lift and a settle — so a new
+   sentence is spoken rather than pasted. The one key word (.pow) is heavier, deep blue
+   and tilted: a single comic accent that also tells a child which word matters. */
+.tut-text .w {
+  display: inline-block;
+  animation: tutWordIn 460ms cubic-bezier(.2, 1.6, .4, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+.tut-text .pow {
+  font-weight: 900;
+  color: #1E56C4;
+  rotate: -3deg;
+  scale: 1.08;
+  margin: 0 .16em;                     /* the 8% scale eats the word space; give it back */
+  text-shadow: .06em .06em 0 rgba(0, 0, 0, 0.14);
+}
+@keyframes tutWordIn {
+  0%   { opacity: 0; translate: 0 .45em; scale: .78; }
+  70%  { opacity: 1; translate: 0 -.04em; }
+  100% { opacity: 1; translate: 0 0; scale: 1; }
+}
+.tut-text .pow { animation-name: tutWordIn, tutPow; animation-duration: 460ms, 700ms; animation-timing-function: cubic-bezier(.2, 1.6, .4, 1), ease-out; animation-fill-mode: both, both; }
+@keyframes tutPow { 0%, 100% { scale: 1.08; } 40% { scale: 1.22; } }
+@media (prefers-reduced-motion: reduce) { .tut-text .w { animation: none; } .tut-text .pow { animation: none; scale: 1.08; } }
 /* IT LANDS. A slab of stone arriving should have weight, so it comes in from above,
    overshoots past its resting angle, and settles — rather than fading up on the spot.
    Three keyframes instead of two is what buys the settle: without the middle one the

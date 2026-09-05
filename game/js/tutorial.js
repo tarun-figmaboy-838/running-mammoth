@@ -494,6 +494,34 @@ export class Tutorial {
     return out;
   }
 
+  /* THE WORDS, ONE AT A TIME, WITH ONE OF THEM LOUD.
+     Each word is its own span so it can rise into place a beat after the one before —
+     the sentence arrives the way a voice says it, not as a block. The KEY word of the
+     sentence (anything the writer put in capitals, or one of the game's own nouns and
+     verbs) is marked .pow: heavier, deep blue, tilted a few degrees. One accent per
+     sentence at most; the rest stays black on yellow, which is what a new reader needs.
+     textContent of the result equals the plain text, so the change detection above
+     still works. */
+  setWords(text) {
+    const el = this.el.text;
+    if (!el) return;
+    const KEY = /^(jump|hop|rope|ropes|cut|swipe|rock|gap|ice|blocks?|mammoth|friend)[!.,?]*$/i;
+    const parts = (text || '').split(/(\s+)/);
+    let i = 0, powed = false;
+    el.textContent = '';
+    for (const p of parts) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { el.appendChild(document.createTextNode(p)); continue; }
+      const w = document.createElement('span');
+      const loud = !powed && ((p.length > 2 && p === p.toUpperCase() && /[A-Z]/.test(p)) || KEY.test(p));
+      w.className = loud ? 'w pow' : 'w';
+      if (loud) powed = true;
+      w.style.setProperty('--i', i++);
+      w.textContent = p;
+      el.appendChild(w);
+    }
+  }
+
   /* ---- the focus canvas ---- */
   showFocus(kind) {
     const f = this.el.focus;
@@ -573,7 +601,7 @@ export class Tutorial {
        while the real box measured anywhere from 147 to 213. */
     const fresh = !!(this.el.text && this.el.text.textContent !== text);
     if (b && fresh) {
-      this.el.text.textContent = text;
+      this.setWords(text);
       this._boxH = 0;                 // force a re-measure on the new wrap
     }
     if (b) {

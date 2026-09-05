@@ -7,7 +7,7 @@
 <meta name="description" content="A 2D Ice Age runner where geometry repairs the broken ice path." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
 <link rel="stylesheet" href="css/screens.css" />
 <!-- THE PRESSED BUTTON ART, FETCHED UP FRONT.
@@ -243,6 +243,10 @@
        sits outside the module/bundle switch below. The engine reaches it through
        AudioManager.kit() and keeps its own palette as the fallback. -->
   <script src="js/sfx.js"></script>
+  <!-- game feel for the DOM controls (supplied juice.js): additive Web Animations, so it
+       never fights the CSS or the canvas. Sound and its own particles are off — the
+       engine already owns both. -->
+  <script src="js/juice.js"></script>
   <script>
     (function () {
       var s = document.createElement('script');

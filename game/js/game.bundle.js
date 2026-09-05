@@ -1492,6 +1492,8 @@ const CFG = {
     stopWedge: 62,        // ms frozen when a correct chunk seats
     stopSplash: 44,       // ms frozen when a wrong chunk hits the water
     stopHit: 96,          // ms frozen when the character walks into the rock
+    stopLand: 40,         // ms frozen as his feet hit the ice: the trample
+    punchLand: 0.014,     // and the frame's flinch with it
     stopBreak: 110,       // ms frozen on the frame the ice gives way
     stopMax: 130,         // hard ceiling: no event may freeze longer than this
     punchWedge: 0.018, punchHit: 0.026, punchBreak: 0.03, punchWin: 0.022,
@@ -1965,6 +1967,8 @@ class AudioManager {
   popIn() { if (this.kit('pop')) return; this.bloop(); }
   /** A stamp landing on the ending panel — a coin, because it is a collection. */
   stamp() { if (this.kit('coin')) return; this._note(7, 0.12, 0.05, 'triangle'); }
+  /** The trample's splat, under the landing thud land() already plays. */
+  trample() { this.kit('splat', { volume: 0.55, vary: 0 }); }
   start() {
     if (this.ctx || !this.enabled) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -6618,6 +6622,20 @@ function createGame(canvas, hooks = {}) {
     bgm.update(dt, G.progress);
     atmos.update(dt, G.progress);
     mammoth.update(dt, performance.now(), G.moving && G.speedFactor > 0.2, G.speedFactor);
+    /* THE TRAMPLE — a landing with weight. The kit's own recipe for it is anticipation,
+       deep squash, a ring of dust, shake, hit-stop and land+splat; the character already
+       crouches before the jump and squashes and poofs on landing, so what was missing was
+       the frame holding still and flinching as his feet hit, and the splat under the thud.
+       Fired once per landing, on the first frame of LAND. */
+    if (mammoth.state === 'LAND') {
+      if (!G.trampled) {
+        G.trampled = true;
+        shake(reduced ? 1 : 2.4, 150);
+        hitStop(CFG.juice.stopLand);
+        punch(CFG.juice.punchLand, 220, CFG.mammothX, CFG.surfaceY);
+        audio.trample();
+      }
+    } else G.trampled = false;
     particles.update(dt);
     // the last argument is what stops one bump burning all three strikes while
     // the world is stopped behind the Ouch card — see ObstacleController.update
@@ -8399,6 +8417,8 @@ class Hud {
     const tick = () => {
       i++;
       if (count) count.textContent = String(i);
+      const st = row.children[i - 1];
+      if (st && window.Juice) { try { Juice.pop(st, { power: 1.1 }); } catch (e) { /* no juice */ } }
       if (this.handlers && this.handlers.onStamp) this.handlers.onStamp();
       if (i < kinds.length) this._winTimer = setTimeout(tick, 170);
     };
@@ -8408,6 +8428,14 @@ class Hud {
        after the pop-in has settled, because the box measures differently mid-bounce. */
     const fit = () => { if (this.el.winShape && this.el.winBubble) fitBubble(this.el.winShape, this.el.winBubble, null); };
     fit(); setTimeout(fit, 600); this._winFit = fit;
+    if (window.Juice) {
+      setTimeout(() => { try { Juice.tada(this.el.winBubble); } catch (e) { /* no juice */ } }, 700);
+      clearInterval(this._nudge);
+      this._nudge = setInterval(() => {
+        if (!this.el.complete || this.el.complete.hidden) { clearInterval(this._nudge); return; }
+        try { Juice.nudge(this.el.replay); } catch (e) { clearInterval(this._nudge); }
+      }, 3800);
+    }
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
@@ -8425,6 +8453,7 @@ class Hud {
       this.el.jump.classList.remove('pressed');
       void this.el.jump.offsetWidth;
       this.el.jump.classList.add('pressed');
+      if (window.Juice) { try { Juice.hop(this.el.jump, { power: 0.8 }); } catch (e) { /* no juice */ } }
       handlers.onJump();
     });
     const release = () => this.el.jump.classList.remove('pressed');
@@ -8445,7 +8474,7 @@ class Hud {
     // as one family
     const press = (btn, fn) => {
       if (!btn) return;
-      btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.classList.add('pressed'); });
+      btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.classList.add('pressed'); if (window.Juice) { try { Juice.pop(btn, { power: 0.6 }); } catch (err) { /* no juice */ } } });
       const off = () => btn.classList.remove('pressed');
       btn.addEventListener('pointerup', off);
       btn.addEventListener('pointercancel', off);
@@ -9227,6 +9256,34 @@ class Tutorial {
     return out;
   }
 
+  /* THE WORDS, ONE AT A TIME, WITH ONE OF THEM LOUD.
+     Each word is its own span so it can rise into place a beat after the one before —
+     the sentence arrives the way a voice says it, not as a block. The KEY word of the
+     sentence (anything the writer put in capitals, or one of the game's own nouns and
+     verbs) is marked .pow: heavier, deep blue, tilted a few degrees. One accent per
+     sentence at most; the rest stays black on yellow, which is what a new reader needs.
+     textContent of the result equals the plain text, so the change detection above
+     still works. */
+  setWords(text) {
+    const el = this.el.text;
+    if (!el) return;
+    const KEY = /^(jump|hop|rope|ropes|cut|swipe|rock|gap|ice|blocks?|mammoth|friend)[!.,?]*$/i;
+    const parts = (text || '').split(/(\s+)/);
+    let i = 0, powed = false;
+    el.textContent = '';
+    for (const p of parts) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { el.appendChild(document.createTextNode(p)); continue; }
+      const w = document.createElement('span');
+      const loud = !powed && ((p.length > 2 && p === p.toUpperCase() && /[A-Z]/.test(p)) || KEY.test(p));
+      w.className = loud ? 'w pow' : 'w';
+      if (loud) powed = true;
+      w.style.setProperty('--i', i++);
+      w.textContent = p;
+      el.appendChild(w);
+    }
+  }
+
   /* ---- the focus canvas ---- */
   showFocus(kind) {
     const f = this.el.focus;
@@ -9306,7 +9363,7 @@ class Tutorial {
        while the real box measured anywhere from 147 to 213. */
     const fresh = !!(this.el.text && this.el.text.textContent !== text);
     if (b && fresh) {
-      this.el.text.textContent = text;
+      this.setWords(text);
       this._boxH = 0;                 // force a re-measure on the new wrap
     }
     if (b) {
@@ -9585,6 +9642,15 @@ game.setOptions(options);
 // decode the recordings now, not on the first tap: a cue that is still loading when it is
 // first needed falls back to a different sound, which is what made the fit sound vary
 game.warmAudio();
+
+/* JUICE on the controls only. The world is canvas and has its own squash, dust and
+   hit-stop; juice.js is for the DOM: the JUMP button hops when pressed, a stamp pops as
+   it lands, the ending banner does a tada, Play again nudges when ignored. Sound and
+   particles stay off — the engine's audio and particle layers are the single owners. */
+if (window.Juice) {
+  try { Juice.stage(document.getElementById('stage')); Juice.configure({ sound: false, particles: false, intensity: 0.9 }); }
+  catch (e) { /* no juice: the controls still work, they just do not bounce */ }
+}
 
 hud.bind({
   onJump: () => game.jump(),

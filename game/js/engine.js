@@ -715,6 +715,8 @@ export const CFG = {
     stopWedge: 62,        // ms frozen when a correct chunk seats
     stopSplash: 44,       // ms frozen when a wrong chunk hits the water
     stopHit: 96,          // ms frozen when the character walks into the rock
+    stopLand: 40,         // ms frozen as his feet hit the ice: the trample
+    punchLand: 0.014,     // and the frame's flinch with it
     stopBreak: 110,       // ms frozen on the frame the ice gives way
     stopMax: 130,         // hard ceiling: no event may freeze longer than this
     punchWedge: 0.018, punchHit: 0.026, punchBreak: 0.03, punchWin: 0.022,
@@ -1188,6 +1190,8 @@ class AudioManager {
   popIn() { if (this.kit('pop')) return; this.bloop(); }
   /** A stamp landing on the ending panel — a coin, because it is a collection. */
   stamp() { if (this.kit('coin')) return; this._note(7, 0.12, 0.05, 'triangle'); }
+  /** The trample's splat, under the landing thud land() already plays. */
+  trample() { this.kit('splat', { volume: 0.55, vary: 0 }); }
   start() {
     if (this.ctx || !this.enabled) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -5841,6 +5845,20 @@ export function createGame(canvas, hooks = {}) {
     bgm.update(dt, G.progress);
     atmos.update(dt, G.progress);
     mammoth.update(dt, performance.now(), G.moving && G.speedFactor > 0.2, G.speedFactor);
+    /* THE TRAMPLE — a landing with weight. The kit's own recipe for it is anticipation,
+       deep squash, a ring of dust, shake, hit-stop and land+splat; the character already
+       crouches before the jump and squashes and poofs on landing, so what was missing was
+       the frame holding still and flinching as his feet hit, and the splat under the thud.
+       Fired once per landing, on the first frame of LAND. */
+    if (mammoth.state === 'LAND') {
+      if (!G.trampled) {
+        G.trampled = true;
+        shake(reduced ? 1 : 2.4, 150);
+        hitStop(CFG.juice.stopLand);
+        punch(CFG.juice.punchLand, 220, CFG.mammothX, CFG.surfaceY);
+        audio.trample();
+      }
+    } else G.trampled = false;
     particles.update(dt);
     // the last argument is what stops one bump burning all three strikes while
     // the world is stopped behind the Ouch card — see ObstacleController.update

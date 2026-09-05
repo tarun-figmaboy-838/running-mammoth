@@ -936,3 +936,13 @@ whatever box the words need; `fitBubble(svg, box, {side, at, lean})` fits it to 
 element, flipping the SVG (never the text) for a tail on top. The tutorial aims the tail
 at its target and rebuilds only when the box or the aim changes; the banner has no tail
 and refits on resize. Every knob is in `BUBBLE` (fill, ink, stroke, radius, tail size).
+
+### Comic type, juice on the controls, the trample
+
+The bubble's words rise in one at a time (`Tutorial.setWords`, 55 ms apart) and the one key
+word of a sentence — capitals, or one of the game's nouns and verbs — is `.pow`: Baloo 2 at
+900, deep blue `#1E56C4`, tilted 3°, one per sentence. `js/juice.js` (supplied) runs on the
+DOM controls only, sound and particles off: the JUMP button hops when pressed, icon buttons
+pop, each ending stamp pops as it lands, the banner does a tada, Play again nudges every
+3.8 s while ignored. The trample (item 4) is the landing: crouch, deep squash, dust, a 40 ms
+hit-stop with a flinch of the frame, shake, and a splat under the thud.

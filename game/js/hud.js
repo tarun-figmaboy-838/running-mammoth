@@ -132,6 +132,8 @@ export class Hud {
     const tick = () => {
       i++;
       if (count) count.textContent = String(i);
+      const st = row.children[i - 1];
+      if (st && window.Juice) { try { Juice.pop(st, { power: 1.1 }); } catch (e) { /* no juice */ } }
       if (this.handlers && this.handlers.onStamp) this.handlers.onStamp();
       if (i < kinds.length) this._winTimer = setTimeout(tick, 170);
     };
@@ -141,6 +143,14 @@ export class Hud {
        after the pop-in has settled, because the box measures differently mid-bounce. */
     const fit = () => { if (this.el.winShape && this.el.winBubble) fitBubble(this.el.winShape, this.el.winBubble, null); };
     fit(); setTimeout(fit, 600); this._winFit = fit;
+    if (window.Juice) {
+      setTimeout(() => { try { Juice.tada(this.el.winBubble); } catch (e) { /* no juice */ } }, 700);
+      clearInterval(this._nudge);
+      this._nudge = setInterval(() => {
+        if (!this.el.complete || this.el.complete.hidden) { clearInterval(this._nudge); return; }
+        try { Juice.nudge(this.el.replay); } catch (e) { clearInterval(this._nudge); }
+      }, 3800);
+    }
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
@@ -158,6 +168,7 @@ export class Hud {
       this.el.jump.classList.remove('pressed');
       void this.el.jump.offsetWidth;
       this.el.jump.classList.add('pressed');
+      if (window.Juice) { try { Juice.hop(this.el.jump, { power: 0.8 }); } catch (e) { /* no juice */ } }
       handlers.onJump();
     });
     const release = () => this.el.jump.classList.remove('pressed');
@@ -178,7 +189,7 @@ export class Hud {
     // as one family
     const press = (btn, fn) => {
       if (!btn) return;
-      btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.classList.add('pressed'); });
+      btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.classList.add('pressed'); if (window.Juice) { try { Juice.pop(btn, { power: 0.6 }); } catch (err) { /* no juice */ } } });
       const off = () => btn.classList.remove('pressed');
       btn.addEventListener('pointerup', off);
       btn.addEventListener('pointercancel', off);
