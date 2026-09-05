@@ -120,6 +120,11 @@ const SHEETS = [
      one sheet. The GIFs in art-source/gif are the archive; the grids are build
      intermediates and there is now exactly one per slot. */
   { src: 'skid-new-gif.png',  slot: 'skid',  bob: false },
+  /* THE TREMBLE AT THE EDGE — the delivered 36-frame loop of the character standing
+     nervous, shifting his weight and glancing about. LOOK_DOWN plays it for as long as
+     the learner thinks, which is the 'tribbling' the brief kept asking for: before this
+     the fright ended on a held frame and the character stood stone still at the hole. */
+  { src: 'tremble-gif.png', slot: 'tremble', bob: false },
   /* THE FRIGHT AT THE EDGE — the sheet SHAKE and LOOK_DOWN have been missing.
      Both states existed and had no art of their own: they fell back to a pose out of
      the jump sheet, so the one beat the whole puzzle hangs on — the character arriving
@@ -453,7 +458,12 @@ for (const m of measured) {
 
   const outName = `mammoth-${m.slot}.webp`;
   if (!REPORT) {
-    await strip.webp({ nearLossless: true, quality: 88, effort: 5, alphaQuality: 100 })
+    /* LOSSY AT 82, NOT NEAR-LOSSLESS. Near-lossless made every 36-frame sheet about 1.4MB;
+       with a seventh sheet (the tremble) the referenced art passed the 12MB budget the
+       assets test holds, and a phone on a slow connection was paying for a difference no
+       eye can see on painted cartoon sprites. alphaQuality stays at 100 so the edges,
+       which ARE visible, keep their exact silhouettes. */
+    await strip.webp({ quality: 82, effort: 5, alphaQuality: 100 })
       .toFile(join(OUT, outName));
   }
 

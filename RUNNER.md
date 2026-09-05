@@ -960,3 +960,12 @@ The run home ends with the bear 520 px from the mammoth — exactly where the da
 him — so the cross-fade moves nobody; the pair then glides to centre stage over 900 ms. The
 card is the title and the seven stamps only, level and smaller; a tap on a stamp pops it and
 rings its coin, a tap on the dancers poofs and honks, a tap on the water splashes.
+
+### The tremble (item 4), and the sheets' size
+
+`mammoth-tremble.webp` is the delivered 36-frame nervous loop (`art-source/gif/tremble-new.gif`),
+built through the same pipeline as every other sheet so its size and foot line match. LOOK_DOWN
+plays it at 12.5 fps for as long as the learner thinks; the fright (SHAKE) still plays once
+before it. The slicer now encodes lossy at quality 82 with alpha at 100: seven near-lossless
+sheets (1.4 MB each) would have passed the 12 MB art budget, and painted sprites do not show the
+difference — the set went from 9.7 MB to 3.4 MB.

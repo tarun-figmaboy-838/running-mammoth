@@ -149,6 +149,8 @@ export const CFG = {
     /* The delivered idle is authored at 60ms a frame like the rest, so 16.67fps plays
        it at the speed it was drawn for — 36 frames is a 2.16s breathing loop. */
     idleFps: 16.67,
+    // the tremble is authored at 80ms a frame: 12.5fps plays it at the speed it was drawn
+    trembleFps: 12.5,
     // 16 frames at 15fps is 1.07s, and the Try Again card comes in at T.knockout
     // (1100ms) — so the crash finishes playing just as the card arrives
     koFps: 15
@@ -211,6 +213,11 @@ export const CFG = {
 
            So the 1.5MB is now paying for something. */
         idle: 'assets/char/mammoth-idle.webp',
+        /* THE TREMBLE — standing at the edge, nervous, shifting his weight and glancing
+           about. LOOK_DOWN loops it for as long as the learner thinks. Before this the
+           fright ended on a held frame, and a character who stands stone still at a hole
+           for a minute reads as a hung game; this is the 'tribbling' the brief asked for. */
+        tremble: 'assets/char/mammoth-tremble.webp',
         /* The note that used to be here explained why it was absent:
          *
          * mammoth-idle.webp is built by tools/slice-char.mjs and sits in this folder
@@ -228,7 +235,7 @@ export const CFG = {
       /* Straight from tools/slice-char.mjs — the sheets are built to these counts, so
          the two move together. The run is 20 because the source art had 20 and the
          cycle is distance-driven, so it is simply smoother; nothing else changes. */
-      frames: { run: 36, jump: 10, skid: 36, shake: 36, hurt: 36, idle: 36 },
+      frames: { run: 36, jump: 10, skid: 36, shake: 36, hurt: 36, idle: 36, tremble: 36 },
       /* The knockout art has a ring of stars and spiral eyes DRAWN IN. The engine's
          own circling stars would be a second set — the fault docs/ANIMATION.md warns
          about. They were off for that reason, and then asked for by name: the sheet's
@@ -2506,6 +2513,7 @@ class PlayerController {
     this.sheet = img('run'); this.jumpSheet = img('jump');
     this.skidSheet = img('skid'); this.shakeSheet = img('shake');
     this.idleSheet = img('idle');          // the standing loop for LOOK_DOWN
+    this.trembleSheet = img('tremble');    // the nervous loop at the edge
     this.hurtSheet = img('hurt');          // optional; falls back to reversed shake
     /* NO per-frame correction any more, and that is a fix rather than a removal.
 
@@ -2861,7 +2869,13 @@ class PlayerController {
            minutes, and a startled face held that long reads as the game having hung. */
         // if (this.idleSheet && F.idle) {
         //   sheet = this.idleSheet; f = Math.floor(this.t * SP.idleFps) % F.idle;
-        // } else
+        /* THE TREMBLE LOOPS while he stands at the hole. The fright (SHAKE) has played
+           once by now and settled him; from here he shifts and glances for as long as
+           the learner takes. The delivered loop, at its authored rate. */
+        if (this.trembleSheet && F.tremble) {
+          sheet = this.trembleSheet; f = Math.floor(this.t * SP.trembleFps) % F.tremble;
+          break;
+        }
         if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = F.shake - 1; }
         else f = J.idle;
         break;
@@ -2943,7 +2957,7 @@ class PlayerController {
     this.lastFrame = f;
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
-      : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : '?';
+      : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : sheet === this.trembleSheet ? 'tremble' : '?';
     /* GROUNDED poses are placed on THIS frame's own footline. A run cycle's vertical
        variation is the bob and has to be kept, and an airborne frame's tucked legs are
        the art; but a pose the character holds while standing still has no business
