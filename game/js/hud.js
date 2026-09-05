@@ -125,6 +125,11 @@ export class Hud {
         const d = pts.map(p => ((p.x - cx) * s + 50).toFixed(1) + ',' + ((p.y - cy) * s + 50).toFixed(1)).join(' ');
         el.innerHTML = '<svg viewBox="0 0 100 100" aria-hidden="true"><polygon points="' + d + '"/></svg>';
       }
+      el.addEventListener('pointerdown', ev => {
+        ev.preventDefault();
+        if (window.Juice) { try { Juice.pop(el, { power: 1.2 }); } catch (e) { /* no juice */ } }
+        if (this.handlers && this.handlers.onStamp) this.handlers.onStamp();
+      });
       row.appendChild(el);
     });
     clearTimeout(this._winTimer);

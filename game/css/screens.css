@@ -668,18 +668,21 @@
   /* A BANNER ACROSS THE TOP now, not a speech bubble off the bear: the two of them are
      dancing in the middle of the stage and the words are the narrator's, so they sit
      above the scene, centred, with no tail. */
+  /* Smaller and LEVEL. The card was a third of the stage and tilted, and it competed with
+     the dance; it now holds the title and the seven stamps and nothing else, sits square,
+     and leaves the middle of the screen to the two of them. */
   left: 50%;
-  top: 1%;
-  width: min(58vw, 1000px);
+  top: 1.5%;
+  width: min(42vw, 720px);
   translate: -50% 0;
-  rotate: -1.4deg;
+  rotate: 0deg;
   pointer-events: none;
   animation: winIn 520ms cubic-bezier(.2, 1.7, .35, 1) both;
 }
 @keyframes winIn {
-  0%   { scale: .6;  rotate: -12deg; translate: -50% -40px; opacity: 0; }
-  60%  { scale: 1.05; rotate: 1.4deg; translate: -50% 6px;  opacity: 1; }
-  100% { scale: 1;   rotate: -1.4deg; translate: -50% 0;    opacity: 1; }
+  0%   { scale: .6;  translate: -50% -40px; opacity: 0; }
+  60%  { scale: 1.06; translate: -50% 6px;  opacity: 1; }
+  100% { scale: 1;   translate: -50% 0;    opacity: 1; }
 }
 .win-shape {
   position: absolute;
@@ -743,6 +746,8 @@
   box-shadow: inset 0 0 0 clamp(2px, 0.2vw, 4px) #7A4A0A, 0 clamp(3px, 0.3vw, 6px) 0 #7A4A0A;
   display: grid;
   place-items: center;
+  pointer-events: auto;                 /* a stamp answers a tap: it pops and rings its coin */
+  cursor: pointer;
   opacity: 0;
   scale: .2;
   animation: stampIn 460ms cubic-bezier(.2, 1.7, .4, 1) forwards;

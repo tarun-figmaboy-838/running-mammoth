@@ -3492,6 +3492,62 @@ class GroundManager {
      Drawn before the path strip and inside the same gap clip, so the rock overlaps it
      from above and it never paints into a crevasse — there, the crevasse draws its own
      stretch of the same water. */
+  /* THE RIVER LIVES. The water band at the foot of the stage was a gradient with nine
+     drifting streaks — correct, and dead. Four small things, all on the game clock and
+     none of them touching play, make it a place: a bright broken CREST riding the wave;
+     snow-capped FLOES from the platform sheet drifting with the world at 0.6x (they are
+     far below, so they move slower) and bobbing on the wave; a FISH, now and then, a dark
+     shape gliding under the surface with its tail flicking; and BUBBLES rising near the
+     shore. Drawn after the platform, so the floes can break the water line. Kept small
+     and few: the band is fifty pixels tall and it is scenery, not a second game. */
+  drawRiverLife(ctx, worldX, t) {
+    const wy = CFG.surfaceY + CFG.levelOne.waterDepth;
+    if (wy > CFG.H) return;
+    const band = CFG.H - wy;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(236,252,255,0.85)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.setLineDash([26, 38]); ctx.lineDashOffset = -t * 40;
+    ctx.beginPath();
+    for (let px = -10; px <= CFG.W + 10; px += 12) { const y = this.waterY(px, t) + 3; if (px === -10) ctx.moveTo(px, y); else ctx.lineTo(px, y); }
+    ctx.stroke(); ctx.setLineDash([]);
+    const fl = this.floes || [];
+    if (fl.length) {
+      const spacing = 620, off = worldX * 0.6;
+      for (let k = Math.floor((off - 200) / spacing); k <= Math.floor((off + CFG.W + 200) / spacing); k++) {
+        const img = fl[Math.abs(k) % fl.length];
+        const seed = ((Math.abs(k) * 7919) % 97) / 97;
+        const sx = k * spacing - off + seed * 300;
+        if (sx < -160 || sx > CFG.W + 160) continue;
+        const w = 46 + seed * 22, h = w * img.height / img.width;
+        const y = this.waterY(sx, t) + 4 - h * 0.62 + Math.sin(t * 1.3 + k) * 1.5;
+        ctx.save();
+        ctx.translate(sx, y); ctx.rotate(Math.sin(t * 0.9 + k * 1.7) * 0.06);
+        ctx.drawImage(img, -w / 2, 0, w, h);
+        ctx.restore();
+      }
+    }
+    const period = 9.5, u = (t % period) / period;
+    if (u < 0.42) {
+      const dir = Math.floor(t / period) % 2 ? -1 : 1;
+      const fx = dir > 0 ? -60 + (u / 0.42) * (CFG.W + 120) : CFG.W + 60 - (u / 0.42) * (CFG.W + 120);
+      const fy = wy + band * 0.58 + Math.sin(t * 6) * 3;
+      ctx.save(); ctx.translate(fx, fy); ctx.scale(dir, 1);
+      ctx.fillStyle = 'rgba(8,52,84,0.55)';
+      ctx.beginPath(); ctx.ellipse(0, 0, 22, 8, 0, 0, 6.2832); ctx.fill();
+      const flick = Math.sin(t * 14) * 4;
+      ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(-32, -8 + flick); ctx.lineTo(-32, 8 + flick); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(200,240,255,0.7)'; ctx.beginPath(); ctx.arc(10, -2, 1.8, 0, 6.2832); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = 'rgba(226,248,255,0.55)';
+    for (let i = 0; i < 5; i++) {
+      const ph = (t * 0.35 + i * 0.23) % 1;
+      const bx = ((i * 0.41 + 0.07) % 1) * CFG.W + Math.sin(t * 2 + i) * 6;
+      const by = CFG.H - ph * band;
+      ctx.beginPath(); ctx.arc(bx, by, 1.6 + (1 - ph) * 2.2, 0, 6.2832); ctx.fill();
+    }
+    ctx.restore();
+  }
   drawDeepWater(ctx, t) {
     const wy = CFG.surfaceY + CFG.levelOne.waterDepth;
     if (wy > CFG.H) return;
@@ -4138,6 +4194,8 @@ export function createGame(canvas, hooks = {}) {
     // the carved ends of a platform, cut from the supplied pathui.png — see GroundManager.drawCap
     jobs.push(loadImg('assets/env/cap-l.webp').then(i => { images.capL = i; }));
     jobs.push(loadImg('assets/env/cap-r.webp').then(i => { images.capR = i; }));
+    // two small snow-capped chunks off the platform sheet: the floes drifting on the river
+    for (let r = 1; r <= 2; r++) jobs.push(loadImg('assets/env/floe-' + r + '.webp').then(img => { (images.floes = images.floes || [])[r - 1] = img; }));
     // the platform's own stone base, cut from the same sheet: the crevasse walls are tiled from it
     jobs.push(loadImg('assets/env/rock-band.webp').then(i => { images.rockBand = i; }));
 
@@ -6033,7 +6091,10 @@ export function createGame(canvas, hooks = {}) {
            bear at screen x 327, a hundred pixels BEHIND the character: he had gone past
            his own friend. The gap has to clear the character position plus room for the
            two of them to stand side by side. */
-        if (G.bearAt) { if (G.bearAt - G.worldX <= CFG.mammothX + 265) setState('COMPLETE'); }
+        /* 520, not 265: the dance sheet has the bear 520px right of the mammoth (DUO.bearCx -
+           DUO.mammothCx, scaled). The run home ends with him standing exactly there, so the
+           cross-fade into the dance moves neither of them and nothing overlaps. */
+        if (G.bearAt) { if (G.bearAt - G.worldX <= CFG.mammothX + 520) setState('COMPLETE'); }
         else if (G.progress >= 0.999) setState('COMPLETE');
         break;
     }
@@ -6860,6 +6921,18 @@ export function createGame(canvas, hooks = {}) {
   const taps = [];
   function addTap(x, y) {
     taps.push({ x, y, t: 0 });
+    /* A TAP ON THE WATER SPLASHES. The river is the one part of the stage a child can
+       poke at with no consequence for the puzzle, so it answers: a small splash, a ring,
+       and the splat. State-blind like the tap mark itself. */
+    const wy = CFG.surfaceY + CFG.levelOne.waterDepth;
+    if (y > wy - 8 && !reduced) { particles.splash(x, Math.max(y, wy), 14); particles.ring(x, wy + 6, 10, 70); audio.splash(); }
+    /* AND A TAP ON THE DANCERS at the end gets a poof at their feet and a honk — the
+       screen that stays up longest should be the one that answers most. */
+    const R = G.duoRect;
+    if (G.state === 'COMPLETE' && R && x > R.x && x < R.x + R.w && y > R.y && y < R.y + R.h) {
+      if (!reduced) particles.poof(x, CFG.surfaceY, 4, 1);
+      audio.toot();
+    }
     if (taps.length > 6) taps.shift();
   }
   function updateTaps(dt) {
@@ -7103,7 +7176,13 @@ export function createGame(canvas, hooks = {}) {
     const f = Math.floor(G.st / (1000 / DUO.fps)) % DUO.n;
     const sx = (f % DUO.cols) * DUO.cw, sy = Math.floor(f / DUO.cols) * DUO.ch;
     const k = DUO.scale, w = DUO.cw * k, h = DUO.ch * k;
-    const x = CFG.mammothX - DUO.mammothCx * k, y = CFG.surfaceY - DUO.feet * k;
+    /* CENTRED, by a glide. The pair fades in where the run ended (the mammoth at his x)
+       and then shuffles to the middle of the stage over 900ms, eased — a shuffle, not a
+       cut, so there is no jump; two dancers drifting to centre stage is what dancers do. */
+    const x0 = CFG.mammothX - DUO.mammothCx * k, xc = CFG.W / 2 - w / 2;
+    const glide = easeInOut(clamp((G.st - 300) / 900, 0, 1));
+    const x = x0 + (xc - x0) * glide, y = CFG.surfaceY - DUO.feet * k;
+    G.duoRect = { x, y, w, h };
     if (f !== G.duoFrame) {
       G.duoFrame = f;
       if (!reduced && f % 9 === 0) {
@@ -7174,6 +7253,7 @@ export function createGame(canvas, hooks = {}) {
     // the pool surface closes over anything that fell into it
     ground.drawWaterFront(ctx, G.worldX, G.t);
     ground.draw(ctx, G.worldX, G.t);
+    ground.drawRiverLife(ctx, G.worldX, G.t);
     drawCracks(ctx);
     drawRepairedPieces(ctx);
     obstacles.draw(ctx, G.worldX, G.t);
@@ -7387,6 +7467,7 @@ export function createGame(canvas, hooks = {}) {
     ground = new GroundManager(images.path);
     ground.caps = { l: images.capL || null, r: images.capR || null };
     ground.rockBand = images.rockBand || null;
+    ground.floes = (images.floes || []).filter(Boolean);
     obstacles = new ObstacleController(
       [images.rockWide, images.rockTall, ...OBSTACLE_ART.map(k => images['obs:' + k])],
       audio, particles);

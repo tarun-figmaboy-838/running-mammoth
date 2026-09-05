@@ -946,3 +946,17 @@ DOM controls only, sound and particles off: the JUMP button hops when pressed, i
 pop, each ending stamp pops as it lands, the banner does a tada, Play again nudges every
 3.8 s while ignored. The trample (item 4) is the landing: crouch, deep squash, dust, a 40 ms
 hit-stop with a flinch of the frame, shake, and a splat under the thud.
+
+### The river lives
+
+`GroundManager.drawRiverLife`: a dashed crest riding the wave, snow-capped floes from the
+platform sheet (`floe-1/2.webp`) drifting at 0.6× and bobbing, a fish silhouette gliding under
+the surface every 9.5 s, bubbles near the shore — and a tap on the water splashes (`addTap`).
+Scenery on the game clock; nothing reads it back into play.
+
+### The ending, tightened
+
+The run home ends with the bear 520 px from the mammoth — exactly where the dance sheet has
+him — so the cross-fade moves nobody; the pair then glides to centre stage over 900 ms. The
+card is the title and the seven stamps only, level and smaller; a tap on a stamp pops it and
+rings its coin, a tap on the dancers poofs and honks, a tap on the water splashes.
