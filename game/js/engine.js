@@ -15,6 +15,17 @@ import { pointsOf as verifiedPoints, sidesOf as verifiedSides } from './polygons
    count or convexity disagrees with what the curriculum calls that shape — so the
    number a learner counts on screen is the number the game is checking. */
 import { optionShapes } from './option-shapes.js';
+import { ASSET_V } from './asset-versions.js';
+
+/* EVERY ASSET URL GOES THROUGH HERE. The deployment caches game/assets as immutable for a
+   year; the sheets were rebuilt under the same names and every returning browser drew from
+   the stale strips it had — no character at all. The file's content hash on the URL is what
+   makes a changed file a new fetch and an unchanged one a cache hit. Generated at build
+   time (tools/build-bundle.mjs -> js/asset-versions.js). Paths in CFG stay bare. */
+export function assetUrl(src) {
+  const v = ASSET_V[src];
+  return v ? src + '?v=' + v : src;
+}
 
 export const CFG = {
   W: 1920, H: 1080,
@@ -707,7 +718,8 @@ export const CFG = {
     recoilMs: 260,
     peerPx: 15,           // ...then lean in for a look
     gulpEvery: 2.3,       // a swallow, so a long think never reads as a hung game
-    sweatEvery: 0.42,
+    sweatEvery: 0.9,      // a drop this often for the first six seconds at the edge...
+    sweatLater: 3,        // ...then this often for as long as the learner thinks
     wobbleX: 5.6,         // px of sideways knock at full fright, before sprite scale
     wobbleRot: 0.05,      // radians of nervous roll
     wobbleSq: 0.05,       // jelly squash, as a fraction
@@ -1293,7 +1305,7 @@ class AudioManager {
      * driven by element volume", so ducking and fading work either way. */
     const direct = typeof location !== 'undefined' && location.protocol === 'file:';
     try {
-      const el = new Audio(M.src);
+      const el = new Audio(assetUrl(M.src));
       el.loop = true;
       el.preload = 'auto';
       if (direct) {
@@ -1348,7 +1360,7 @@ class AudioManager {
       this.sfxLoading = true;
       this.sfxEl = {};
       for (const [name, cue] of Object.entries(CFG.sfx || {})) {
-        const el = new Audio(cue.src);
+        const el = new Audio(assetUrl(cue.src));
         el.preload = 'auto';
         el.volume = Math.min(1, cue.gain || 0.5);
         this.sfxEl[name] = { cue, hits: SFX_HITS[name] || [cue.at || 0], el, next: 0 };
@@ -1362,7 +1374,7 @@ class AudioManager {
       try {
         if (!byUrl.has(cue.src)) {
           byUrl.set(cue.src, (async () => {
-            const res = await fetch(cue.src);
+            const res = await fetch(assetUrl(cue.src));
             if (!res.ok) throw new Error(res.status + ' ' + cue.src);
             return this.ctx.decodeAudioData(await res.arrayBuffer());
           })());
@@ -1972,11 +1984,15 @@ class ParticleManager {
   }
   /* COMICAL SWEAT. Flicked off the head, up and away, then falls. One bead at a time
      rather than a spray: a shower of them reads as rain, and the joke is one bead. */
+  /* COMIC SWEAT. It used to be one 6px bead every 0.4s for about a second — nobody saw it
+     ("the sweat effect not look evident"). Cartoon sweat is a FLICK: a few big glossy drops
+     thrown off the temple in an arc, with motion lines behind them, slow enough to be read.
+     The stop throws a burst of three; the wait adds an occasional one (PlayerController). */
   sweat(x, y, n = 1) {
-    this.spawn(n, () => ({
-      x: x + rand(-10, 10), y: y + rand(-8, 8),
-      vx: rand(90, 210), vy: rand(-300, -190),
-      r: rand(6, 9.5), dur: rand(0.55, 0.8), kind: 'sweat',
+    this.spawn(n, i => ({
+      x: x + rand(-8, 8), y: y + rand(-10, 6),
+      vx: rand(130, 270) + i * 30, vy: rand(-380, -250) - i * 25,
+      r: rand(11, 16), dur: rand(0.85, 1.15), kind: 'sweat',
       rot: 0, vr: 0
     }));
   }
@@ -2022,7 +2038,7 @@ class ParticleManager {
         continue;
       }
       p.vy += (p.kind === 'ice' ? 900 : p.kind === 'water' ? 1500
-             : p.kind === 'sparkle' ? 90 : p.kind === 'sweat' ? 1100 : 520) * dt;
+             : p.kind === 'sparkle' ? 90 : p.kind === 'sweat' ? 760 : 520) * dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.vr) p.rot += p.vr * dt;
       p.life = 1 - p.t / p.dur;
@@ -2080,11 +2096,18 @@ class ParticleManager {
         }
         ctx.restore();
       } else if (p.kind === 'sweat') {
-        /* A cartoon bead: a teardrop with a white catchlight, tipped along its travel
-           so it reads as flicked off rather than dropped. */
+        /* A cartoon bead: a big teardrop with a white catchlight, tipped along its travel
+           so it reads as flicked off rather than dropped, with two motion lines trailing
+           it — the comic shorthand for "flung". It pops in over its first 120ms. */
         ctx.save();
         ctx.translate(p.x, p.y);
+        const pop = 0.6 + 0.4 * Math.min(1, (p.t || 0) / 0.12) + 0.18 * Math.sin(Math.min(1, (p.t || 0) / 0.24) * Math.PI);
+        ctx.scale(pop, pop);
         ctx.rotate(Math.atan2(p.vy, p.vx) + Math.PI / 2);
+        // motion lines: two short strokes behind the drop, along the way it came
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-p.r * 0.5, p.r * 1.9); ctx.lineTo(-p.r * 0.6, p.r * 3.1); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(p.r * 0.45, p.r * 2.1); ctx.lineTo(p.r * 0.55, p.r * 2.9); ctx.stroke();
         ctx.fillStyle = 'rgba(150,222,250,0.95)';
         ctx.beginPath();
         ctx.moveTo(0, -p.r * 1.5);
@@ -2584,6 +2607,8 @@ class PlayerController {
     this.gulpClock = CFG.comedy.gulpEvery * 0.45;   // the first gulp lands during the shake
     this.setState('SHAKE');
     this.audio.gasp();
+    // the comic flick: three big drops off the temple the moment he stops
+    this.particles.sweat(CFG.mammothX + 82, this.feetY - 296, 3);
   }
   canJump(now) {
     return !this.airborne || (now - this.lastGround) < CFG.coyoteMs;
@@ -2745,11 +2770,16 @@ class PlayerController {
        never advanced past its first frame: the delivered animation looked frozen.
        The threshold is lowered to 0.2 to match, since the old value included the
        0.17 quiver that no longer exists. */
-    if (peering && this.scare > 0.2) {
+    /* AND THE WAIT SWEATS TOO, at a comic rate rather than a constant drip: a drop every
+       0.9s for the first six seconds at the edge, then one every three seconds for as long
+       as the learner thinks — nervous, never noise. Read off the state clock, not scare,
+       so it does not stop after a second the way the old bead did. */
+    if (peering) {
       this.sweatClock += dt;
-      if (this.sweatClock > CM.sweatEvery) {
+      const every = this.t < 6 ? CM.sweatEvery : CM.sweatLater;
+      if (this.sweatClock > every) {
         this.sweatClock = 0;
-        this.particles.sweat(CFG.mammothX + 82, this.feetY - 296, 1);
+        this.particles.sweat(CFG.mammothX + 82, this.feetY - 296, this.t < 6 ? 1 : 2);
       }
     } else this.sweatClock = 0;
     // a mid-run wince recovers by itself, so the run is never left stuck in HURT
@@ -4217,8 +4247,14 @@ export function createGame(canvas, hooks = {}) {
   function loadImg(src) {
     return new Promise(res => {
       const i = new Image();
-      i.onload = () => res(i); i.onerror = () => res(null);
-      i.src = src;
+      /* DECODED NOW, NOT ON FIRST DRAW. onload means fetched; the pixels are decoded lazily
+         the first time drawImage needs them, which put a visible hitch on the first jump,
+         the first crash and the first stomp (a 2520x1920 sheet is tens of milliseconds on a
+         phone). decode() does it here, off the main thread where the browser can. A browser
+         that refuses still gets the image. */
+      i.onload = () => { if (i.decode) i.decode().then(() => res(i), () => res(i)); else res(i); };
+      i.onerror = () => res(null);
+      i.src = assetUrl(src);
     });
   }
   async function preload() {

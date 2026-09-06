@@ -1059,6 +1059,31 @@ From a playtest as a grade-8 student (phone with a finger, then laptop with mous
 Still open for launch: remove the review control below; the duo dance sheet is at its GIF's
 native size (no hd cut possible); a phone on slow data still downloads ~8 MB before PLAY.
 
+### Comic sweat, and sheets decoded up front
+
+The sweat was one 6 px bead every 0.4 s for about a second, and nobody saw it. It is a cartoon
+flick now: three big glossy drops (11–16 px) thrown off the temple in an arc with motion lines
+the moment he stops (`startle`), then one drop every 0.9 s for the first six seconds at the edge
+and one pair every three seconds for as long as the learner thinks (`CFG.comedy.sweatEvery`,
+`sweatLater`), read off the state clock rather than the decaying scare so it does not stop after a
+second. Gravity on a sweat drop is 760 so the arc can be read; each drop pops in over 120 ms.
+
+Every sheet is decoded during preload (`img.decode()` in `loadImg`), not on its first draw, so
+the first jump, the first crash and the first stomp cannot hitch on a decode.
+
+### Asset caching: versioned URLs
+
+The deployment serves everything under `game/assets` as immutable for a year (`vercel.json`).
+That is right for files that never change under one name — and it is what blanked the character
+for every returning browser the day the sheets were rebuilt as grids under the same names: the
+cached strips were fed to code reading rows they did not have. The fix is in the URL, not the
+header: `tools/build-bundle.mjs` hashes every file under `game/assets` into
+`game/js/asset-versions.js`, `assetUrl()` in the engine appends `?v=<hash>` to every image and
+audio load, and the two stylesheets get the same hash on their `url()`s at build time. A changed
+file is a new URL; an unchanged one keeps its cache. `tests/bundle.spec.mjs` (via
+`node tools/build-bundle.mjs --check`) fails if any of the three is out of date — so a rebuild
+is part of changing any asset. Paths in CFG stay bare so the asset tests can read them.
+
 ### A temporary review control
 
 "Skip to ending" sits bottom-left during play (`#btn-skip-end`). It calls `game.skipToEnd()`,

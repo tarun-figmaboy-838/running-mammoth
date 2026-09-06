@@ -143,8 +143,10 @@ test.describe('assets', () => {
        interface is SVG on purpose: it has to stay sharp at any scale and be recoloured
        and animated, which a raster cannot do. So the rule is per kind, not global. */
     const bad = [];
-    for (const u of urls) {
-      const res = await page.request.get('/' + u);
+    for (const raw of urls) {
+      // the stylesheets' urls carry the file's content hash (?v=); the file itself is judged
+      const u = raw.split('?')[0];
+      const res = await page.request.get('/' + raw);
       if (!res.ok()) { bad.push(u + ' -> ' + res.status()); continue; }
       /* Interface art is vector so it stays sharp at any scale and can be recoloured.
          The pointing hand is the one exception: it is a supplied raster, chosen

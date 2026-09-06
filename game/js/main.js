@@ -15,7 +15,7 @@
                                milliseconds, so ?speed cannot shorten a playthrough.
 */
 
-import { createGame } from './engine.js';
+import { createGame, assetUrl } from './engine.js';
 import { Hud } from './hud.js';
 import { Frontend } from './frontend.js';
 import { Tutorial } from './tutorial.js';
@@ -87,7 +87,7 @@ const wantScale = () => {
 if (document.fonts && document.fonts.load) {
   for (const w of [600, 700, 800, 900]) document.fonts.load(w + ' 20px "Baloo 2"').catch(() => {});
 }
-for (const src of ['assets/ui/btn-play-pressed.webp', 'assets/ui/btn-pressed.webp']) { const i = new Image(); i.src = src; }
+for (const src of ['assets/ui/btn-play-pressed.webp', 'assets/ui/btn-pressed.webp']) { const i = new Image(); i.src = assetUrl(src); }
 
 /* THE HD CHARACTER SET IS FOR TABLETS AND LAPTOPS, NOT PHONES. A 3x phone's stage is dense
    enough to qualify by scale alone, and that is exactly where six 3780x2880 sheets are a

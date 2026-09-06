@@ -193,9 +193,9 @@ a:hover { color: var(--ice-pale); }
      no seam for a resampler to find. The caps keep their natural size (auto 100%) and
      only the middle stretches, exactly as before. */
   background:
-    url("../assets/ui/sign-l.webp") left center / auto 100% no-repeat,
-    url("../assets/ui/sign-r.webp") right center / auto 100% no-repeat,
-    url("../assets/ui/sign-m.webp") center center / calc(100% - 679 * var(--k) + 2px) 100% no-repeat;
+    url("../assets/ui/sign-l.webp?v=6268bc50") left center / auto 100% no-repeat,
+    url("../assets/ui/sign-r.webp?v=f07286b3") right center / auto 100% no-repeat,
+    url("../assets/ui/sign-m.webp?v=6ab3b619") center center / calc(100% - 679 * var(--k) + 2px) 100% no-repeat;
 
   /* CENTRED ON THE WOOD, both ways. Two things were off before:
 
@@ -268,7 +268,7 @@ a:hover { color: var(--ice-pale); }
   height: auto;
   padding: 0;
   border: none;
-  background: url("../assets/ui/btn-normal.webp") center / contain no-repeat;
+  background: url("../assets/ui/btn-normal.webp?v=ad490138") center / contain no-repeat;
   -webkit-tap-highlight-color: transparent;
   /* the art carries its own rim and shading, so all this adds is separation from a
      pale sky and the button's own light */
@@ -284,7 +284,7 @@ a:hover { color: var(--ice-pale); }
 /* the pressed picture, swapped straight in */
 .btn-jump:active,
 .btn-jump.pressed {
-  background-image: url("../assets/ui/btn-pressed.webp");
+  background-image: url("../assets/ui/btn-pressed.webp?v=4636e1dd");
   filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(3px, 0.31vw, 6px) rgba(94, 30, 2, 0.5));
 }
 .btn-jump:hover {
@@ -447,7 +447,7 @@ a:hover { color: var(--ice-pale); }
   aspect-ratio: 300 / 360;
   /* centred on the point the engine gives, which is ON the rope */
   transform: translate(-50%, -50%);
-  background: url("../assets/ui/icons/touch.png") center / contain no-repeat;
+  background: url("../assets/ui/icons/touch.png?v=d05ff66d") center / contain no-repeat;
   pointer-events: none;
   z-index: 5;
   filter: drop-shadow(0 clamp(2px, 0.21vw, 4px) clamp(4px, 0.42vw, 8px) rgba(6, 26, 56, 0.45));
@@ -589,12 +589,12 @@ a:hover { color: var(--ice-pale); }
    `/css/assets/ui/...` and every glyph 404'd. Declaring them in this file makes the
    relative path correct, and a data attribute picks between them — which also means
    the icon set is enumerable in one place. */
-.icon-btn[data-icon="hint"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/hint.svg");      mask-image: url("../assets/ui/icons/hint.svg"); }
-.icon-btn[data-icon="sound-on"]  .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/sound-on.svg");  mask-image: url("../assets/ui/icons/sound-on.svg"); }
-.icon-btn[data-icon="sound-off"] .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/sound-off.svg"); mask-image: url("../assets/ui/icons/sound-off.svg"); }
-.icon-btn[data-icon="pause"]     .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/pause.svg");     mask-image: url("../assets/ui/icons/pause.svg"); }
-.icon-btn[data-icon="play"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/play.svg");      mask-image: url("../assets/ui/icons/play.svg"); }
-.icon-btn[data-icon="restart"]   .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/restart.svg");   mask-image: url("../assets/ui/icons/restart.svg"); }
+.icon-btn[data-icon="hint"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/hint.svg?v=9ceb8f16");      mask-image: url("../assets/ui/icons/hint.svg?v=9ceb8f16"); }
+.icon-btn[data-icon="sound-on"]  .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/sound-on.svg?v=a375910d");  mask-image: url("../assets/ui/icons/sound-on.svg?v=a375910d"); }
+.icon-btn[data-icon="sound-off"] .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/sound-off.svg?v=9d167e38"); mask-image: url("../assets/ui/icons/sound-off.svg?v=9d167e38"); }
+.icon-btn[data-icon="pause"]     .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/pause.svg?v=660fcd36");     mask-image: url("../assets/ui/icons/pause.svg?v=660fcd36"); }
+.icon-btn[data-icon="play"]      .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/play.svg?v=573fd2b0");      mask-image: url("../assets/ui/icons/play.svg?v=573fd2b0"); }
+.icon-btn[data-icon="restart"]   .icon-btn-glyph { -webkit-mask-image: url("../assets/ui/icons/restart.svg?v=0133f671");   mask-image: url("../assets/ui/icons/restart.svg?v=0133f671"); }
 
 /* The verdict mark (a tick or a cross over the crossing) is gone: a right answer
    throws confetti from the engine and a wrong one gets no mark. See cutShape(). */

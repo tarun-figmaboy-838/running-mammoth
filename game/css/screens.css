@@ -56,7 +56,7 @@
 .cover-art {
   position: absolute;
   inset: 0;
-  background: url("../assets/art/cover.webp") center/contain no-repeat;
+  background: url("../assets/art/cover.webp?v=2854fd0e") center/contain no-repeat;
 }
 /* snow drifting over the banner, layered radial gradients so it costs no assets */
 .cover-snow {
@@ -393,7 +393,7 @@
   width: clamp(54px, 5.6vw, 108px);
   aspect-ratio: 300 / 360;
   translate: -50% -50%;
-  background: url("../assets/ui/icons/touch.png") center / contain no-repeat;
+  background: url("../assets/ui/icons/touch.png?v=d05ff66d") center / contain no-repeat;
   filter: drop-shadow(0 clamp(3px, 0.31vw, 6px) clamp(6px, 0.63vw, 12px) rgba(4, 20, 44, 0.6));
   pointer-events: none;
 }
@@ -942,7 +942,7 @@
   width: clamp(190px, 22vw, 430px);
   /* the common box the two takes were built onto */
   aspect-ratio: 1880 / 711;
-  background-image: url("../assets/ui/btn-play.webp");
+  background-image: url("../assets/ui/btn-play.webp?v=722ee46e");
   /* NO PERPETUAL BOB. See the note on .btn-replay: an infinitely animating button is a
      target that has moved by the time a finger lands on it, and Playwright refuses to
      click one at all ("element is not stable"), which is why no test caught it. It
@@ -968,7 +968,7 @@
    a menu screen is not covered by the thumb, so movement is exactly what sells it. */
 .btn-play:active,
 .btn-play.pressed {
-  background-image: url("../assets/ui/btn-play-pressed.webp");
+  background-image: url("../assets/ui/btn-play-pressed.webp?v=9a8a1105");
   animation: none;
   scale: 1.035 0.94;
   filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(4px, 0.42vw, 8px) rgba(46, 12, 4, 0.55));
@@ -1060,7 +1060,7 @@
   /* the common box the art was trimmed to */
   aspect-ratio: 1947 / 635;
   width: clamp(180px, 19vw, 340px);
-  background-image: url("../assets/ui/btn-tryagain.webp");
+  background-image: url("../assets/ui/btn-tryagain.webp?v=f17bd92f");
   filter: drop-shadow(0 clamp(4px, 0.42vw, 8px) clamp(8px, 0.85vw, 16px) rgba(6, 40, 78, 0.45));
   /* it is the only thing to do on this card, so it asks */
   animation: playBob 2.2s cubic-bezier(.45, 0, .55, 1) infinite;
