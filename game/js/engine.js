@@ -2997,8 +2997,14 @@ class PlayerController {
     ctx.scale(sqX, sq);
     // the sheets carry a small gap under the footline so nothing is clipped, so the
     // cell is dropped by that gap to put the content baseline on feetY
-    ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
-                  -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+    /* NEVER THROW HERE. A sheet that failed to load is null, and drawImage(null) is a
+       TypeError that aborts the whole frame from this point on — background and ice drawn,
+       character, blocks and particles gone. Draw whatever sheet did load, or nothing. */
+    if (!sheet) sheet = this.sheet || this.jumpSheet || this.idleSheet || null;
+    if (sheet) {
+      ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
+                    -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+    }
     ctx.restore();
   }
 }
@@ -4052,7 +4058,10 @@ export function createGame(canvas, hooks = {}) {
   }
   /* And the art set to match, decided once: the hd sheets are 2.25x the pixels, and there
      is no point decoding them for a screen that cannot show them. */
-  const hdArt = rs >= CFG.sprite.hd.minRenderScale;
+  /* The host decides (main.js: a dense screen AND a tablet-or-wider stage AND enough
+     memory); the scale alone is the fallback rule. `let`, because a set that fails to
+     load is swapped for the base set below and the answer has to follow. */
+  let hdArt = hooks.hdArt !== undefined ? !!hooks.hdArt : rs >= CFG.sprite.hd.minRenderScale;
   CFG.sprite.cellK = hdArt ? CFG.sprite.hd.k : 1;
 
   const audio = new AudioManager();
@@ -4236,21 +4245,38 @@ export function createGame(canvas, hooks = {}) {
        sheets: he is scenery that happens to be a character, he has no animation and no
        states, and putting him in CFG.characters would make him look like something the
        player could be. */
-    jobs.push(loadImg(hdArt ? 'assets/char/hd/bear.webp' : 'assets/char/bear.webp').then(i => { images.bear = i; }));
+    // the friend is loaded with the character set below, so the two agree on their size
     // the two of them dancing: the delivered 36-frame GIF as a 6x6 sheet at native size
     jobs.push(loadImg('assets/char/duo-celebrate.webp').then(i => { images.duo = i; }));
     // one painted block per shape the curriculum can name
     for (const [id, s] of Object.entries(optionShapes)) {
       jobs.push(loadImg(s.image).then(i => { images['shape:' + id] = i; }));
     }
-    // every character's sheets, keyed 'id:slot'
-    for (const ch of CFG.characters) {
-      for (const slot of Object.keys(ch.sheets)) {
-        const key = ch.id + ':' + slot;
-        const src = hdArt && ch.hd && ch.hd[slot] ? ch.hd[slot] : ch.sheets[slot];
-        jobs.push(loadImg(src).then(i => { images[key] = i; }));
+    /* EVERY CHARACTER'S SHEETS, keyed 'id:slot', AS ONE SET OR THE OTHER — never a mix.
+
+       THE HD SET FALLS BACK TO THE BASE SET. A 3780x2880 sheet is a lot for a small device
+       to decode, and when one fails loadImg hands back null — which drawImage then threw on
+       every frame, and the character simply was not there on a phone after the hd set
+       shipped. So the hd set is tried as a whole; if any of it is missing, the whole base
+       set is loaded instead and cellK goes back to 1, so the draw scale and the pixels
+       always agree. The bear travels with the set for the same reason. */
+    const loadCharacterArt = async useHd => {
+      const pairs = [];
+      for (const ch of CFG.characters) {
+        for (const slot of Object.keys(ch.sheets)) {
+          const src = useHd && ch.hd && ch.hd[slot] ? ch.hd[slot] : ch.sheets[slot];
+          pairs.push(loadImg(src).then(i => { images[ch.id + ':' + slot] = i; return !!i; }));
+        }
       }
-    }
+      pairs.push(loadImg(useHd ? 'assets/char/hd/bear.webp' : 'assets/char/bear.webp').then(i => { images.bear = i; return !!i; }));
+      return (await Promise.all(pairs)).every(Boolean);
+    };
+    jobs.push((async () => {
+      if (hdArt && !(await loadCharacterArt(true))) {
+        hdArt = false; CFG.sprite.cellK = 1;
+        await loadCharacterArt(false);
+      } else if (!hdArt) await loadCharacterArt(false);
+    })());
     await Promise.all(jobs);
   }
 

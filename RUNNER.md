@@ -1000,9 +1000,16 @@ Every slot uses the newest GIF delivered for it: run and jump from the first del
    bigger buffer (mean under 40 fps after the first seconds), steps the scale down a quarter
    at a time towards 1 and caps it there — never back up, and never for a forced `?rs=`.
 
-Phones land on scale 1 and the base set: a 16:9 stage capped by a 1080 px-tall screen is 1920
-device pixels wide, so they download and decode what they did before (six sheets, 2.4 MB). A
-hi-DPI laptop, a tablet or a 4K screen gets the hd set (3.7 MB) and a sharp backbuffer. The duo dance sheet is already at
+Phones keep the base set. A 16:9 stage on a 1080 px-tall screen is about 1920 device pixels
+wide, so most phones land on scale 1 anyway; a 3× phone qualifies by scale but is excluded by
+stage width — the hd set needs a stage at least 1000 CSS px wide (every phone is under, tablets
+and laptops over) and, where the browser reports it, at least 4 GB (`main.js: wantHd`,
+`?hd=1/0` forces it). That rule came from a real phone that showed no character at all after
+the hd set shipped: a sheet it could not decode came back null and `drawImage` threw on every
+frame. Two guards now stand regardless of the rule: the hd set is loaded as a whole and falls
+back to the whole base set if any sheet is missing (`loadCharacterArt`), and a missing sheet is
+skipped at draw time rather than thrown. A hi-DPI laptop, a tablet or a 4K screen gets the hd
+set (3.7 MB) and a sharp backbuffer. The duo dance sheet is already at
 its GIF's native size and has no hd cut; the painted environment (path, sky, caps) is at its
 delivered resolution. The art budget test now budgets the two sets apart, because a client
 fetches one of them.
@@ -1039,6 +1046,11 @@ From a playtest as a grade-8 student (phone with a finger, then laptop with mous
   over the blocks, hiding the very block the sentence named. The zone now runs from the top of
   the stage to under the blocks (`Tutorial.ropeBox`), so the bubble lands beneath them over open
   ice, with its tail rising to the rope; the hand keeps aiming at the rope itself (`handY`).
+- **The JUMP hand covered the button.** Asked for: small, upright, fingertip a little inside the
+  button's lower edge, pulsing. The tap hand is 45% of the button's width, squared up with a base
+  rotation (the icon is drawn leaning left), its centre placed just under the button's edge so the
+  fingertip reaches ~25 stage px in (`domSpot(sel, pad, 'bottom')` → `handX/handY`); the press
+  pulse is a scale about the fingertip with the contact ring.
 - Checked and fine: a late jump crashes and the run resumes by itself in about five seconds
   with no tap needed; a wrong cut splashes, the instruction comes back and the other blocks
   stay; JUMP is hidden during a puzzle so it cannot be spammed; rotating to portrait shows the

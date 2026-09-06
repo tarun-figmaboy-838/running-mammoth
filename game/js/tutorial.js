@@ -153,7 +153,7 @@ export class Tutorial {
            Still frozen, so the button can be looked at without the rock arriving. */
         id: 'jumpbtn',
         at: () => this.domSpot('#btn-jump', 40) !== null,
-        spot: () => this.domSpot('#btn-jump', 40),
+        spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
         text: 'This is the JUMP button. It makes him hop.',
         advance: 0, pause: true
       },
@@ -164,7 +164,7 @@ export class Tutorial {
            is the part a hand cannot say by itself. */
         id: 'jumpnow',
         at: () => this.domSpot('#btn-jump', 40) !== null,
-        spot: () => this.domSpot('#btn-jump', 40),
+        spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
         text: g => 'Tap it now to jump over the ' + this.thingAhead(g).noun + '!',
         advance: 'jumped', pause: false, hand: 'tap', follow: 'Nice hop!'
       },
@@ -300,15 +300,22 @@ export class Tutorial {
   }
 
   /** A DOM element's box, in stage coordinates, so one code path places every spot. */
-  domSpot(sel, pad = 40) {
+  domSpot(sel, pad = 40, handAt) {
     const stage = this.root.getElementById('stage');
     const el = this.root.querySelector(sel);
     if (!stage || !el) return null;
     const s = stage.getBoundingClientRect(), b = el.getBoundingClientRect();
     if (!b.width || !b.height) return null;         // hidden: nothing to point at
+    const x = (b.x + b.width / 2 - s.x) / s.width * W, y = (b.y + b.height / 2 - s.y) / s.height * H;
+    const hh = b.height / s.height * H / 2;
     return {
-      x: (b.x + b.width / 2 - s.x) / s.width * W,
-      y: (b.y + b.height / 2 - s.y) / s.height * H,
+      x, y,
+      /* THE HAND TOUCHES THE BUTTON FROM BELOW. Centred on the button it was the size of
+         the button and hid it; asked for: small, upright, fingertip a little inside the
+         lower edge. The hand's centre goes just under the edge, so its fingertip (the top
+         of the icon) reaches ~25 stage px into the button and the rest hangs clear. */
+      handX: handAt === 'bottom' ? x + 12 : undefined,
+      handY: handAt === 'bottom' ? y + hh + 24 : undefined,
       r: Math.max(b.width / s.width * W, b.height / s.height * H) / 2 + pad,
       /* A DOM TARGET IS RAISED ABOVE THE SHEET. Canvas subjects are re-drawn by the
          engine onto the focus canvas; the JUMP button is not on the canvas, it is an
@@ -743,8 +750,8 @@ export class Tutorial {
       if (gesture) {
         hd.hidden = false;
         hd.dataset.gesture = gesture;      // CSS picks tap or sweep off this
-        hd.style.left = pc(box.x, W);
-        // a spot may keep a taller zone clear than where the hand belongs (see ropeBox)
+        hd.style.left = pc(box.handX !== undefined ? box.handX : box.x, W);
+        // a spot may keep a taller zone clear than where the hand belongs (see ropeBox, domSpot)
         hd.style.top = pc(box.handY !== undefined ? box.handY : box.y, H);
       } else if (!hd.hidden) hd.hidden = true;
     }

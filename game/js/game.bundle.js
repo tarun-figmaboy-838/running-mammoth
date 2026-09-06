@@ -3774,8 +3774,14 @@ class PlayerController {
     ctx.scale(sqX, sq);
     // the sheets carry a small gap under the footline so nothing is clipped, so the
     // cell is dropped by that gap to put the content baseline on feetY
-    ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
-                  -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+    /* NEVER THROW HERE. A sheet that failed to load is null, and drawImage(null) is a
+       TypeError that aborts the whole frame from this point on — background and ice drawn,
+       character, blocks and particles gone. Draw whatever sheet did load, or nothing. */
+    if (!sheet) sheet = this.sheet || this.jumpSheet || this.idleSheet || null;
+    if (sheet) {
+      ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
+                    -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+    }
     ctx.restore();
   }
 }
@@ -4829,7 +4835,10 @@ function createGame(canvas, hooks = {}) {
   }
   /* And the art set to match, decided once: the hd sheets are 2.25x the pixels, and there
      is no point decoding them for a screen that cannot show them. */
-  const hdArt = rs >= CFG.sprite.hd.minRenderScale;
+  /* The host decides (main.js: a dense screen AND a tablet-or-wider stage AND enough
+     memory); the scale alone is the fallback rule. `let`, because a set that fails to
+     load is swapped for the base set below and the answer has to follow. */
+  let hdArt = hooks.hdArt !== undefined ? !!hooks.hdArt : rs >= CFG.sprite.hd.minRenderScale;
   CFG.sprite.cellK = hdArt ? CFG.sprite.hd.k : 1;
 
   const audio = new AudioManager();
@@ -5013,21 +5022,38 @@ function createGame(canvas, hooks = {}) {
        sheets: he is scenery that happens to be a character, he has no animation and no
        states, and putting him in CFG.characters would make him look like something the
        player could be. */
-    jobs.push(loadImg(hdArt ? 'assets/char/hd/bear.webp' : 'assets/char/bear.webp').then(i => { images.bear = i; }));
+    // the friend is loaded with the character set below, so the two agree on their size
     // the two of them dancing: the delivered 36-frame GIF as a 6x6 sheet at native size
     jobs.push(loadImg('assets/char/duo-celebrate.webp').then(i => { images.duo = i; }));
     // one painted block per shape the curriculum can name
     for (const [id, s] of Object.entries(optionShapes)) {
       jobs.push(loadImg(s.image).then(i => { images['shape:' + id] = i; }));
     }
-    // every character's sheets, keyed 'id:slot'
-    for (const ch of CFG.characters) {
-      for (const slot of Object.keys(ch.sheets)) {
-        const key = ch.id + ':' + slot;
-        const src = hdArt && ch.hd && ch.hd[slot] ? ch.hd[slot] : ch.sheets[slot];
-        jobs.push(loadImg(src).then(i => { images[key] = i; }));
+    /* EVERY CHARACTER'S SHEETS, keyed 'id:slot', AS ONE SET OR THE OTHER — never a mix.
+
+       THE HD SET FALLS BACK TO THE BASE SET. A 3780x2880 sheet is a lot for a small device
+       to decode, and when one fails loadImg hands back null — which drawImage then threw on
+       every frame, and the character simply was not there on a phone after the hd set
+       shipped. So the hd set is tried as a whole; if any of it is missing, the whole base
+       set is loaded instead and cellK goes back to 1, so the draw scale and the pixels
+       always agree. The bear travels with the set for the same reason. */
+    const loadCharacterArt = async useHd => {
+      const pairs = [];
+      for (const ch of CFG.characters) {
+        for (const slot of Object.keys(ch.sheets)) {
+          const src = useHd && ch.hd && ch.hd[slot] ? ch.hd[slot] : ch.sheets[slot];
+          pairs.push(loadImg(src).then(i => { images[ch.id + ':' + slot] = i; return !!i; }));
+        }
       }
-    }
+      pairs.push(loadImg(useHd ? 'assets/char/hd/bear.webp' : 'assets/char/bear.webp').then(i => { images.bear = i; return !!i; }));
+      return (await Promise.all(pairs)).every(Boolean);
+    };
+    jobs.push((async () => {
+      if (hdArt && !(await loadCharacterArt(true))) {
+        hdArt = false; CFG.sprite.cellK = 1;
+        await loadCharacterArt(false);
+      } else if (!hdArt) await loadCharacterArt(false);
+    })());
     await Promise.all(jobs);
   }
 
@@ -9151,7 +9177,7 @@ class Tutorial {
            Still frozen, so the button can be looked at without the rock arriving. */
         id: 'jumpbtn',
         at: () => this.domSpot('#btn-jump', 40) !== null,
-        spot: () => this.domSpot('#btn-jump', 40),
+        spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
         text: 'This is the JUMP button. It makes him hop.',
         advance: 0, pause: true
       },
@@ -9162,7 +9188,7 @@ class Tutorial {
            is the part a hand cannot say by itself. */
         id: 'jumpnow',
         at: () => this.domSpot('#btn-jump', 40) !== null,
-        spot: () => this.domSpot('#btn-jump', 40),
+        spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
         text: g => 'Tap it now to jump over the ' + this.thingAhead(g).noun + '!',
         advance: 'jumped', pause: false, hand: 'tap', follow: 'Nice hop!'
       },
@@ -9298,15 +9324,22 @@ class Tutorial {
   }
 
   /** A DOM element's box, in stage coordinates, so one code path places every spot. */
-  domSpot(sel, pad = 40) {
+  domSpot(sel, pad = 40, handAt) {
     const stage = this.root.getElementById('stage');
     const el = this.root.querySelector(sel);
     if (!stage || !el) return null;
     const s = stage.getBoundingClientRect(), b = el.getBoundingClientRect();
     if (!b.width || !b.height) return null;         // hidden: nothing to point at
+    const x = (b.x + b.width / 2 - s.x) / s.width * W, y = (b.y + b.height / 2 - s.y) / s.height * H;
+    const hh = b.height / s.height * H / 2;
     return {
-      x: (b.x + b.width / 2 - s.x) / s.width * W,
-      y: (b.y + b.height / 2 - s.y) / s.height * H,
+      x, y,
+      /* THE HAND TOUCHES THE BUTTON FROM BELOW. Centred on the button it was the size of
+         the button and hid it; asked for: small, upright, fingertip a little inside the
+         lower edge. The hand's centre goes just under the edge, so its fingertip (the top
+         of the icon) reaches ~25 stage px into the button and the rest hangs clear. */
+      handX: handAt === 'bottom' ? x + 12 : undefined,
+      handY: handAt === 'bottom' ? y + hh + 24 : undefined,
       r: Math.max(b.width / s.width * W, b.height / s.height * H) / 2 + pad,
       /* A DOM TARGET IS RAISED ABOVE THE SHEET. Canvas subjects are re-drawn by the
          engine onto the focus canvas; the JUMP button is not on the canvas, it is an
@@ -9741,8 +9774,8 @@ class Tutorial {
       if (gesture) {
         hd.hidden = false;
         hd.dataset.gesture = gesture;      // CSS picks tap or sweep off this
-        hd.style.left = pc(box.x, W);
-        // a spot may keep a taller zone clear than where the hand belongs (see ropeBox)
+        hd.style.left = pc(box.handX !== undefined ? box.handX : box.x, W);
+        // a spot may keep a taller zone clear than where the hand belongs (see ropeBox, domSpot)
         hd.style.top = pc(box.handY !== undefined ? box.handY : box.y, H);
       } else if (!hd.hidden) hd.hidden = true;
     }
@@ -9847,8 +9880,27 @@ if (document.fonts && document.fonts.load) {
 }
 for (const src of ['assets/ui/btn-play-pressed.webp', 'assets/ui/btn-pressed.webp']) { const i = new Image(); i.src = src; }
 
+/* THE HD CHARACTER SET IS FOR TABLETS AND LAPTOPS, NOT PHONES. A 3x phone's stage is dense
+   enough to qualify by scale alone, and that is exactly where six 3780x2880 sheets are a
+   problem: a small device that cannot decode them was left with no character at all. So the
+   set needs a dense screen AND a stage at least 1000 CSS px wide (every phone is under that,
+   tablets and laptops are over) AND, where the browser says, at least 4 GB. ?hd=1/0 forces
+   it. The scale itself still follows the screen, so a phone's canvas stays crisp. */
+const wantHd = () => {
+  const forced = params.get('hd');
+  if (forced === '1') return true;
+  if (forced === '0') return false;
+  // a forced scale is a request for that whole path: ?rs=2 means the hd set too, on any stage
+  if (params.has('rs')) return Number(params.get('rs')) >= 1.15;
+  const r = stageEl ? stageEl.getBoundingClientRect() : null;
+  const cssW = r && r.width ? r.width : window.innerWidth;
+  const mem = navigator.deviceMemory;                 // Chrome only; undefined elsewhere
+  return wantScale() >= 1.15 && cssW >= 1000 && !(mem && mem < 4);
+};
+
 const game = createGame(canvas, {
   renderScale: wantScale(),
+  hdArt: wantHd(),
   renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
     if (flag('skip', false)) { game.begin(); startTutorial(); return; }

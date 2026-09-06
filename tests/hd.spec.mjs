@@ -95,6 +95,21 @@ test.describe('the hi-DPI path', () => {
   });
 });
 
+test.describe('a 3x phone', () => {
+  /* Dense enough to qualify for the hd set by scale alone — and the one place it must not
+     go: a small device that could not decode the big sheets was left with no character at
+     all. The stage is under 1000 CSS px wide, so it keeps the base set at a sharper canvas. */
+  test.use({ viewport: { width: 932, height: 430 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  test('keeps the base set on a sharper canvas', async ({ page }) => {
+    const errors = await boot(page);
+    const s = await page.evaluate(STATE);
+    expect(s.rs).toBeGreaterThan(1);
+    expect(s.set).toBe('base');
+    expect(s.run.src).not.toContain('/hd/');
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe('a 2x device', () => {
   test.use({ deviceScaleFactor: 2, viewport: { width: 1280, height: 720 } });
   test('picks a bigger backbuffer and the hd set on its own', async ({ page }) => {

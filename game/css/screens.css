@@ -401,7 +401,16 @@
 /* TWO GESTURES, and the hand has to perform the one being asked for — a child copies
    the movement, so a tapping hand on a step that wants a swipe teaches the wrong
    thing. The step names its gesture and this picks the animation. */
-.tut-hand[data-gesture="tap"] { animation: tutTap 1.15s cubic-bezier(.35, 0, .3, 1) infinite; }
+/* THE TAP HAND IS SMALL AND UPRIGHT. At the size of the button it hid the button; asked for:
+   small, finger pointing straight up, fingertip a little inside the button's lower edge (the
+   tutorial places its centre just under that edge), pulsing. The icon is drawn leaning left,
+   so the base rotation squares it up; the pulse is a press and a lift, not a wave. */
+.tut-hand[data-gesture="tap"] {
+  --hand-rot: 16deg;
+  width: clamp(36px, 3.4vw, 66px);
+  rotate: var(--hand-rot);
+  animation: tutTap 1s cubic-bezier(.35, 0, .3, 1) infinite;
+}
 .tut-hand[data-gesture="sweep"] { animation: tutSweep 1.5s cubic-bezier(.4, 0, .3, 1) infinite; }
 /* ACROSS the rope, which is the cut. The ripple is switched off for this one: a
    contact ring belongs to a tap, and on a sweep it reads as a series of taps. */
@@ -416,9 +425,9 @@
 /* A tap is a press and a lift with a beat of stillness between — a hand that moves
    continuously reads as waving, not tapping. The ripple is the ::after. */
 @keyframes tutTap {
-  0%, 100% { scale: 1;    rotate: -6deg; }
-  38%      { scale: .84;  rotate: 0deg; }
-  56%      { scale: 1.02; rotate: -3deg; }
+  0%, 100% { scale: 1;    rotate: var(--hand-rot, 0deg); }
+  38%      { scale: .82;  rotate: var(--hand-rot, 0deg); }
+  56%      { scale: 1.05; rotate: var(--hand-rot, 0deg); }
 }
 .tut-hand::after {
   content: "";

@@ -200,7 +200,7 @@ test.describe('assets', () => {
     await boot(page);
     const sheets = await page.evaluate(() =>
       window.iceAgeGame.roster().flatMap(c =>
-        ['run', 'jump', 'skid']
+        ['run', 'jump', 'skid', 'hurt', 'idle', 'trample']
           .map(slot => window.iceAgeGame.sheetFor(c.id, slot))
           .filter(Boolean)
           .map(s => ({ id: c.id, src: s.src, frames: s.frames, cw: s.cw, ch: s.ch, cols: s.cols }))
@@ -209,7 +209,7 @@ test.describe('assets', () => {
        removed on request so that only the delivered GIFs are used; SHAKE, LOOK_DOWN,
        KNOCKOUT and HURT fall back to jump poses. Put the slots back here alongside the
        art if either is ever delivered. */
-    expect(sheets.length).toBe(3);
+    expect(sheets.length).toBe(6);
 
     const cuts = [], clutter = [], sizes = [];
     for (const sh of sheets) {
@@ -250,7 +250,7 @@ test.describe('assets', () => {
     const perChar = await page.evaluate(() =>
       window.iceAgeGame.roster().map(c => ({
         id: c.id,
-        sheets: ['run', 'jump', 'skid']
+        sheets: ['run', 'jump', 'skid', 'hurt', 'idle', 'trample']
           .map(slot => ({ slot, s: window.iceAgeGame.sheetFor(c.id, slot) }))
           .filter(x => x.s)
       })));

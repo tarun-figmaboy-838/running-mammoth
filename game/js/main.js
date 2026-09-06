@@ -89,8 +89,27 @@ if (document.fonts && document.fonts.load) {
 }
 for (const src of ['assets/ui/btn-play-pressed.webp', 'assets/ui/btn-pressed.webp']) { const i = new Image(); i.src = src; }
 
+/* THE HD CHARACTER SET IS FOR TABLETS AND LAPTOPS, NOT PHONES. A 3x phone's stage is dense
+   enough to qualify by scale alone, and that is exactly where six 3780x2880 sheets are a
+   problem: a small device that cannot decode them was left with no character at all. So the
+   set needs a dense screen AND a stage at least 1000 CSS px wide (every phone is under that,
+   tablets and laptops are over) AND, where the browser says, at least 4 GB. ?hd=1/0 forces
+   it. The scale itself still follows the screen, so a phone's canvas stays crisp. */
+const wantHd = () => {
+  const forced = params.get('hd');
+  if (forced === '1') return true;
+  if (forced === '0') return false;
+  // a forced scale is a request for that whole path: ?rs=2 means the hd set too, on any stage
+  if (params.has('rs')) return Number(params.get('rs')) >= 1.15;
+  const r = stageEl ? stageEl.getBoundingClientRect() : null;
+  const cssW = r && r.width ? r.width : window.innerWidth;
+  const mem = navigator.deviceMemory;                 // Chrome only; undefined elsewhere
+  return wantScale() >= 1.15 && cssW >= 1000 && !(mem && mem < 4);
+};
+
 const game = createGame(canvas, {
   renderScale: wantScale(),
+  hdArt: wantHd(),
   renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
     if (flag('skip', false)) { game.begin(); startTutorial(); return; }
