@@ -1034,6 +1034,11 @@ From a playtest as a grade-8 student (phone with a finger, then laptop with mous
   wrong block two times in three. The tutorial's hand and the engine's tutorial-phase demo
   now cross the rope of the answer, and the sentence names the shape ("Swipe across the
   triangle's rope!"). The idle hint later in the game keeps to the middle rope.
+- **The tutorial's swipe bubble hid the blocks on a phone.** The zone it kept clear was a 90 px
+  box around the rope; a phone's taller bubble could not fit above that and was placed "below" —
+  over the blocks, hiding the very block the sentence named. The zone now runs from the top of
+  the stage to under the blocks (`Tutorial.ropeBox`), so the bubble lands beneath them over open
+  ice, with its tail rising to the rope; the hand keeps aiming at the rope itself (`handY`).
 - Checked and fine: a late jump crashes and the run resumes by itself in about five seconds
   with no tap needed; a wrong cut splashes, the instruction comes back and the other blocks
   stay; JUMP is hidden during a puzzle so it cannot be spammed; rotating to portrait shows the

@@ -266,8 +266,16 @@ export class Tutorial {
     const mid = hang.find(s => s.kind === want) || sorted[Math.floor(sorted.length / 2)];
     const topOfBlock = mid.y - (mid.h || 200) / 2;
     if (topOfBlock < 60) return null;                 // rope still off the top
-    const y = Math.max(70, topOfBlock - 60);
-    return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y, rx: 150, ry: 90, world: true };
+    const ropeY = Math.max(70, topOfBlock - 60);
+    /* THE ZONE TO KEEP CLEAR IS THE ROPES AND THE BLOCKS, not the rope alone. With a
+       90px box around the rope, a phone's taller bubble could not fit above it and was
+       placed "below" — squarely over the blocks, hiding the very block the sentence
+       named (student playtest). The zone now runs from the top of the stage to under the
+       blocks, so the bubble lands beneath them, over open ice; the hand still aims at the
+       rope itself (handY), which is where the swipe has to happen. */
+    const bottom = mid.y + (mid.h || 200) / 2 + 12;
+    return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y: (60 + bottom) / 2, rx: 150, ry: (bottom - 60) / 2,
+             handY: ropeY, world: true };
   }
 
   /** A box around every hanging block, in stage coordinates. */
@@ -736,7 +744,8 @@ export class Tutorial {
         hd.hidden = false;
         hd.dataset.gesture = gesture;      // CSS picks tap or sweep off this
         hd.style.left = pc(box.x, W);
-        hd.style.top = pc(box.y, H);
+        // a spot may keep a taller zone clear than where the hand belongs (see ropeBox)
+        hd.style.top = pc(box.handY !== undefined ? box.handY : box.y, H);
       } else if (!hd.hidden) hd.hidden = true;
     }
     // the box goes when it has been read; the hand carries on
