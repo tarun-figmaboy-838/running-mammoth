@@ -190,7 +190,7 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
   expect(maxWob, 'no procedural wobble on top of the art').toBe(0);
   expect(maxLean, 'and no procedural lean either').toBe(0);
 
-  // scare itself still runs: it drives the sweat and the gulp, which are separate cues
+  // scare itself still runs: it drives the gulp, which is a separate cue
   expect(maxScare, 'the fright amplitude still exists for the other cues').toBeGreaterThan(0.2);
 });
 

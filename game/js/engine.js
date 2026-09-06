@@ -718,8 +718,6 @@ export const CFG = {
     recoilMs: 260,
     peerPx: 15,           // ...then lean in for a look
     gulpEvery: 2.3,       // a swallow, so a long think never reads as a hung game
-    sweatEvery: 0.9,      // a drop this often for the first six seconds at the edge...
-    sweatLater: 3,        // ...then this often for as long as the learner thinks
     wobbleX: 5.6,         // px of sideways knock at full fright, before sprite scale
     wobbleRot: 0.05,      // radians of nervous roll
     wobbleSq: 0.05,       // jelly squash, as a fraction
@@ -1982,28 +1980,6 @@ class ParticleManager {
   frost(x, y, n = 4) {
     this.spawn(n, () => ({ x: x + rand(-24, 24), y: y + rand(-24, 24), vx: rand(-30, 30), vy: rand(-40, -8), r: rand(2.5, 5.5), dur: rand(0.5, 0.9), kind: 'frost' }));
   }
-  /* COMICAL SWEAT. Flicked off the head, up and away, then falls. One bead at a time
-     rather than a spray: a shower of them reads as rain, and the joke is one bead. */
-  /* COMIC SWEAT. It used to be one 6px bead every 0.4s for about a second — nobody saw it
-     ("the sweat effect not look evident"). Cartoon sweat is a FLICK: a few big glossy drops
-     thrown off the temple in an arc, with motion lines behind them, slow enough to be read.
-     The stop throws a burst of three; the wait adds an occasional one (PlayerController). */
-  sweat(x, y, n = 1) {
-    /* UP AND OUT IN A FAN, not forward in a line: the first cut of this threw three drops
-       ahead of the head with trails, and it read as gunfire. Cartoon sweat leaves the temple
-       upward — a spread from up-and-back to up-and-forward — rises a little, hangs, and
-       falls, so each drop is a small arc the eye can follow. */
-    this.spawn(n, i => {
-      const a = -Math.PI / 2 + (n > 1 ? (i / (n - 1) - 0.5) * 1.5 : rand(-0.5, 0.5)) + rand(-0.12, 0.12);
-      const v = rand(210, 290);
-      return {
-        x: x + rand(-8, 8), y: y + rand(-8, 6),
-        vx: Math.cos(a) * v * 0.7 + 40, vy: Math.sin(a) * v,
-        r: rand(10, 14), dur: rand(0.9, 1.15), kind: 'sweat',
-        rot: 0, vr: 0
-      };
-    });
-  }
   /* A GLINT. Four-pointed stars that pop and shrink away — the reward beat, and the
      one thing on screen that says "that was right" in the language of a game rather
      than of a worksheet. */
@@ -2046,7 +2022,7 @@ class ParticleManager {
         continue;
       }
       p.vy += (p.kind === 'ice' ? 900 : p.kind === 'water' ? 1500
-             : p.kind === 'sparkle' ? 90 : p.kind === 'sweat' ? 900 : 520) * dt;
+             : p.kind === 'sparkle' ? 90 : 520) * dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.vr) p.rot += p.vr * dt;
       p.life = 1 - p.t / p.dur;
@@ -2102,28 +2078,6 @@ class ParticleManager {
           ctx.ellipse(0, 0, p.r * (1 + Math.min(0.55, sp / 1600)), p.r * 0.78, 0, 0, 6.2832);
           ctx.fill();
         }
-        ctx.restore();
-      } else if (p.kind === 'sweat') {
-        /* A cartoon bead: a big glossy teardrop with a white catchlight. The ROUND end leads
-           and the point trails, the way a drop actually flies; the tip swings round as the
-           arc turns over so a falling drop hangs point-up. No motion lines — with them the
-           drops read as bullets. It pops in over its first 120ms. */
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        const pop = 0.6 + 0.4 * Math.min(1, (p.t || 0) / 0.12) + 0.18 * Math.sin(Math.min(1, (p.t || 0) / 0.24) * Math.PI);
-        ctx.scale(pop, pop);
-        ctx.rotate(Math.atan2(p.vy, p.vx) - Math.PI / 2);
-        ctx.fillStyle = 'rgba(150,222,250,0.95)';
-        ctx.beginPath();
-        ctx.moveTo(0, -p.r * 1.5);
-        ctx.quadraticCurveTo(p.r, -p.r * 0.2, p.r * 0.75, p.r * 0.55);
-        ctx.quadraticCurveTo(0, p.r * 1.35, -p.r * 0.75, p.r * 0.55);
-        ctx.quadraticCurveTo(-p.r, -p.r * 0.2, 0, -p.r * 1.5);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.beginPath(); ctx.ellipse(-p.r * 0.24, -p.r * 0.1, p.r * 0.2, p.r * 0.34, 0, 0, 6.2832); ctx.fill();
         ctx.restore();
       } else if (p.kind === 'confetti') {
         if (p.delay > 0) continue;           // not released yet
@@ -2573,7 +2527,7 @@ class PlayerController {
        nervous roll and a jelly squash; `lean` is the double take, `gulp` the swallow.
        All of it is applied in draw() and none of it is read by the collider. */
     this.scare = 0; this.tremorT = 0; this.lean = 0; this.leanWant = 0;
-    this.gulp = 0; this.gulpClock = 0; this.sweatClock = 0;
+    this.gulp = 0; this.gulpClock = 0;
     this.wobX = 0; this.wobRot = 0; this.wobSq = 0;
     this.knock = 0;                  // backward recoil from an impact, in px
   }
@@ -2595,7 +2549,7 @@ class PlayerController {
      `knock` is a backward displacement that spikes on the hit and eases out. It is the
      single clearest statement that he ran into something solid — a body that stops
      without recoiling has not been hit, it has simply stopped. scare stays because the
-     sweat and the gulp still read it. */
+     gulp still reads it. */
   jolt(power = 1) {
     const p = clamp(power, 0, 1.4);
     this.scare = Math.max(this.scare, p);
@@ -2612,8 +2566,6 @@ class PlayerController {
     this.gulpClock = CFG.comedy.gulpEvery * 0.45;   // the first gulp lands during the shake
     this.setState('SHAKE');
     this.audio.gasp();
-    // the comic flick: three big drops off the temple the moment he stops
-    this.particles.sweat(CFG.mammothX + 82, this.feetY - 296, 3);
   }
   canJump(now) {
     return !this.airborne || (now - this.lastGround) < CFG.coyoteMs;
@@ -2728,7 +2680,7 @@ class PlayerController {
      * sprite sideways over it reads as the picture vibrating rather than the animal
      * being frightened. Removed on that basis, not as a tidy-up.
      *
-     * `scare` itself stays, and still decays: it is read by the sweat beads and by the
+     * `scare` itself stays, and still decays: it is read by the
      * gulp clock below, which are separate cues and not a second copy of the fright.
      * The wobble fields stay at zero so the renderer needs no special case.
      *
@@ -2763,30 +2715,9 @@ class PlayerController {
     } else this.gulpClock = 0;
     this.gulp = Math.max(0, this.gulp - dt * 2.6);
 
-    /* Beads flicked off the head — only while he is STOPPED and rattled. Gating on
-       the amplitude alone threw sweat during the skid, which is both wrong (the joke
-       is the moment he stops and looks) and the one place it cost measurable frame
-       time, because the skid is already the busiest frame in the game.
-
-       It reads `scare` directly now. It used to read `amp`, which was the shudder's
-       own amplitude — scare plus a residual quiver while peering — and that local
-       went with the shudder. Leaving the reference behind threw once per frame for
-       the whole fright, and because the throw aborted update() partway the fright
-       never advanced past its first frame: the delivered animation looked frozen.
-       The threshold is lowered to 0.2 to match, since the old value included the
-       0.17 quiver that no longer exists. */
-    /* AND THE WAIT SWEATS TOO, at a comic rate rather than a constant drip: a drop every
-       0.9s for the first six seconds at the edge, then one every three seconds for as long
-       as the learner thinks — nervous, never noise. Read off the state clock, not scare,
-       so it does not stop after a second the way the old bead did. */
-    if (peering) {
-      this.sweatClock += dt;
-      const every = this.t < 6 ? CM.sweatEvery : CM.sweatLater;
-      if (this.sweatClock > every) {
-        this.sweatClock = 0;
-        this.particles.sweat(CFG.mammothX + 82, this.feetY - 296, this.t < 6 ? 1 : 2);
-      }
-    } else this.sweatClock = 0;
+    /* NO SWEAT. Beads flicked off the head were tried three ways — one small bead, a burst
+       with motion lines, an upward fan — and removed on request: none of them read as sweat
+       on the delivered art. The gulp is the nervous cue that stays. */
     // a mid-run wince recovers by itself, so the run is never left stuck in HURT
     if (this.state === 'HURT' && moving && this.t > 0.55) this.setState('RUN');
     // A knockout holds its last frame instead of looping: the learner may sit on
@@ -4514,7 +4445,7 @@ export function createGame(canvas, hooks = {}) {
       G.speedFactor = 0; G.moving = false; G.worldX = brk.targetWorldX;
       audio.setDuck(1);
       /* THE PUNCHLINE. He has stopped, the hole is right there, and this is where
-         the shudder, the double take, the gulp and the sweat all start. It used to be
+         the shudder, the double take and the gulp all start. It used to be
          setState('SHAKE'), which with no shake sheet lasted one frame. */
       mammoth.startle(reduced ? 0.55 : 1);
       setState('PHASE_INTRO');

@@ -1059,15 +1059,12 @@ From a playtest as a grade-8 student (phone with a finger, then laptop with mous
 Still open for launch: remove the review control below; the duo dance sheet is at its GIF's
 native size (no hd cut possible); a phone on slow data still downloads ~8 MB before PLAY.
 
-### Comic sweat, and sheets decoded up front
+### No sweat, and sheets decoded up front
 
-The sweat was one 6 px bead every 0.4 s for about a second, and nobody saw it. It is a cartoon
-flick now: three big glossy drops (10–14 px) leaving the temple up and out in a fan — round end
-leading, point trailing, no motion lines (with trails they read as bullets) — the moment he stops
-(`startle`), then one drop every 0.9 s for the first six seconds at the edge
-and one pair every three seconds for as long as the learner thinks (`CFG.comedy.sweatEvery`,
-`sweatLater`), read off the state clock rather than the decaying scare so it does not stop after a
-second. Gravity on a sweat drop is 760 so the arc can be read; each drop pops in over 120 ms.
+The sweat beads at the edge were tried three ways in this round — one small bead, a burst of
+three with motion lines ("look like bullets fired"), an upward fan — and removed on request:
+none read as sweat on the delivered art. The gulp stays as the nervous cue. The particle kind,
+its draw branch and its settings are gone with it, not parked.
 
 Every sheet is decoded during preload (`img.decode()` in `loadImg`), not on its first draw, so
 the first jump, the first crash and the first stomp cannot hitch on a decode.
