@@ -176,7 +176,18 @@ export class Hud {
       this.el.jump.classList.remove('pressed');
       void this.el.jump.offsetWidth;
       this.el.jump.classList.add('pressed');
-      if (window.Juice) { try { Juice.hop(this.el.jump, { power: 0.8 }); } catch (e) { /* no juice */ } }
+      /* A PRESS, NOT A HOP. The button used to hop with the character (Juice.hop): it rose
+         24px and swelled 7px over 620ms, a quarter of its own height on a phone, so the
+         control left the finger that was on it and a second tap landed on sky. A pressed
+         button compresses where it is: a 160ms squash, no travel. The art swap and the
+         tap ring above carry the rest. */
+      if (this.el.jump.animate) {
+        try {
+          this.el.jump.animate([
+            { transform: 'scale(1)' }, { transform: 'scale(0.93)', offset: 0.35 }, { transform: 'scale(1)' }
+          ], { duration: 160, easing: 'ease-out' });
+        } catch (e) { /* no WAAPI */ }
+      }
       handlers.onJump();
     });
     const release = () => this.el.jump.classList.remove('pressed');

@@ -1007,6 +1007,26 @@ its GIF's native size and has no hd cut; the painted environment (path, sky, cap
 delivered resolution. The art budget test now budgets the two sets apart, because a client
 fetches one of them.
 
+### Launch lacks found on the deployment
+
+Tested live at running-mammoth.vercel.app in five contexts (1080p desktop, Pixel 7 landscape
+with touch, Pixel 7 portrait, a 2x laptop, an iPad) plus a full playthrough. Fixed from it:
+
+- **The JUMP button hopped.** Juice.hop lifted the button 24 px and swelled it 7 px over 620 ms on
+  every press — a quarter of its height on a phone — so the control left the finger. It now
+  compresses in place (160 ms scale squash); the art swap and tap ring are unchanged.
+- **Blank page while loading.** The cover waited for the whole art set (5–6 s on the deployment)
+  before anything appeared. The cover now shows at once with PLAY held and a "Loading…" note;
+  onReady releases it (`Frontend.setLoading`).
+- **First sentence in a fallback face.** Baloo 2 was only fetched on first use; `document.fonts.load`
+  warms it at boot.
+- **Preload warnings.** The two pressed-button `<link rel=preload>` produced a Chrome warning on
+  every load; they are warmed with `Image()` instead.
+- **No icon.** `favicon.png` and `apple-touch-icon.png` are the character's face; `theme-color` set.
+
+Still open for launch: remove the review control below; the duo dance sheet is at its GIF's
+native size (no hd cut possible); a phone on slow data still downloads ~8 MB before PLAY.
+
 ### A temporary review control
 
 "Skip to ending" sits bottom-left during play (`#btn-skip-end`). It calls `game.skipToEnd()`,

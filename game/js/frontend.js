@@ -18,6 +18,7 @@ export class Frontend {
     this.el = {
       cover: root.getElementById('cover'),
       play: root.getElementById('btn-play'),
+      loadingNote: root.getElementById('cover-loading'),
       /* oopsHero is gone with the Ouch card — see index.html. The win panel has a hero
          of its own, filled by showWin() below from the character's own sheet. */
       winHero: root.getElementById('win-hero')
@@ -33,6 +34,14 @@ export class Frontend {
     this.bind();
     this.el.cover.hidden = false;
     this.state = 'IDLE';
+  }
+
+  /** While the art is still loading: PLAY is shown but held, with a small note under it. */
+  setLoading(v) {
+    this.loading = !!v;
+    this.el.cover.classList.toggle('loading', this.loading);
+    if (this.el.play) this.el.play.setAttribute('aria-disabled', this.loading ? 'true' : 'false');
+    if (this.el.loadingNote) this.el.loadingNote.hidden = !this.loading;
   }
 
   bind() {
@@ -65,6 +74,7 @@ export class Frontend {
 
   /** The cover slides away and the run begins. */
   start() {
+    if (this.loading) return;                 // the art is not in yet; the note says so
     if (this.state === 'READY') return;
     this.state = 'READY';
     this.sfx('ui');

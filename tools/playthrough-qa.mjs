@@ -15,9 +15,13 @@ import sharp from 'sharp';
 import { mkdirSync } from 'node:fs';
 
 mkdirSync('qa-report/play', { recursive: true });
+/* Against the DEPLOYMENT when LIVE_URL is set (e.g. https://running-mammoth.vercel.app/game/),
+   otherwise against a local server: the same walk, so the two can be compared. */
+const LIVE = process.env.LIVE_URL ? (process.env.LIVE_URL.endsWith('/') ? process.env.LIVE_URL : process.env.LIVE_URL + '/') : '';
 const PORT = 8491;
-const srv = spawn('node', ['tools/serve.mjs', String(PORT)], { stdio: 'ignore' });
-await new Promise(r => setTimeout(r, 1500));
+const srv = LIVE ? null : spawn('node', ['tools/serve.mjs', String(PORT)], { stdio: 'ignore' });
+if (!LIVE) await new Promise(r => setTimeout(r, 1500));
+const BASE = LIVE || `http://127.0.0.1:${PORT}/`;
 const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await b.newPage({ viewport: { width: 1920, height: 1080 } });
 const errs = [], failed = [];
@@ -27,7 +31,8 @@ page.on('requestfailed', r => failed.push(r.url().split('/').pop()));
 page.on('response', r => { if (r.status() >= 400) failed.push(r.status() + ' ' + r.url().split('/').pop()); });
 
 // 1. the cover, as a player sees it (no skip), with the tutorial on
-await page.goto(`http://127.0.0.1:${PORT}/index.html?sound=0`);
+// domcontentloaded: on the deployment the load event can wait on a slow edge fetch, and READY below is the real gate
+await page.goto(`${BASE}index.html?sound=0`, { waitUntil: 'domcontentloaded', timeout: 90000 });
 await page.waitForFunction('window.iceAgeGame && window.iceAgeGame.state() !== "BOOT"', null, { timeout: 60000 });
 await page.waitForTimeout(600);
 await page.screenshot({ path: 'qa-report/play/00-cover.png' });
@@ -91,4 +96,4 @@ console.log('beats captured: ' + [...beats].sort().join(', '));
 console.log('stalls: ' + (stalls.length ? stalls.join(' | ') : 'none'));
 console.log('failed requests: ' + (failed.length ? [...new Set(failed)].join(' | ') : 'none'));
 console.log('errors: ' + (errs.length ? [...new Set(errs)].join(' | ') : 'none'));
-await b.close(); srv.kill();
+await b.close(); if (srv) srv.kill();

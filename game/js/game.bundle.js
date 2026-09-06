@@ -8623,7 +8623,18 @@ class Hud {
       this.el.jump.classList.remove('pressed');
       void this.el.jump.offsetWidth;
       this.el.jump.classList.add('pressed');
-      if (window.Juice) { try { Juice.hop(this.el.jump, { power: 0.8 }); } catch (e) { /* no juice */ } }
+      /* A PRESS, NOT A HOP. The button used to hop with the character (Juice.hop): it rose
+         24px and swelled 7px over 620ms, a quarter of its own height on a phone, so the
+         control left the finger that was on it and a second tap landed on sky. A pressed
+         button compresses where it is: a 160ms squash, no travel. The art swap and the
+         tap ring above carry the rest. */
+      if (this.el.jump.animate) {
+        try {
+          this.el.jump.animate([
+            { transform: 'scale(1)' }, { transform: 'scale(0.93)', offset: 0.35 }, { transform: 'scale(1)' }
+          ], { duration: 160, easing: 'ease-out' });
+        } catch (e) { /* no WAAPI */ }
+      }
       handlers.onJump();
     });
     const release = () => this.el.jump.classList.remove('pressed');
@@ -8822,6 +8833,7 @@ class Frontend {
     this.el = {
       cover: root.getElementById('cover'),
       play: root.getElementById('btn-play'),
+      loadingNote: root.getElementById('cover-loading'),
       /* oopsHero is gone with the Ouch card — see index.html. The win panel has a hero
          of its own, filled by showWin() below from the character's own sheet. */
       winHero: root.getElementById('win-hero')
@@ -8837,6 +8849,14 @@ class Frontend {
     this.bind();
     this.el.cover.hidden = false;
     this.state = 'IDLE';
+  }
+
+  /** While the art is still loading: PLAY is shown but held, with a small note under it. */
+  setLoading(v) {
+    this.loading = !!v;
+    this.el.cover.classList.toggle('loading', this.loading);
+    if (this.el.play) this.el.play.setAttribute('aria-disabled', this.loading ? 'true' : 'false');
+    if (this.el.loadingNote) this.el.loadingNote.hidden = !this.loading;
   }
 
   bind() {
@@ -8869,6 +8889,7 @@ class Frontend {
 
   /** The cover slides away and the run begins. */
   start() {
+    if (this.loading) return;                 // the art is not in yet; the note says so
     if (this.state === 'READY') return;
     this.state = 'READY';
     this.sfx('ui');
@@ -9751,16 +9772,26 @@ const wantScale = () => {
   return Math.min(2, Math.max(1, Math.round(k * 4) / 4));
 };
 
+/* WARM THE TYPE AND THE PRESSED PICTURES. Baloo 2 is only fetched when text first uses it,
+   and the first text a player sees is the tutorial bubble — so the first sentence flashed
+   in a fallback face for a moment. document.fonts.load starts the fetch now, behind the
+   cover. The two pressed button pictures used to be <link rel=preload>, which Chrome
+   warns about on every load because they are not painted within seconds; an Image()
+   fetch is the same warm-up without the warning. */
+if (document.fonts && document.fonts.load) {
+  for (const w of [600, 700, 800, 900]) document.fonts.load(w + ' 20px "Baloo 2"').catch(() => {});
+}
+for (const src of ['assets/ui/btn-play-pressed.webp', 'assets/ui/btn-pressed.webp']) { const i = new Image(); i.src = src; }
+
 const game = createGame(canvas, {
   renderScale: wantScale(),
   renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
-    /* Straight to the cover. There is no loading curtain: onReady only fires once
-       the whole art set has preloaded, so the first thing drawn is already the
-       finished cover — a spinner in front of it was covering nothing. */
     if (flag('skip', false)) { game.begin(); startTutorial(); return; }
-    front = new Frontend(document, game);
-    front.init({ onStart: () => { game.begin(); startTutorial(); } });
+    /* THE COVER IS ALREADY UP (see below); the art has finished loading, so PLAY goes live.
+       Before this the cover itself waited for the whole art set — five to six seconds of
+       blank page on the deployment before anything appeared at all. */
+    if (front) front.setLoading(false);
   },
   onHud: state => {
     hud.update(state);
@@ -9839,6 +9870,15 @@ function startTutorial() {
 }
 
 game.setOptions(options);
+
+/* THE COVER SHOWS AT ONCE, with PLAY held until the art has loaded. The cover needs only
+   its own picture and the PLAY art, which the stylesheet fetches on its own, so there is no
+   reason to sit on a blank page while the sheets and sounds arrive behind it. */
+if (!flag('skip', false)) {
+  front = new Frontend(document, game);
+  front.init({ onStart: () => { game.begin(); startTutorial(); } });
+  front.setLoading(true);
+}
 /* Re-pick the backbuffer scale when the window changes (a zoom, a monitor swap, a rotate).
    The art set stays as chosen at boot; only the pixel count follows. */
 {

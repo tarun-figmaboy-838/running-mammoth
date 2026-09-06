@@ -78,16 +78,26 @@ const wantScale = () => {
   return Math.min(2, Math.max(1, Math.round(k * 4) / 4));
 };
 
+/* WARM THE TYPE AND THE PRESSED PICTURES. Baloo 2 is only fetched when text first uses it,
+   and the first text a player sees is the tutorial bubble — so the first sentence flashed
+   in a fallback face for a moment. document.fonts.load starts the fetch now, behind the
+   cover. The two pressed button pictures used to be <link rel=preload>, which Chrome
+   warns about on every load because they are not painted within seconds; an Image()
+   fetch is the same warm-up without the warning. */
+if (document.fonts && document.fonts.load) {
+  for (const w of [600, 700, 800, 900]) document.fonts.load(w + ' 20px "Baloo 2"').catch(() => {});
+}
+for (const src of ['assets/ui/btn-play-pressed.webp', 'assets/ui/btn-pressed.webp']) { const i = new Image(); i.src = src; }
+
 const game = createGame(canvas, {
   renderScale: wantScale(),
   renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
-    /* Straight to the cover. There is no loading curtain: onReady only fires once
-       the whole art set has preloaded, so the first thing drawn is already the
-       finished cover — a spinner in front of it was covering nothing. */
     if (flag('skip', false)) { game.begin(); startTutorial(); return; }
-    front = new Frontend(document, game);
-    front.init({ onStart: () => { game.begin(); startTutorial(); } });
+    /* THE COVER IS ALREADY UP (see below); the art has finished loading, so PLAY goes live.
+       Before this the cover itself waited for the whole art set — five to six seconds of
+       blank page on the deployment before anything appeared at all. */
+    if (front) front.setLoading(false);
   },
   onHud: state => {
     hud.update(state);
@@ -166,6 +176,15 @@ function startTutorial() {
 }
 
 game.setOptions(options);
+
+/* THE COVER SHOWS AT ONCE, with PLAY held until the art has loaded. The cover needs only
+   its own picture and the PLAY art, which the stylesheet fetches on its own, so there is no
+   reason to sit on a blank page while the sheets and sounds arrive behind it. */
+if (!flag('skip', false)) {
+  front = new Frontend(document, game);
+  front.init({ onStart: () => { game.begin(); startTutorial(); } });
+  front.setLoading(true);
+}
 /* Re-pick the backbuffer scale when the window changes (a zoom, a monitor swap, a rotate).
    The art set stays as chosen at boot; only the pixel count follows. */
 {

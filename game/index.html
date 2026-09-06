@@ -18,8 +18,10 @@
      had not arrived — the button went blank for as long as the fetch took, which on a
      phone is exactly the tap where the player is deciding whether the game responds at
      all. Preloading is 100kB and removes the flash entirely. -->
-<link rel="preload" as="image" href="assets/ui/btn-play-pressed.webp" />
-<link rel="preload" as="image" href="assets/ui/btn-pressed.webp" />
+<!-- the tab and home-screen icons: the character's face, cut from his idle sheet -->
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#0a2450" />
 <!-- No Try Again preload. That card is gone: a crash now plays its animation out and
      the run resumes at the nearest checkpoint, so the button can never appear and this
      was 1.1MB fetched on every load for nothing. -->
@@ -213,6 +215,8 @@
                button. Overriding state by state is whack-a-mole; the fix is that the
                picture buttons are their own family. -->
           <button class="btn-art btn-play" id="btn-play" type="button" aria-label="Play"></button>
+          <!-- shown while the art loads behind the cover; PLAY is held until it is in -->
+          <p class="cover-loading" id="cover-loading" hidden>Loading…</p>
         </div>
 
       </div>

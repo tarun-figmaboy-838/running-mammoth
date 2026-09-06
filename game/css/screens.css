@@ -36,6 +36,23 @@
    are both 16:9, so in practice it fills the frame edge to edge anyway; the flat
    background behind it is only there for a viewport that is not. */
 .cover { background: #0a2450; }
+/* WHILE THE ART LOADS: PLAY is visible but held, dimmed a touch, with a quiet note under it. */
+.cover.loading .btn-play { filter: saturate(0.7) brightness(0.82); cursor: progress; }
+.cover-loading {
+  position: absolute;
+  left: 50%;
+  bottom: 2.2%;
+  transform: translateX(-50%);
+  margin: 0;
+  font: 700 clamp(12px, 1.3vw, 22px)/1 "Baloo 2", system-ui, sans-serif;
+  color: rgba(234, 249, 255, 0.92);
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 6px rgba(6, 32, 60, 0.6);
+  pointer-events: none;
+  animation: coverLoadingPulse 1.2s ease-in-out infinite;
+}
+@keyframes coverLoadingPulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cover-loading { animation: none; } }
 .cover-art {
   position: absolute;
   inset: 0;
