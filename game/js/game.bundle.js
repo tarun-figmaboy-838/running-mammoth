@@ -2853,12 +2853,20 @@ class ParticleManager {
      thrown off the temple in an arc, with motion lines behind them, slow enough to be read.
      The stop throws a burst of three; the wait adds an occasional one (PlayerController). */
   sweat(x, y, n = 1) {
-    this.spawn(n, i => ({
-      x: x + rand(-8, 8), y: y + rand(-10, 6),
-      vx: rand(130, 270) + i * 30, vy: rand(-380, -250) - i * 25,
-      r: rand(11, 16), dur: rand(0.85, 1.15), kind: 'sweat',
-      rot: 0, vr: 0
-    }));
+    /* UP AND OUT IN A FAN, not forward in a line: the first cut of this threw three drops
+       ahead of the head with trails, and it read as gunfire. Cartoon sweat leaves the temple
+       upward — a spread from up-and-back to up-and-forward — rises a little, hangs, and
+       falls, so each drop is a small arc the eye can follow. */
+    this.spawn(n, i => {
+      const a = -Math.PI / 2 + (n > 1 ? (i / (n - 1) - 0.5) * 1.5 : rand(-0.5, 0.5)) + rand(-0.12, 0.12);
+      const v = rand(210, 290);
+      return {
+        x: x + rand(-8, 8), y: y + rand(-8, 6),
+        vx: Math.cos(a) * v * 0.7 + 40, vy: Math.sin(a) * v,
+        r: rand(10, 14), dur: rand(0.9, 1.15), kind: 'sweat',
+        rot: 0, vr: 0
+      };
+    });
   }
   /* A GLINT. Four-pointed stars that pop and shrink away — the reward beat, and the
      one thing on screen that says "that was right" in the language of a game rather
@@ -2902,7 +2910,7 @@ class ParticleManager {
         continue;
       }
       p.vy += (p.kind === 'ice' ? 900 : p.kind === 'water' ? 1500
-             : p.kind === 'sparkle' ? 90 : p.kind === 'sweat' ? 760 : 520) * dt;
+             : p.kind === 'sparkle' ? 90 : p.kind === 'sweat' ? 900 : 520) * dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.vr) p.rot += p.vr * dt;
       p.life = 1 - p.t / p.dur;
@@ -2960,18 +2968,15 @@ class ParticleManager {
         }
         ctx.restore();
       } else if (p.kind === 'sweat') {
-        /* A cartoon bead: a big teardrop with a white catchlight, tipped along its travel
-           so it reads as flicked off rather than dropped, with two motion lines trailing
-           it — the comic shorthand for "flung". It pops in over its first 120ms. */
+        /* A cartoon bead: a big glossy teardrop with a white catchlight. The ROUND end leads
+           and the point trails, the way a drop actually flies; the tip swings round as the
+           arc turns over so a falling drop hangs point-up. No motion lines — with them the
+           drops read as bullets. It pops in over its first 120ms. */
         ctx.save();
         ctx.translate(p.x, p.y);
         const pop = 0.6 + 0.4 * Math.min(1, (p.t || 0) / 0.12) + 0.18 * Math.sin(Math.min(1, (p.t || 0) / 0.24) * Math.PI);
         ctx.scale(pop, pop);
-        ctx.rotate(Math.atan2(p.vy, p.vx) + Math.PI / 2);
-        // motion lines: two short strokes behind the drop, along the way it came
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(-p.r * 0.5, p.r * 1.9); ctx.lineTo(-p.r * 0.6, p.r * 3.1); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(p.r * 0.45, p.r * 2.1); ctx.lineTo(p.r * 0.55, p.r * 2.9); ctx.stroke();
+        ctx.rotate(Math.atan2(p.vy, p.vx) - Math.PI / 2);
         ctx.fillStyle = 'rgba(150,222,250,0.95)';
         ctx.beginPath();
         ctx.moveTo(0, -p.r * 1.5);

@@ -1062,8 +1062,9 @@ native size (no hd cut possible); a phone on slow data still downloads ~8 MB bef
 ### Comic sweat, and sheets decoded up front
 
 The sweat was one 6 px bead every 0.4 s for about a second, and nobody saw it. It is a cartoon
-flick now: three big glossy drops (11–16 px) thrown off the temple in an arc with motion lines
-the moment he stops (`startle`), then one drop every 0.9 s for the first six seconds at the edge
+flick now: three big glossy drops (10–14 px) leaving the temple up and out in a fan — round end
+leading, point trailing, no motion lines (with trails they read as bullets) — the moment he stops
+(`startle`), then one drop every 0.9 s for the first six seconds at the edge
 and one pair every three seconds for as long as the learner thinks (`CFG.comedy.sweatEvery`,
 `sweatLater`), read off the state clock rather than the decaying scare so it does not stop after a
 second. Gravity on a sweat drop is 760 so the arc can be read; each drop pops in over 120 ms.
