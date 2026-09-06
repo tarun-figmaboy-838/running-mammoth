@@ -5811,8 +5811,8 @@ export function createGame(canvas, hooks = {}) {
      halo flares — light, not movement: the options hold still while they are read, which
      is why the old jiggle is zeroed every frame below — the whiff says "that touched it",
      and the demonstration hand is brought forward to now instead of after thirteen idle
-     seconds — on the middle rope, as ever, because it shows HOW, not WHICH. A tap on empty
-     sky still says nothing. */
+     seconds — on the rope of the answer, never a wrong one. A tap on empty sky still says
+     nothing. */
   function tappedBlock(p) {
     const L = G.l1;
     if (!L || !p || G.state !== 'PHASE_ACTIVE') return;
@@ -5894,11 +5894,14 @@ export function createGame(canvas, hooks = {}) {
       if ((L.wrong >= 1 || G.idle > CFG.hint.slotMs / 1000) && L.slotPulse <= 0 && !L.pulsedOnce) {
         L.pulsedOnce = true; L.slotPulse = 1; G.idle = 0;
       }
-      /* After a long idle, demonstrate the GESTURE. Placed on the middle rope, which
-         is a position not an answer: it says "ropes are cut like this", never "cut
-         this one". It leaves the instant anything is touched. */
+      /* After a long idle (or a tap on a block), demonstrate the cut ON THE ROPE OF THE
+         ANSWER. It used to sit on the middle rope as "a position, not an answer" — and on a
+         wrong block that is a hint to cut the wrong block, which is worse than no hint. Asked
+         for: the hand only ever goes on the right option. Falls back to the middle rope only
+         if nothing is wanted. It leaves the instant anything is touched. */
       if (G.idleHand > CFG.hint.idleMs / 1000 && L.shapes.length) {
-        const mid = L.shapes[Math.floor(L.shapes.length / 2)];
+        const mid = L.shapes.find(s => s.state === 'hang' && L.unfilled && L.unfilled.includes(s.kind))
+                 || L.shapes[Math.floor(L.shapes.length / 2)];
         G.handHint = { x: mid.anchorX, y: (L1.rigY + mid.y - (mid.h || SHAPE_H) / 2) / 2 };
       } else {
         G.handHint = null;

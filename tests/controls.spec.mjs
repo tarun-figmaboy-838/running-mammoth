@@ -56,11 +56,14 @@ test.describe('controls', () => {
     await page.waitForTimeout(250);
     const after = await page.evaluate(() => {
       const G = window.iceAgeGame.debug();
-      return { flashed: G.l1.shapes.filter(s => (s.flash || 0) > 0.1).map(s => s.kind), hand: !!G.handHint, state: G.state, attempts: G.attempts };
+      const want = G.l1.shapes.find(s => s.state === 'hang' && G.l1.unfilled.includes(s.kind));
+      return { flashed: G.l1.shapes.filter(s => (s.flash || 0) > 0.1).map(s => s.kind), hand: !!G.handHint,
+               handOnAnswer: !!G.handHint && Math.abs(G.handHint.x - want.anchorX) < 2, state: G.state, attempts: G.attempts };
     });
     // light, not movement: the options hold still while they are read, so the answer is the halo
     expect(after.flashed, 'the tapped block flashes').toContain(at.kind);
     expect(after.hand, 'the demonstration hand comes forward').toBe(true);
+    expect(after.handOnAnswer, 'and it is on the rope of the answer, never a wrong one').toBe(true);
     expect(after.state).toBe('PHASE_ACTIVE');         // a tap is not a cut
     expect(after.attempts).toBe(0);
   });
