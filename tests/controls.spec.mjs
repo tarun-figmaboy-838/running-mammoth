@@ -3,7 +3,7 @@
  * Found on the deployment: a JUMP button that hopped 24px on every press, a blank page while
  * the art loaded, a preload warning on every load, and no icon. These hold the fixes. */
 import { test, expect } from '@playwright/test';
-import { boot, READY } from './helpers.mjs';
+import { boot, READY, force } from './helpers.mjs';
 
 test.describe('controls', () => {
   test.setTimeout(90_000);
@@ -15,21 +15,54 @@ test.describe('controls', () => {
       const el = document.getElementById('btn-jump');
       const r0 = el.getBoundingClientRect();
       el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', isPrimary: true }));
-      let rise = 0, swell = 0, shrink = 0;
+      /* WHAT the press animates is read off the animation itself, not sampled: a 160ms
+         squash can finish between two frames of a loaded headless runner. The keyframes
+         must scale about the centre and never translate. */
+      const anims = el.getAnimations ? el.getAnimations() : [];
+      const frames = anims.flatMap(a => a.effect && a.effect.getKeyframes ? a.effect.getKeyframes() : []);
+      const transforms = frames.map(f => f.transform || '').filter(Boolean);
+      let rise = 0, swell = 0;
       const t0 = performance.now();
       const tick = () => {
         const r = el.getBoundingClientRect();
         rise = Math.max(rise, Math.abs(r.top + r.height / 2 - (r0.top + r0.height / 2)));   // the centre must stay put
         swell = Math.max(swell, r.width - r0.width);
-        shrink = Math.max(shrink, r0.width - r.width);
-        if (performance.now() - t0 < 700) requestAnimationFrame(tick); else done({ rise, swell, shrink, w: r0.width });
+        if (performance.now() - t0 < 700) requestAnimationFrame(tick); else done({ rise, swell, animations: anims.length, transforms });
       };
       requestAnimationFrame(tick);
     }));
     // a squash about the centre is fine; travel is not, and growth is not
     expect(trace.rise, 'centre travel px').toBeLessThan(2);
     expect(trace.swell, 'growth px').toBeLessThan(2);
-    expect(trace.shrink, 'the press is visible').toBeGreaterThan(2);
+    expect(trace.animations, 'the press is animated').toBeGreaterThan(0);
+    expect(trace.transforms.some(t => /scale\(0\.9/.test(t)), 'it squashes').toBe(true);
+    expect(trace.transforms.some(t => /translate/.test(t)), 'it never travels').toBe(false);
+  });
+
+  test('a tap on a block answers: its halo flashes and the hand shows how', async ({ page }) => {
+    await boot(page);
+    /* Through the INTRO, not straight to ACTIVE: the intro is what lowers the blocks in
+       (dropReady), and a forced PHASE_ACTIVE leaves them held above the screen. */
+    await force(page, 'PHASE_INTRO');
+    await page.waitForFunction(() => window.iceAgeGame.state() === 'PHASE_ACTIVE', null, { timeout: 20_000 });
+    await page.waitForFunction(() => { const L = window.iceAgeGame.debug().l1; return L && L.shapes.some(s => s.state === 'hang' && s.y > 400); }, null, { timeout: 20_000 });
+    await page.waitForTimeout(400);
+    const at = await page.evaluate(() => {
+      const G = window.iceAgeGame.debug(); const r = document.getElementById('stage').getBoundingClientRect();
+      const sh = G.l1.shapes.find(s => s.state === 'hang' && G.l1.unfilled.includes(s.kind));
+      return { kind: sh.kind, x: r.left + sh.x / 1920 * r.width, y: r.top + sh.y / 1080 * r.height };
+    });
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => {
+      const G = window.iceAgeGame.debug();
+      return { flashed: G.l1.shapes.filter(s => (s.flash || 0) > 0.1).map(s => s.kind), hand: !!G.handHint, state: G.state, attempts: G.attempts };
+    });
+    // light, not movement: the options hold still while they are read, so the answer is the halo
+    expect(after.flashed, 'the tapped block flashes').toContain(at.kind);
+    expect(after.hand, 'the demonstration hand comes forward').toBe(true);
+    expect(after.state).toBe('PHASE_ACTIVE');         // a tap is not a cut
+    expect(after.attempts).toBe(0);
   });
 
   test('the page has an icon, and no preload warnings', async ({ page }) => {

@@ -1024,6 +1024,21 @@ with touch, Pixel 7 portrait, a 2x laptop, an iPad) plus a full playthrough. Fix
   every load; they are warmed with `Image()` instead.
 - **No icon.** `favicon.png` and `apple-touch-icon.png` are the character's face; `theme-color` set.
 
+From a playtest as a grade-8 student (phone with a finger, then laptop with mouse and keyboard):
+
+- **A tap on a block did nothing.** It was the student's first move. Now the block's halo
+  flashes (light, not movement — the options hold still while they are read), the whiff
+  plays and the demonstration hand comes forward at once (still on the middle rope: how, not
+  which). A short stroke is still never told it "missed".
+- **The tutorial's hand demonstrated on the middle rope**, so a student who copied it cut the
+  wrong block two times in three. The tutorial's hand and the engine's tutorial-phase demo
+  now cross the rope of the answer, and the sentence names the shape ("Swipe across the
+  triangle's rope!"). The idle hint later in the game keeps to the middle rope.
+- Checked and fine: a late jump crashes and the run resumes by itself in about five seconds
+  with no tap needed; a wrong cut splashes, the instruction comes back and the other blocks
+  stay; JUMP is hidden during a puzzle so it cannot be spammed; rotating to portrait shows the
+  prompt and the game continues where it was; Play again restarts cleanly.
+
 Still open for launch: remove the review control below; the duo dance sheet is at its GIF's
 native size (no hd cut possible); a phone on slow data still downloads ~8 MB before PLAY.
 

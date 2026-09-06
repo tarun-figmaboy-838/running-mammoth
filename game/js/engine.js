@@ -5259,6 +5259,8 @@ export function createGame(canvas, hooks = {}) {
            same reason: the options hold perfectly still while the learner reads them.
            The missed-swipe feedback is now the sound alone. */
         if (sh.jiggle) sh.jiggle = 0;
+        // the tap's flare on the halo, gone in under half a second
+        if (sh.flash) sh.flash = Math.max(0, sh.flash - dt * 2.2);
         // Swings on arrival, then settles to almost still. A permanent wobble on all
         // three options was constant visual noise and made the ropes harder to cut.
         const swing = lerp(reduced ? 0.012 : 0.05, reduced ? 0.003 : 0.007,
@@ -5796,7 +5798,36 @@ export function createGame(canvas, hooks = {}) {
     if (paused) { slash = null; return; }
     if (slash && slash.id !== undefined && e && e.pointerId !== undefined &&
         e.pointerId !== slash.id) return;      // a different finger lifting
-    if (slash) { missedSwipe(); slash = null; }
+    if (slash) {
+      if (slash.dist < 46) tappedBlock(slash.pts[slash.pts.length - 1]); else missedSwipe();
+      slash = null;
+    }
+  }
+
+  /* A TAP ON A BLOCK IS A QUESTION, NOT A MISS.
+
+     The student playtest's first move at the crevasse was to tap the block — the most
+     natural thing to do with a picture of the answer — and the game did nothing at all,
+     which is what a broken game does. missedSwipe() rightly ignores short strokes (a tap
+     must not be told it missed), so this answers the tap on its own terms: the block's
+     halo flares — light, not movement: the options hold still while they are read, which
+     is why the old jiggle is zeroed every frame below — the whiff says "that touched it",
+     and the demonstration hand is brought forward to now instead of after thirteen idle
+     seconds — on the middle rope, as ever, because it shows HOW, not WHICH. A tap on empty
+     sky still says nothing. */
+  function tappedBlock(p) {
+    const L = G.l1;
+    if (!L || !p || G.state !== 'PHASE_ACTIVE') return;
+    for (const sh of L.shapes) {
+      if (sh.state !== 'hang') continue;
+      const w = sh.w || 240, h = sh.h || SHAPE_H;
+      if (Math.abs(p.x - sh.x) < w / 2 + 24 && Math.abs(p.y - sh.y) < h / 2 + 24) {
+        sh.flash = 1;
+        G.idleHand = Math.max(G.idleHand, CFG.hint.idleMs / 1000 + 0.01);
+        audio.whiff();
+        return;
+      }
+    }
   }
 
   /* THE STROKE IS ABANDONED, not finished.
@@ -6715,8 +6746,11 @@ export function createGame(canvas, hooks = {}) {
     const b = polyBounds(sh.pts);
     const r = Math.max(b.w, b.h) * 1.05;
     // one shared breath across the whole row
-    const pulse = 0.86 + 0.14 * Math.sin(G.t * 1.9);
+    // a tapped block's halo flares wider and brighter for a moment (tappedBlock)
+    const flash = sh.flash || 0;
+    const pulse = (0.86 + 0.14 * Math.sin(G.t * 1.9)) * (1 + flash * 0.35);
     ctx.save();
+    if (flash > 0) ctx.globalAlpha = Math.min(1, ctx.globalAlpha * (1 + flash * 0.6));
     /* WARM, NOT COOL — and that is the whole reason this works now.
 
        The first version glowed pale blue. Pale blue ice, on a pale blue halo, against a
@@ -6923,8 +6957,17 @@ export function createGame(canvas, hooks = {}) {
        It is now on the MIDDLE rope and long enough to cross it — the same placement
        the idle hand hint already uses, and for the same reason: the middle is a
        POSITION, not an answer. It says "ropes are cut like this", never "cut this
-       one". */
-    const mid = L.shapes[Math.floor(L.shapes.length / 2)];
+       one".
+
+       EXCEPT HERE. This demo exists only in the tutorial phase (buildPhase sets it for
+       p.tutorial), where a first-timer copies exactly what they see: on the middle rope
+       that copy cut the wrong block two times in three, and the first thing the game
+       taught was failure (student playtest). So the tutorial's demo crosses the rope of
+       the answer, and so does the tutorial's own hand (Tutorial.ropeBox), so the two agree.
+       The idle hint that comes later keeps to the middle rope: by then it is the gesture
+       being reminded, not the answer being given. */
+    const want = L.shapes.find(s => s.state === 'hang' && L.unfilled && L.unfilled.includes(s.kind));
+    const mid = want || L.shapes[Math.floor(L.shapes.length / 2)];
     const cx = mid.anchorX;
     const cy = (L1.rigY + L1.optionY - (mid.h || SHAPE_H) / 2) / 2;
     const cycle = 0.95, u = (L.demo.t % cycle) / cycle;

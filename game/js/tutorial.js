@@ -201,7 +201,8 @@ export class Tutorial {
         id: 'cut',
         at: g => !!g.l1 && g.state === 'PHASE_ACTIVE' && this.ropeBox(g) !== null,
         spot: g => this.ropeBox(g),
-        text: 'Swipe across a rope!',
+        // names the shape the instruction asked for, so the sentence and the hand agree
+        text: g => 'Swipe across the ' + this.wantedNoun(g) + "'s rope!",
         /* No hand of its own: the engine already strokes a demonstration swipe across
            the middle rope (drawCutDemo), and its comment records an earlier version
            that drew between two ropes and crossed neither. Two hands on screen is the
@@ -247,11 +248,22 @@ export class Tutorial {
 
      The middle rope, because a sweep centred there stays clear of both edges of the
      row, and midway up it so the hand is on rope rather than at either end of it. */
+  /** The shape the current instruction asks for, as a word: "Cut the triangle." -> triangle. */
+  wantedNoun(g) {
+    const m = /the (\w+?)s?\.?\s*$/i.exec((g && g.instruction) || '');
+    return m ? m[1] : 'block';
+  }
+
   ropeBox(g) {
     const hang = ((g.l1 && g.l1.shapes) || []).filter(s => s.state === 'hang');
     if (!hang.length) return null;
+    /* THE ROPE OF THE ANSWER, not the middle one. A student copies the hand; on the middle
+       rope that copy cut the wrong block two times in three (student playtest). The engine's
+       demo stroke (drawCutDemo) aims the same way in this phase, so the two agree. The
+       middle rope is only the fallback when nothing is wanted. */
+    const want = g.l1.unfilled && g.l1.unfilled[0];
     const sorted = hang.slice().sort((a, b) => a.x - b.x);
-    const mid = sorted[Math.floor(sorted.length / 2)];
+    const mid = hang.find(s => s.kind === want) || sorted[Math.floor(sorted.length / 2)];
     const topOfBlock = mid.y - (mid.h || 200) / 2;
     if (topOfBlock < 60) return null;                 // rope still off the top
     const y = Math.max(70, topOfBlock - 60);
