@@ -1369,7 +1369,7 @@ const CFG = {
        geometry goes here", not "a triangle goes here", so the lesson stays a shape lesson and
        not a silhouette match — and resolves it to the exact outline as the right piece seats.
        The satisfying fit is feedback, not a hint. */
-    notch: 'reveal',
+    notch: 'off',            // 'off' after review: the plain neck looked natural, the faceted break did not
     throatDepth: 36,
     /* How far past the character the near lip opens — and, because the option row is
        centred on the crevasse, what decides how BIG an option can be.

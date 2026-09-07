@@ -10,9 +10,16 @@ const NOUN = k => /triangle/i.test(k) ? 'triangle' : /quadrilateral/i.test(k) ? 
 
 test.describe('the notch', () => {
   test.setTimeout(120_000);
+  /* The notch is an experiment behind CFG.levelOne.notch and is OFF after review (the plain neck
+     looked natural, the faceted break did not). Its behaviour tests run only when it is on; the
+     one-source-of-truth test always runs. */
+  let mode = 'off';
+  test.beforeEach(async ({ page }) => {
+    await boot(page);
+    mode = await page.evaluate(async () => { const m = await import('/js/engine.js'); return m.CFG.levelOne.notch || 'off'; });
+  });
 
   test('every question names the shape its slots are cut for (one source of truth)', async ({ page }) => {
-    await boot(page);
     const phases = await page.evaluate(async () => { const m = await import('/js/engine.js'); return m.CFG.levelOne.phases.map(p => ({ instruction: p.instruction, targets: p.targets })); });
     for (const p of phases) {
       const m = /\bthe\s+([a-z]+?)(s?)[.!]?$/i.exec(p.instruction);
@@ -22,6 +29,7 @@ test.describe('the notch', () => {
   });
 
   test('before the answer the break is faceted and gives nothing away; every slot knows its answer', async ({ page }) => {
+    test.skip(mode !== 'reveal', 'the notch experiment is off');
     await boot(page, { fast: 2 });
     await force(page, 'GLACIER_BREAK_1');
     await waitState(page, 'PHASE_ACTIVE', 40_000);
@@ -41,6 +49,7 @@ test.describe('the notch', () => {
   });
 
   test('the right piece goes to the slot cut for it, and the break resolves to its outline', async ({ page }) => {
+    test.skip(mode === 'off', 'the notch experiment is off');
     await boot(page, { fast: 2 });
     await force(page, 'GLACIER_BREAK_1');
     await waitState(page, 'PHASE_ACTIVE', 40_000);

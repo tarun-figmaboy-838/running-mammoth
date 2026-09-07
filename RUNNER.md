@@ -1102,7 +1102,11 @@ the edge is still a poke, a tap on the water still splashes. The tutorial's butt
 "This is the JUMP button. It makes him hop. A tap anywhere does too!" Tests: game.spec "a tap
 anywhere jumps" and "a tap in a puzzle is a stroke, never a jump".
 
-### The notch — TEMPORARY, pending feedback
+### The notch — TEMPORARY, and OFF after review
+
+Reviewed and switched off (`CFG.levelOne.notch: 'off'`): the plain undercut neck looked natural and
+the faceted break did not ("make ditch natural like previous"). The code stays behind the flag for
+a later look; its tests skip while it is off. What it was:
 
 Point 5 asked for a polygon-shaped cut in the gap's top edge. Taken literally it would let a
 learner match a silhouette without knowing what a triangle is, so it is built in two states, per
