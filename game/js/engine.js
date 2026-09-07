@@ -5902,7 +5902,7 @@ export function createGame(canvas, hooks = {}) {
     if (G.jumpEnabled && RUN_STATES.has(G.state)) {
       mammoth.requestJump(performance.now());
       if (hooks.onJumpInput) hooks.onJumpInput('tap');
-      canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+      capturePointer(e);
       return;
     }
     /* THE STROKE IS ARMED THROUGH THE WHOLE OF A PUZZLE, not only in PHASE_ACTIVE.
@@ -5929,7 +5929,7 @@ export function createGame(canvas, hooks = {}) {
        over him and sweeps out to a rope still cuts. He is not a button that swallows
        the gesture. */
     if (onMammoth(p)) pokeMammoth();
-    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    capturePointer(e);
   }
   /* HOW FAR THE FINGER HAS TO TRAVEL BEFORE A CUT COUNTS.
 
@@ -6113,6 +6113,9 @@ export function createGame(canvas, hooks = {}) {
       api.jump();
     }
   }
+  /* Capture can throw (a pointer released between events, or one that never existed, as a
+     synthetic event from a harness); a throw here would abort the tap itself, so it is swallowed. */
+  function capturePointer(e) { try { if (canvas.setPointerCapture && e && e.pointerId !== undefined) canvas.setPointerCapture(e.pointerId); } catch (err) { /* nothing to capture */ } }
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
