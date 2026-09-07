@@ -986,8 +986,22 @@ steps (≥150 ms) crossfade into the next pose over their last 40%, so a head tu
 steps cut hard — the flicker IS the tremble there. On the strong steps a real cartoon knock is drawn
 under the frames (±7 px, ±3 px, ±2°, a 4% jelly squash on each beat, on a fixed 0/-2/+3/-2/+2/0
 rhythm, eased in and out; stage units so it scales; off under prefers-reduced-motion) — drawn, never
-simulated: the collider reads none of it. While he waits at the hole, every gulp brings half a second
-of small knees-knocking (±4 px, ±1°), so the wait stays comic. The owner's cartoon blink (`CFG.sfx.tremble`, four little pips) fires
+simulated: the collider reads none of it. The wait after it is still (a gulp shiver was tried and
+taken out on request).
+
+**The comedy in the tremble** (asked for: "comic juice, fun, spice"), all drawn on or spawned at the
+sprite, nothing read by the collider: (1) TREMBLE MARKS — three short brown arcs a side at
+shoulder, chest and hip from the moment the tremble starts, bold on the strong beat, one side
+heavier per beat and jittering against the knock — the cartoon shorthand for fear; (2) THE "!" —
+a bold exclamation mark pops over his head with an overshoot as he notices the drop (plan steps
+0-3) and shrinks away as the tremble takes over; (3) BEATS — every strong step lands a little dust
+puff under alternate feet (the feet drumming) and shakes snow flecks off his back; (4) SOUND — the
+owner's blink cue as the strong tremble begins and the kit's knees-knock ratchet on the second
+oscillation. The still shake lines painted into the sheet stay; these carry the beat between them.
+
+The dialogue box is capped at 760 px (was 500): at desktop size "Oh no! The path is broken." needs
+~720 px with its padding to sit on one line, and at 500 it wrapped with "broken." alone on a second
+line under a box twice its width (a design bug the owner caught). The owner's cartoon blink (`CFG.sfx.tremble`, four little pips) fires
 once as the strong tremble begins, with a puff of snow at his feet, so picture and sound land
 together. The trample is shelved beside the fright in `art-source/shelved/` (both sizes, still
 measured by the slicer); its stamp hook is gone with it. Test: tests/tremble.spec.mjs.

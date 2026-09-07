@@ -3263,6 +3263,30 @@ class PlayerController {
         ctx.restore();
         this.marksDrawn = strong ? 2 : 1;
       }
+      /* THE "!" (asked for: comic juice in the tremble). As he notices the drop — plan steps 0-3,
+         the looks — a bold exclamation mark pops over his head with a cartoon overshoot, tilts,
+         and shrinks away as the tremble takes over. Ink and cream, like the sign's stroke. */
+      if (si <= 3) {
+        const done = TP.plan.slice(0, si).reduce((s, q) => s + q[1], 0) + this.trembleClock;   // ms into the notice
+        const total = TP.plan.slice(0, 4).reduce((s, q) => s + q[1], 0);
+        const inK = Math.min(1, done / 220), outK = Math.max(0, (done - (total - 220)) / 220);
+        const over = 1 + Math.sin(Math.min(1, inK) * Math.PI) * 0.35;                        // overshoot on the way in
+        const sc = (inK < 1 ? inK * over : 1) * (1 - outK);
+        if (sc > 0.02) {
+          const base = ctx.globalAlpha;
+          ctx.save();
+          ctx.translate(96, -458 + Math.sin(this.t * 9) * 3);
+          ctx.rotate(0.14);
+          ctx.scale(sc, sc);
+          ctx.lineJoin = 'round'; ctx.lineWidth = 12; ctx.strokeStyle = '#FFF6E0'; ctx.fillStyle = '#6E3410';
+          ctx.globalAlpha = base;
+          // the bar, tapered, then the dot
+          ctx.beginPath(); ctx.moveTo(-13, -54); ctx.lineTo(13, -54); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.closePath();
+          ctx.stroke(); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 26, 11, 0, 6.2832); ctx.stroke(); ctx.fill();
+          ctx.restore();
+        }
+      }
     }
     ctx.restore();
   }
@@ -6474,7 +6498,18 @@ export function createGame(canvas, hooks = {}) {
        a small puff leaves his feet, once per visit — the feet are shaking, the ground says
        so. The trample's stamp hook that used to live here went with the trample. */
     if (mammoth.state === 'SHAKE' && mammoth.trembleFired) {
-      if (!G.trembleDust) { G.trembleDust = true; if (!reduced) particles.poof(CFG.mammothX + 24, CFG.surfaceY, 3, 0.6); }
+      const TP = CFG.sprite.tremble, st = mammoth.trembleStep;
+      if (!G.trembleDust) { G.trembleDust = true; G.trembleBeat = -1; if (!reduced) particles.poof(CFG.mammothX + 24, CFG.surfaceY, 3, 0.6); }
+      /* COMEDY ON THE BEAT (asked for: more comic juice in the tremble): every strong step lands
+         a little puff under alternate feet — the feet drumming in fear — and the second
+         oscillation brings the kit's knees-knock ratchet over the owner's blink cue. */
+      if (TP && TP.strong && st >= TP.strong[0] && st <= TP.strong[1] && st !== G.trembleBeat) {
+        G.trembleBeat = st;
+        if (!reduced) particles.poof(CFG.mammothX + (st % 2 ? 62 : -34), CFG.surfaceY, 1, 0.42);
+        // and snow shakes off his back: he is trembling hard enough to shed it
+        if (!reduced) particles.snowPuff(CFG.mammothX - 30 + (st % 3) * 30, CFG.surfaceY - 330, 3, 1.3);
+        if (st === TP.strong[0] + 4) audio.knees();
+      }
     } else G.trembleDust = false;
     particles.update(dt);
     // the last argument is what stops one bump burning all three strikes while

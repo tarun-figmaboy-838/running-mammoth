@@ -491,7 +491,9 @@
      stage, so the same sentence wraps to two readable lines wherever it is read. Desktop is
      unchanged: 46% of 1920 is past the 500px cap. */
   width: max-content;
-  max-width: min(46%, 500px);
+  /* 600, not 500: at desktop size "Oh no! The path is broken." needs ~720px with its padding on one line; capped at
+     500 it wrapped and left "broken." alone on a second line under a box twice its width. */
+  max-width: min(46%, 760px);
   padding: clamp(15px, 1.6vw, 30px) clamp(21px, 2.2vw, 41px);
   text-align: center;
   rotate: -1.1deg;
