@@ -98,6 +98,30 @@ test.describe('controls', () => {
     expect(['PHASE_SUCCESS', 'PHASE_DONE', 'PHASE_RUN', 'PHASE_WRONG']).toContain(mark.state);
   });
 
+  test('after a crash Momo blinks, and cannot be hit again until the blink is over', async ({ page }) => {
+    await boot(page, { fast: 1 });
+    const r = await page.evaluate(async () => {
+      const g = window.iceAgeGame;
+      g._force('JUMP_CHALLENGE_1');
+      const t0 = Date.now();
+      while (Date.now() - t0 < 12000 && g.debug().state !== 'OBSTACLE_HIT') await new Promise(res => requestAnimationFrame(res));
+      const hits = g.debug().hitCount;
+      g.retryObstacle();
+      const armed = g.debug().invincibleT;
+      // run into whatever is there for a second: nothing may count while the blink is on
+      const t1 = Date.now();
+      while (Date.now() - t1 < 1000) await new Promise(res => requestAnimationFrame(res));
+      const during = { hits: g.debug().hitCount, inv: g.debug().invincibleT };
+      const t2 = Date.now();
+      while (Date.now() - t2 < 1500 && g.debug().invincibleT > 0) await new Promise(res => requestAnimationFrame(res));
+      return { hits, armed, during, after: g.debug().invincibleT };
+    });
+    expect(r.hits, 'one crash').toBe(1);
+    expect(r.armed, 'the blink is armed on respawn').toBeGreaterThan(1);
+    expect(r.during.hits, 'no second hit while blinking').toBe(1);
+    expect(r.after, 'and it wears off').toBe(0);
+  });
+
   test('the page has an icon, and no preload warnings', async ({ page }) => {
     const warnings = [];
     page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });

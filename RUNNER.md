@@ -1102,6 +1102,39 @@ the edge is still a poke, a tap on the water still splashes. The tutorial's butt
 "This is the JUMP button. It makes him hop. A tap anywhere does too!" Tests: game.spec "a tap
 anywhere jumps" and "a tap in a puzzle is a stroke, never a jump".
 
+### The instruction stays, with the polygon set apart
+
+Asked for: the sentence must stay visible until the question is done. It is up from the intro
+until the last wanted piece has fitted, through wrong answers, and leaves on completion (the HUD
+state's `instruction` reads the open question, not only the hold). The HUD shows the polygon's
+name in capitals, heavier, in the key-word blue, without the full stop: "Cut the TRIANGLE",
+"Cut all the QUADRILATERALS" (`Hud.setInstruction`, `.instruction-text .key`); the engine's
+sentence itself is unchanged. The sign still sits in the top band clear of the options and takes
+no pointer events. Test: ui.spec "the instruction stays for the whole question".
+
+### A respawn blinks
+
+Asked for: platformer manners after a crash. `retryObstacle` arms `G.invincibleT`
+(`CFG.juice.respawnBlinkS`, 1.6 s); the character flickers at ten a second (never fully gone)
+and no collision counts until it is spent. Test: controls.spec "after a crash Momo blinks".
+
+### Two interaction modes
+
+Running mode: a tap or click anywhere jumps (see "Tap anywhere to jump"). Polygon mode: while a
+question is open, jumping is off (`G.jumpEnabled` false) and a tap or drag answers the question
+only; running resumes the global tap-to-jump by itself.
+
+### The runs get harder (a difficulty curve)
+
+Asked for: the running should feel like a real game with increasing challenge. `CFG.obstacle.runs`
+is one entry per stretch between puzzles: `room` is the running room in seconds after one leap
+before the next obstacle (3.4 generous, 1.0 a near pair, 0.6 land-and-jump-again), one per
+obstacle after the first; `kinds` names families (rock, log, bone) for combinations. The curve:
+two far apart → three spaced → one then a near pair → three consecutive timed jumps → rock → log
+→ bone with the last two close → a pair, a breath, a pair. The spawner always adds the leap, so
+nothing sits inside a jump; the three-strike crumble stays, so no stretch dead-ends. The tutorial's
+single obstacle before puzzle 1 is unchanged. Test: tests/difficulty.spec.mjs.
+
 ### The tutorial script (seven lines)
 
 Rewritten to the owner's script, short and action-oriented: "This is Momo. He needs to find his

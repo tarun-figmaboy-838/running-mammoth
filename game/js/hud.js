@@ -159,6 +159,24 @@ export class Hud {
     }
   }
 
+  /* THE POLYGON'S NAME IS THE THING TO LOOK FOR, so it is set apart: "Cut the TRIANGLE",
+     "Cut all the QUADRILATERALS" — the noun in capitals, heavier and in the game's key-word
+     blue, the full stop dropped. The engine's sentence is untouched (tests and the recall
+     path read it); this is how it is shown. A sentence that does not fit the pattern is
+     shown as it is. */
+  setInstruction(message) {
+    const el = this.el.text;
+    if (!el) return;
+    const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
+    el.textContent = '';
+    if (!m) { el.textContent = message; return; }
+    el.appendChild(document.createTextNode(m[1]));
+    const key = document.createElement('span');
+    key.className = 'key';
+    key.textContent = (m[2] + m[3]).toUpperCase();
+    el.appendChild(key);
+  }
+
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
   bind(handlers) {
     this.handlers = handlers;
@@ -305,7 +323,7 @@ export class Hud {
       this.lastMessage = message;
       if (message) {
         clearTimeout(this._leaveT);
-        this.el.text.textContent = message;
+        this.setInstruction(message);
         el.hidden = false;
         el.classList.remove('leaving');
         // restart the entrance animation only for a new line, never for a re-assert

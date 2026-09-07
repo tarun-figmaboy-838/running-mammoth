@@ -143,6 +143,8 @@ a:hover { color: var(--ice-pale); }
   transition: opacity 280ms ease, transform 280ms ease;
 }
 .instruction[hidden] { display: none; }
+/* the polygon's name, set apart in the sentence: capitals, heavier, the key-word blue */
+.instruction-text .key { color: #1E56C4; font-weight: 900; letter-spacing: 0.01em; }
 .instruction.leaving {
   opacity: 0;
   transform: translateX(-50%) translateY(-18px) scale(0.97);

@@ -134,7 +134,10 @@ test.describe('ui', () => {
       const m = await import('/js/engine.js');
       return m.CFG.levelOne.phases[window.iceAgeGame.debug().phase].instruction;
     });
-    await expect(page.locator('#instruction-text')).toHaveText(want);
+    // shown with the polygon's name in capitals and no full stop; the words are the phase's own
+    const shown = (await page.locator('#instruction-text').innerText()).trim();
+    expect(shown.toLowerCase().replace(/\.$/, '')).toBe(want.toLowerCase().replace(/\.$/, ''));
+    await expect(page.locator('#instruction-text .key')).toHaveText(/^[A-Z]+$/);
 
     // nothing else is on the card
     expect(await page.locator('#instruction-shapes').count(), 'the shape chip is gone').toBe(0);
@@ -151,71 +154,48 @@ test.describe('ui', () => {
     expect(pill.width / stage.width, 'the panel should not span the stage').toBeLessThan(0.62);
   });
 
-  test('the instruction has the stage alone, then leaves, and the reminder never blocks a cut', async ({ page }) => {
-    /* THE INSTRUCTION IS A BEAT, NOT A LABEL, and this test used to assert the
-     * opposite: that it stayed up for the whole playable phase.
-     *
-     * That was the old behaviour and it was changed deliberately. A sentence that
-     * appears while the blocks are still arriving loses, because the player watches the
-     * movement rather than reading — so it now owns the stage ALONE for
-     * CFG.timing.instructionHold while the chunks are held above the frame, and leaves
-     * before they drop. G.instrHold is the only gate and nothing blanks G.instruction
-     * itself, so the text is always there to be brought back.
-     *
-     * A WRONG ANSWER brings it back for instructionRemind, which is the only time it is
-     * ever on screen at the same time as the blocks — and therefore the only time it
-     * could cover one. That is the case worth testing, and the previous version could
-     * not test it: it checked the overlap during PHASE_INTRO, when the chunks are still
-     * at y -260 above the frame, so the assertion compared the card against a NEGATIVE
-     * y and could only ever pass by accident.
-     */
+  test('the instruction stays for the whole question, clear of the blocks, and leaves on completion', async ({ page }) => {
+    /* Asked for: the sentence must stay visible until the question is done, with the
+       polygon's name highlighted, so the learner always knows what to look for. It used to
+       leave before the blocks were cuttable and return only as a reminder. It must still
+       sit clear of the hanging options and take no pointer events, so a cut aimed behind it
+       lands. */
     await boot(page, { fast: 2 });
     await force(page, 'GLACIER_BREAK_1');
     await waitState(page, ['PHASE_INTRO', 'PHASE_ACTIVE'], 30_000);
-
-    // up while it has the stage to itself
     await expect(page.locator('#instruction')).toBeVisible();
-    // and the sentence itself is never cleared, which is what the recall path needs
     expect(await page.evaluate(() => window.iceAgeGame.debug().instruction)).not.toBe('');
-
-    // wait for the blocks to be down and cuttable
     await waitState(page, 'PHASE_ACTIVE', 30_000);
     await page.waitForFunction(() => {
       const L = window.iceAgeGame.debug().l1;
       return !!L && L.shapes.some(s => s.state === 'hang' && s.y > 200);
     }, null, { timeout: 30_000 });
-
-    /* Cut a WRONG one, which is what re-arms the reminder. */
-    const bad = await page.evaluate(() => {
-      const L = window.iceAgeGame.debug().l1;
-      const s = L.shapes.find(x => x.state === 'hang' && !L.wanted.includes(x.kind));
-      return s ? s.kind : null;
-    });
-    expect(bad, 'a distractor is hanging to cut').not.toBeNull();
-    await cut(page, bad);
-
-    // the reminder comes back, now with the blocks on screen
-    await expect(page.locator('#instruction')).toBeVisible({ timeout: 30_000 });
-
+    await page.waitForTimeout(600);
+    // still up with the blocks down and cuttable
+    await expect(page.locator('#instruction')).toBeVisible();
+    await expect(page.locator('#instruction-text .key')).toBeVisible();
     const card = await page.locator('#instruction-pill').boundingBox();
     const top = await page.evaluate(() => {
       const G = window.iceAgeGame.debug();
       const r = document.getElementById('game-canvas').getBoundingClientRect();
       let y = 1e9;
-      for (const s of G.l1.shapes) if (s.state === 'hang') {
-        for (const p of s.pts) y = Math.min(y, s.y + p.y);
-      }
+      for (const s of G.l1.shapes) if (s.state === 'hang') for (const p of s.pts) y = Math.min(y, s.y + p.y);
       return r.top + (y / 1080) * r.height;
     });
-    expect(top, 'the blocks are actually on screen for this check').toBeGreaterThan(0);
-    expect(card.y + card.height, 'the reminder overlaps the hanging options')
-      .toBeLessThan(top);
-
-    /* And it must take no pointer events even while up, so a cut aimed at a rope
-       behind it still lands. */
-    const pe = await page.evaluate(() =>
-      getComputedStyle(document.getElementById('instruction')).pointerEvents);
-    expect(pe, 'the instruction must never swallow a cut').toBe('none');
+    expect(card.y + card.height, 'the sentence overlaps the hanging options').toBeLessThan(top);
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('instruction')).pointerEvents)).toBe('none');
+    // a wrong cut: still up
+    const bad = await page.evaluate(() => {
+      const L = window.iceAgeGame.debug().l1;
+      const s = L.shapes.find(x => x.state === 'hang' && !L.wanted.includes(x.kind));
+      return s ? s.kind : null;
+    });
+    if (bad) { await cut(page, bad); await waitState(page, 'PHASE_ACTIVE', 30_000); await expect(page.locator('#instruction')).toBeVisible(); }
+    // the right cut completes the question: the sentence leaves
+    const want = await page.evaluate(() => window.iceAgeGame.debug().l1.unfilled[0]);
+    await cut(page, want);
+    await waitState(page, ['PHASE_DONE', 'PHASE_RUN', 'GLACIER_BREAK_1', 'FINAL_RUN'], 30_000);
+    await expect(page.locator('#instruction')).toBeHidden({ timeout: 5_000 });
   });
 
   test('a right answer throws confetti, a wrong one gets no mark', async ({ page }) => {

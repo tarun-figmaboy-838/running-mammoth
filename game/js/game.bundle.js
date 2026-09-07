@@ -997,7 +997,38 @@ const CFG = {
   /* SMALLER: 80% of the delivered size. A lower rock is a shorter, more forgiving hop,
      which is what a child needs while learning the one button; the per-variant colliders
      scale with the drawn width, so nothing else has to change. */
-  obstacle: { height: 112, drawHeight: 184, sinkRatio: 0.11, runRoomS: 3.4, pairScale: 1 },
+  obstacle: {
+    height: 112, drawHeight: 184, sinkRatio: 0.11, runRoomS: 3.4, pairScale: 1,
+    /* THE DIFFICULTY CURVE OF THE RUNS. Asked for: the running should become a real game as
+       the learner progresses, instead of the same two-to-four rocks at the same spacing.
+
+       One entry per stretch between puzzles (stretch 0 is the run after puzzle 1; the run
+       before puzzle 1 is the tutorial's single obstacle). `room` is the seconds of running
+       room AFTER one leap before the next obstacle, one per obstacle after the first:
+       3.4 is generous (land, run, see the next one coming), 1.0 is a near pair (land, one
+       breath, jump), 0.6 is a land-and-jump-again rhythm. The leap itself (airtime x speed)
+       is always added, so nothing is ever placed inside a jump. `kinds` names the family
+       of each obstacle — 'rock' | 'log' | 'bone' — so a stretch can be a combination.
+
+         0  two obstacles, far apart                       single -> multiple, spaced
+         1  three, spaced
+         2  one, then a near pair                          two nearby obstacles
+         3  three consecutive timed jumps
+         4  rock -> log -> bone, the last two close        a combination before the puzzle
+         5  a pair, a breath, a pair, mixed families       the hardest run, before the last puzzle
+
+       Beyond the table the last entry repeats, so a longer level cannot fall off the curve.
+       The three-strike safety valve (a third failed jump crumbles the obstacle) is untouched,
+       so no stretch can dead-end a learner. */
+    runs: [
+      { room: [3.4] },
+      { room: [2.2, 2.2] },
+      { room: [2.4, 1.0] },
+      { room: [0.7, 0.7] },
+      { room: [1.8, 0.7], kinds: ['rock', 'log', 'bone'] },
+      { room: [0.6, 1.8, 0.6], kinds: ['rock', 'log', 'bone', 'rock'] }
+    ]
+  },
   /* Shared sprite geometry. Every sheet, for every character, is rebuilt on one
      420x320 cell with the content bottom on a shared baseline — baseGap px up from
      the cell bottom — so a character is exactly the same size whichever animation is
@@ -1620,6 +1651,7 @@ const CFG = {
     stopWedge: 62,        // ms frozen when a correct chunk seats
     stopSplash: 44,       // ms frozen when a wrong chunk hits the water
     stopHit: 96,          // ms frozen when the character walks into the rock
+    respawnBlinkS: 1.6,   // seconds of blinking invincibility after a crash respawn
     stopLand: 40,         // ms frozen as his feet hit the ice: the trample
     punchLand: 0.014,     // and the frame's flinch with it
     stopBreak: 110,       // ms frozen on the frame the ice gives way
@@ -4661,11 +4693,13 @@ class ObstacleController {
      so the art sits exactly on the snow line without a hand-tuned constant per asset,
      and every variant is normalised to the same on-screen height — that keeps the
      jump timing identical no matter which rock is spawned. */
-  constructor(imgs, audio, particles) {
+  constructor(imgs, audio, particles, families = []) {
     this.audio = audio; this.particles = particles; this.list = [];
     this.chimed = new Set();
     this.kinds = [];
-    for (const img of (Array.isArray(imgs) ? imgs : [imgs])) {
+    const list = Array.isArray(imgs) ? imgs : [imgs];
+    for (let n = 0; n < list.length; n++) {
+      const img = list[n];
       if (!img) continue;
       const m = measureContent(img);
       if (!m) continue;
@@ -4676,6 +4710,7 @@ class ObstacleController {
       const s = (CFG.obstacle.drawHeight || CFG.obstacle.height) / m.h;
       this.kinds.push({
         img,
+        family: families[n] || 'rock',            // 'rock' | 'log' | 'bone', for planned combinations
         sx: m.x0, sy: m.y0, sw: m.w, sh: m.h,      // source crop: content only
         dw: m.w * s, dh: m.h * s                    // destination size on stage
       });
@@ -4695,16 +4730,33 @@ class ObstacleController {
     return Math.round(leap + room);
   }
 
-  spawn(worldX, screenX, count) {
+  /** How far the leap carries, in px: the part of every spacing that is never negotiable. */
+  get leap() { return CFG.runSpeed * (2 * Math.abs(CFG.jumpVel) / CFG.gravity); }
+  /* A STRETCH FROM A PLAN, or the old uniform gap. With a plan (CFG.obstacle.runs), each
+     obstacle after the first sits one leap plus its own running room past the previous one,
+     and its variant is drawn from the family the plan names — a random member of that
+     family, so a rock is still any rock. Without a plan every gap is the generous default. */
+  spawn(worldX, screenX, count, plan) {
     const id = Math.random();
     const cc = CFG.obstacle;
-    const gap = this.gap;
+    const leap = this.leap;
+    const pick = (i, fam) => {
+      if (!this.kinds.length) return 0;
+      const pool = fam ? this.kinds.map((k, n) => k.family === fam ? n : -1).filter(n => n >= 0) : [];
+      if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
+      return (i + Math.floor(Math.random() * this.kinds.length)) % this.kinds.length;
+    };
+    let x = worldX + screenX;
     for (let i = 0; i < count; i++) {
+      if (i > 0) {
+        const room = plan && plan.room ? plan.room[Math.min(i - 1, plan.room.length - 1)] : (cc.runRoomS || 1.2);
+        x += leap + CFG.runSpeed * room;
+      }
       this.list.push({
         id: id + i,
-        x: worldX + screenX + i * gap,
+        x: Math.round(x),
         scale: cc.pairScale || 1,
-        kind: this.kinds.length ? (i + Math.floor(Math.random() * this.kinds.length)) % this.kinds.length : 0,
+        kind: pick(i, plan && plan.kinds ? plan.kinds[i] : null),
         passed: false, telegraph: 0, hits: 0, grace: 0
       });
     }
@@ -5027,7 +5079,13 @@ function createGame(canvas, hooks = {}) {
        * only its visibility is gated — because replayInstruction() reads that text and
        * the idle helper re-arms this hold to bring it back. Blanking the text to hide
        * the panel is what silently broke the recall control once before. */
-      instruction: G.instrHold > 0 ? G.instruction : '',
+      /* THE SENTENCE STAYS FOR THE WHOLE QUESTION (asked for: it used to leave before the
+         blocks were cuttable and come back only as a reminder). It is up from the intro
+         until the last wanted piece has fitted, through wrong answers, and leaves on
+         completion — the HUD highlights the polygon's name in it. Outside a question the
+         hold still times the run's lines ("Run for home!"). */
+      instruction: (G.instrHold > 0 || (G.l1 && G.l1.unfilled && G.l1.unfilled.length > 0 &&
+                    ['PHASE_INTRO', 'PHASE_ACTIVE', 'PHASE_WRONG', 'PHASE_SUCCESS'].includes(G.state))) ? G.instruction : '',
       jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
       // TEMPORARY: whether the review control that jumps to the ending may show
       skippable: G.state !== 'BOOT' && G.state !== 'TITLE' && !G.complete,
@@ -6910,7 +6968,11 @@ function createGame(canvas, hooks = {}) {
     particles.update(dt);
     // the last argument is what stops one bump burning all three strikes while
     // the world is stopped behind the Ouch card — see ObstacleController.update
-    obstacles.update(dt, G.worldX, mammoth, onCrystalHit, G.moving);
+    /* A RESPAWN BLINKS AND CANNOT BE HIT for a moment (platformer manners, asked for):
+       retryObstacle arms invincibleT, the character flickers while it runs, and no
+       collision counts until it is spent. */
+    if (G.invincibleT > 0) G.invincibleT = Math.max(0, G.invincibleT - dt);
+    obstacles.update(dt, G.worldX, mammoth, onCrystalHit, G.moving && G.invincibleT <= 0);
     updateInstruction(dt);
     updateTaps(dt);
     updateHints(dt);
@@ -7049,9 +7111,12 @@ function createGame(canvas, hooks = {}) {
              Off jumpBefore rather than the phase number because it does not name every
              phase — off the phase index the count would skip values. */
           const stretch = L1.jumpBefore.indexOf(p.id);
-          // starts at TWO: one rock is the tutorial's teaching case and is behind us
-          const count = clamp(2 + Math.max(0, stretch), 2, L1.maxRocks || 4);
-          obstacles.spawn(G.worldX, 2150, count);
+          /* The curve (CFG.obstacle.runs) decides this stretch; past its end the last entry
+             repeats. The tutorial's single obstacle is behind us, so stretch 0 starts at two. */
+          const runs = CFG.obstacle.runs || [];
+          const plan = runs.length ? runs[Math.min(Math.max(0, stretch), runs.length - 1)] : null;
+          const count = plan ? plan.room.length + 1 : clamp(2 + Math.max(0, stretch), 2, L1.maxRocks || 4);
+          obstacles.spawn(G.worldX, 2150, count, plan);
           G.jumpPulse = true;
         }
         const clear = !obstacles.list.length || obstacles.list.every(o => o.passed);
@@ -7147,6 +7212,7 @@ function createGame(canvas, hooks = {}) {
     // here or the world stays frozen and the obstacle can never be passed.
     G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
     G.jumpPulse = true;               // re-teach the control on the retry
+    G.invincibleT = CFG.juice.respawnBlinkS || 1.6;   // blink, and no hit, for the first moment back
     mammoth.setState('RUN');
     setState(G.hitReturn || 'RUN_SEGMENT_1');
   }
@@ -8270,7 +8336,11 @@ function createGame(canvas, hooks = {}) {
     if (duo < 1) {
       if (duo > 0) { ctx.save(); ctx.globalAlpha = 1 - duo; }
       drawBear(ctx);
+      // the respawn blink: ten flickers a second, never fully gone, so he can still be followed
+      const blink = G.invincibleT > 0 && Math.floor(G.t * 10) % 2 === 1;
+      if (blink) { ctx.save(); ctx.globalAlpha *= 0.35; }
       mammoth.draw(ctx, G.t);
+      if (blink) ctx.restore();
       if (duo > 0) ctx.restore();
     }
     if (duo > 0) drawDuo(ctx, duo);
@@ -8310,7 +8380,7 @@ function createGame(canvas, hooks = {}) {
     G.phase = 0; G.phasesDone = 0; G.gapsThisPhase = null; G.phaseLayout = null; G.phaseJumped = false;
     G.oops = false; G.hitFx = 0; G.hitObstacle = null; G.hitReturn = null; G.hitCount = 0;
     G.handHint = null; G.idleHand = 0; G.dropReady = false;
-    G.stompF = -1; G.stomps = 0;
+    G.stompF = -1; G.stomps = 0; G.invincibleT = 0;
     G.shakeAmp = 0; G.shakeLen = 0;
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
@@ -8465,6 +8535,8 @@ function createGame(canvas, hooks = {}) {
     /* The live particle list, so a test or a capture harness can wait for the exact
        frame an effect exists on rather than guessing at a delay. */
     _particles: () => particles,
+    /** The run's obstacle plan for a stretch index, and the leap in px — for the difficulty test. */
+    _runPlan: i => ({ plan: (CFG.obstacle.runs || [])[Math.min(i, (CFG.obstacle.runs || []).length - 1)] || null, leap: obstacles ? obstacles.leap : 0, speed: CFG.runSpeed }),
     _force(s) { obstacles.reset(); setState(s); },
     /** TEMPORARY, for reviewing the ending without playing seven phases: every crossing
         is counted as mended and the run home starts with the friend a short way ahead, so
@@ -8491,7 +8563,6 @@ function createGame(canvas, hooks = {}) {
     /** Drive the character's animation state directly, for an animation audit. */
     _anim(s) { mammoth.setState(s); },
     _player: () => mammoth,
-    _particles: () => particles,
     /** Draw one frame now, without advancing the simulation — for a test that wants to
         measure a deterministic pose on the real backbuffer. */
     _renderOnce: () => render()
@@ -8504,7 +8575,8 @@ function createGame(canvas, hooks = {}) {
     ground.rockBand = images.rockBand || null;
     obstacles = new ObstacleController(
       [images.rockWide, images.rockTall, ...OBSTACLE_ART.map(k => images['obs:' + k])],
-      audio, particles);
+      audio, particles,
+      ['rock', 'rock', ...OBSTACLE_ART.map(k => k.split('-')[0])]);   // families, for planned combinations
     bgm = new BackgroundTimeManager(images);
     mammoth = new PlayerController(audio, particles, currentCharacter(), images);
     mammoth.onJump = () => atmos.pulse();
@@ -8782,6 +8854,24 @@ class Hud {
     }
   }
 
+  /* THE POLYGON'S NAME IS THE THING TO LOOK FOR, so it is set apart: "Cut the TRIANGLE",
+     "Cut all the QUADRILATERALS" — the noun in capitals, heavier and in the game's key-word
+     blue, the full stop dropped. The engine's sentence is untouched (tests and the recall
+     path read it); this is how it is shown. A sentence that does not fit the pattern is
+     shown as it is. */
+  setInstruction(message) {
+    const el = this.el.text;
+    if (!el) return;
+    const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
+    el.textContent = '';
+    if (!m) { el.textContent = message; return; }
+    el.appendChild(document.createTextNode(m[1]));
+    const key = document.createElement('span');
+    key.className = 'key';
+    key.textContent = (m[2] + m[3]).toUpperCase();
+    el.appendChild(key);
+  }
+
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
   bind(handlers) {
     this.handlers = handlers;
@@ -8928,7 +9018,7 @@ class Hud {
       this.lastMessage = message;
       if (message) {
         clearTimeout(this._leaveT);
-        this.el.text.textContent = message;
+        this.setInstruction(message);
         el.hidden = false;
         el.classList.remove('leaving');
         // restart the entrance animation only for a new line, never for a re-assert
