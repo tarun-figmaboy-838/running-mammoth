@@ -202,7 +202,7 @@ test.describe('assets', () => {
     await boot(page);
     const sheets = await page.evaluate(() =>
       window.iceAgeGame.roster().flatMap(c =>
-        ['run', 'jump', 'skid', 'hurt', 'idle', 'trample']
+        ['run', 'jump', 'skid', 'hurt', 'idle', 'tremble']
           .map(slot => window.iceAgeGame.sheetFor(c.id, slot))
           .filter(Boolean)
           .map(s => ({ id: c.id, src: s.src, frames: s.frames, cw: s.cw, ch: s.ch, cols: s.cols }))
@@ -252,7 +252,7 @@ test.describe('assets', () => {
     const perChar = await page.evaluate(() =>
       window.iceAgeGame.roster().map(c => ({
         id: c.id,
-        sheets: ['run', 'jump', 'skid', 'hurt', 'idle', 'trample']
+        sheets: ['run', 'jump', 'skid', 'hurt', 'idle', 'tremble']
           .map(slot => ({ slot, s: window.iceAgeGame.sheetFor(c.id, slot) }))
           .filter(x => x.s)
       })));

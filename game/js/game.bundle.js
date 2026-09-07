@@ -27,12 +27,14 @@ const ASSET_V = {
   "assets/art/Bubble.svg": "523bce06",
   "assets/art/cover.webp": "2854fd0e",
   "assets/audio/bgm-ice-hunt.mp3": "045fc178",
+  "assets/audio/dragon-studio-cartoon-blinking-372481.mp3": "e1ba0c6b",
   "assets/audio/dragon-studio-heavy-boulder-thud-515257.mp3": "97c6bfa5",
   "assets/audio/dragon-studio-heavy-whoosh-06-414584.mp3": "4a0fe81c",
   "assets/audio/floraphonic-punchy-taps-ui-5-183901.mp3": "8716a561",
   "assets/audio/freesound_community-foot_steps_snow_heavy-38297.mp3": "63e91113",
   "assets/audio/themediaguy-earthquake-rumble-amp-cracking-379298.mp3": "cdff169c",
   "assets/audio/universfield-ground-impact-352053.mp3": "ab5b58dc",
+  "assets/audio/universfield-sad-trumpet-278822.mp3": "318bbc84",
   "assets/char/bear.webp": "ac7771ee",
   "assets/char/duo-celebrate.webp": "78df9a33",
   "assets/char/hd/bear.webp": "d257b5b8",
@@ -41,13 +43,13 @@ const ASSET_V = {
   "assets/char/hd/mammoth-jump.webp": "9b67b6a2",
   "assets/char/hd/mammoth-run.webp": "97f41757",
   "assets/char/hd/mammoth-skid.webp": "820a18a1",
-  "assets/char/hd/mammoth-trample.webp": "1888a3b8",
+  "assets/char/hd/mammoth-tremble.webp": "62c06f19",
   "assets/char/mammoth-hurt.webp": "8a886c8e",
   "assets/char/mammoth-idle.webp": "3b2a53cc",
   "assets/char/mammoth-jump.webp": "6b17e847",
   "assets/char/mammoth-run.webp": "d3ab6c72",
   "assets/char/mammoth-skid.webp": "ee6c20a7",
-  "assets/char/mammoth-trample.webp": "93b50c6f",
+  "assets/char/mammoth-tremble.webp": "41dbabd8",
   "assets/env/cap-l.webp": "500443c3",
   "assets/env/cap-r.webp": "2f0a5554",
   "assets/env/obs-bone-arch.webp": "6b0db5b5",
@@ -62,7 +64,7 @@ const ASSET_V = {
   "assets/env/rock-band.webp": "6f4973a9",
   "assets/env/rock-tall.webp": "760283f8",
   "assets/env/rock-wide.webp": "6247692d",
-  "assets/env/rope.webp": "62352be6",
+  "assets/env/rope-tied.webp": "f9b3e721",
   "assets/option-shape/concaveHeptagon.webp": "29723c85",
   "assets/option-shape/concaveHexagon.webp": "e6b4772e",
   "assets/option-shape/concavePentagon.webp": "21995454",
@@ -1075,7 +1077,24 @@ const CFG = {
     /* THE TRAMPLE at the edge is authored at 70ms a frame: 14.3fps plays it as drawn. The
        stomp — his raised front comes down 30px in three frames — lands on frame 20, read
        off the built sheet (the body's top row: 70 at frames 14-16, 86 at 19, 100 at 21). */
-    trampleFps: 14.3, trampleStomp: 20,
+    /* THE TREMBLE IS ACTED, NOT PLAYED AT ONE RATE. Each entry is [frame, ms]: A notices
+       and looks down (slow), B the tremble starts (quickening), C the strong comical
+       tremble — frames 4-5-6-5 twice at 62 ms, an oscillation not a slideshow — D looks to
+       the player (readable), E recovers (slowest). 1.86 s in all. PlayerController walks
+       it by elapsed time, so a 144 Hz screen plays it no faster than a 60 Hz one. `strong`
+       is the span of plan steps (inclusive) that carries the secondary shake and the
+       sound; shakeX/Y are stage px and shakeRot radians at full strength — visual only. */
+    tremble: {
+      plan: [
+        [0, 120], [1, 110], [2, 130], [3, 120],
+        [4, 85], [5, 70], [6, 65],
+        [4, 62], [5, 62], [6, 62], [5, 62], [4, 62], [5, 62], [6, 62], [5, 62],
+        [7, 120], [8, 130], [9, 120],
+        [10, 130], [11, 160]
+      ],
+      strong: [7, 14],
+      shakeX: 3, shakeY: 1.4, shakeRot: 0.014
+    },
     // 16 frames at 15fps is 1.07s, and the Try Again card comes in at T.knockout
     // (1100ms) — so the crash finishes playing just as the card arrives
     koFps: 15
@@ -1145,7 +1164,13 @@ const CFG = {
            front foot down, then settles and shifts his weight. LOOK_DOWN loops it for as
            long as the learner thinks; before this the fright ended on a held frame, and a
            character who stands stone still at a hole for a minute reads as a hung game. */
-        trample: 'assets/char/mammoth-trample.webp',
+        /* THE TREMBLE AT THE EDGE — the owner's 12-frame sheet (art-source/char-sheets/
+           tremble-src.png -> tools/sheet-to-grid.mjs -> tools/slice-char.mjs). He notices
+           the drop, looks down, trembles, looks to the player, settles. Played by the timing
+           plan in CFG.sprite.tremble, not at one rate. It replaces the trample, which is
+           shelved beside the fright in art-source/shelved/: with the wait handed to the idle
+           there is no moment left for a stamp, and a listed sheet is a fetched sheet. */
+        tremble: 'assets/char/mammoth-tremble.webp',
         /* The note that used to be here explained why it was absent:
          *
          * mammoth-idle.webp is built by tools/slice-char.mjs and sits in this folder
@@ -1163,7 +1188,7 @@ const CFG = {
       /* Straight from tools/slice-char.mjs — the sheets are built to these counts, so
          the two move together. The run is 20 because the source art had 20 and the
          cycle is distance-driven, so it is simply smoother; nothing else changes. */
-      frames: { run: 36, jump: 10, skid: 36, hurt: 36, idle: 36, trample: 36 },
+      frames: { run: 36, jump: 10, skid: 36, hurt: 36, idle: 36, tremble: 12 },
       /* The same seven sheets at 1.5x, listed in full rather than derived from the paths
          above so the asset tests see and fetch them (a built string is invisible to the
          scanner). Loaded instead of `sheets` when CFG.sprite.hd applies; see there. */
@@ -1171,7 +1196,7 @@ const CFG = {
         run: 'assets/char/hd/mammoth-run.webp', jump: 'assets/char/hd/mammoth-jump.webp',
         skid: 'assets/char/hd/mammoth-skid.webp',
         hurt: 'assets/char/hd/mammoth-hurt.webp', idle: 'assets/char/hd/mammoth-idle.webp',
-        trample: 'assets/char/hd/mammoth-trample.webp'
+        tremble: 'assets/char/hd/mammoth-tremble.webp'
       },
       /* The knockout art has a ring of stars and spiral eyes DRAWN IN. The engine's
          own circling stars would be a second set — the fault docs/ANIMATION.md warns
@@ -1554,6 +1579,17 @@ const CFG = {
      the game, not a song.
 
      duck is how far it drops when the ice gives way, so the rumble owns that moment. */
+  /* THE ROPE ART (asked for: the thread should look like the block is really tied to a
+     rope, with a knot at the attachment and a slight natural curve). One 96px-wide strip
+     cut from the owner's rope (art-source/rope/rope-tied-src.png): an eye and a knot at the
+     top, twisted cord, and at the bottom a knot with a frayed tail. Row numbers are in the
+     strip's own pixels: `cord` is the tileable twist (1120 rows, `seg` divides it), `knot`
+     the knot-and-fray cap that sits on the block, `fray` the frayed end alone (a cut rope's
+     end). cordW is the cord's width in art px — the drawn width divided by it is the scale
+     everything else is drawn at, so the knot is as thick as the rope it is tied in.
+     `bow` is the bend's amplitude in stage px, per rope, swaying at swayHz. */
+  rope: { src: 'assets/env/rope-tied.webp', artW: 96, cordW: 35, cord: [96, 1216], seg: 280,
+          knot: [1222, 1303], fray: [1262, 1303], bow: 7, swayHz: 0.35 },
   music: { src: 'assets/audio/bgm-ice-hunt.mp3', gain: 0.17, duck: 0.35, fadeMs: 2200 },
 
   /* RECORDED SOUND, over the top of the synthesised palette.
@@ -1588,7 +1624,16 @@ const CFG = {
     rumble: { src: 'assets/audio/themediaguy-earthquake-rumble-amp-cracking-379298.mp3',
               mode: 'window', at: 0, dur: 2.60, gain: 0.55, rate: 0.02 },
     ui:     { src: 'assets/audio/floraphonic-punchy-taps-ui-5-183901.mp3',
-              mode: 'onset', dur: 0.22, gain: 0.45, rate: 0.08 }
+              mode: 'onset', dur: 0.22, gain: 0.45, rate: 0.08 },
+    /* the tremble at the edge: the owner's cartoon blink — four little pips in the first
+       half-second of a 1.1 s file, so the bite is that half-second from just before them */
+    tremble: { src: 'assets/audio/dragon-studio-cartoon-blinking-372481.mp3',
+              mode: 'window', at: 0.04, dur: 0.50, gain: 0.55, rate: 0.03 },
+    /* the knockout: the owner's sad trumpet ("wah-wah-waah", 2.9 s, loud from 0.18 s) on
+       the crash that knocks him down — chosen by the owner for this moment; the running
+       wince of a third strike keeps the lighter kit cue */
+    knockout: { src: 'assets/audio/universfield-sad-trumpet-278822.mp3',
+              mode: 'window', at: 0.12, dur: 2.20, gain: 0.60, rate: 0.02 }
   },
   /* WHERE THE HITS ARE, for the build that cannot work them out for itself.
      Filled in by tools/bake-onsets.mjs between the markers below — see SFX_HITS. */
@@ -2083,6 +2128,8 @@ const SFX_HITS = {
   wedge: [0.32, 0.74],
   rumble: [0],
   ui: [0.01],
+  tremble: [0.04],
+  knockout: [0.12],
 };
 /* BAKED-ONSETS-END */
 
@@ -2150,6 +2197,26 @@ class AudioManager {
   trample() { this.kit('splat', { volume: 0.55, vary: 0 }); }
   /** The stomp at the edge: a soft thud under the trample loop (first two stamps only). */
   stomp() { if (!this.kit('land', { volume: 0.4, vary: 0 })) this.trample(); }
+  /** THE TREMBLE'S SOUND: the owner's cartoon blink (CFG.sfx.tremble), played once as the
+      strong tremble begins so the picture and the sound land together; the kit's doink
+      stands in when the file is not there. */
+  tremble() { if (this._play('tremble')) return; this.kit('doink', { volume: 0.5, vary: 0 }); }
+  /** THE COMEDY OF THE CRASH (asked for: a playful "tue-tue" star cue on the crash, synced
+      to the impact). The bonk is the impact itself; 90 ms behind it the kit's cuckoo — two
+      falling notes, the cartoon "tue-tue" — and a twinkle as the stars fly. It laughs WITH
+      the fall, not at the learner: no trombone, and the notes sit in the game's own key. */
+  /** THE KNOCKOUT'S SOUND (asked for: a playful "tue-tue" comedy cue on the crash, synced to
+      the impact — the owner's sad trumpet, CFG.sfx.knockout). It starts on the frame of the
+      bonk; without the file the kit's two-note comedy stands in. */
+  knockout() { if (this._play('knockout')) return; this.crashComedy(); }
+  crashComedy() {
+    if (this.kit('cuckoo', { delay: 0.09, volume: 0.62, vary: 0 })) {
+      this.kit('sparkle', { delay: 0.22, volume: 0.32, vary: 0 });
+      return;
+    }
+    this._slide(880, 660, 0.16, 0.05, 0.09);
+    this._slide(740, 540, 0.2, 0.05, 0.3);
+  }
   start() {
     if (this.ctx || !this.enabled) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -2907,6 +2974,22 @@ class ParticleManager {
   /* A GLINT. Four-pointed stars that pop and shrink away — the reward beat, and the
      one thing on screen that says "that was right" in the language of a game rather
      than of a worksheet. */
+  /** IMPACT STARS — the cartoon shorthand for "that hurt", at the point of contact the
+      moment it lands (the orbiting daze ring arrives half a second later, over the sat-down
+      pose; this is the crash itself). Five-point gold stars fly outward, spin, and fade
+      with a little drag, like the sparks off a cartoon anvil. */
+  stars(x, y, n = 6, spread = 170) {
+    this.spawn(n, i => {
+      const a = -Math.PI * 0.5 + (i / n - 0.5) * 2.6 + rand(-0.2, 0.2);   // a fan, mostly upward
+      const v = spread * rand(0.7, 1.3);
+      return {
+        x: x + rand(-10, 10), y: y + rand(-10, 10),
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        r: rand(13, 24), dur: rand(0.45, 0.8), kind: 'star',
+        rot: rand(0, 6.28), vr: rand(-5, 5)
+      };
+    });
+  }
   sparkle(x, y, n = 8, spread = 150) {
     this.spawn(n, i => {
       const a = (i / n) * 6.2832 + rand(-0.3, 0.3);
@@ -2947,7 +3030,7 @@ class ParticleManager {
         continue;
       }
       p.vy += (p.kind === 'ice' ? 900 : p.kind === 'water' ? 1500
-             : p.kind === 'sparkle' ? 90 : 520) * dt;
+             : p.kind === 'sparkle' ? 90 : p.kind === 'star' ? 260 : 520) * dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.vr) p.rot += p.vr * dt;
       p.life = 1 - p.t / p.dur;
@@ -3039,6 +3122,17 @@ class ParticleManager {
         ctx.strokeStyle = '#FFE9A8';
         ctx.lineWidth = lerp(14, 1.5, e);
         ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.2832); ctx.stroke();
+        ctx.restore();
+      } else if (p.kind === 'star') {
+        // a five-point star, gold with a warm rim, popping to size then shrinking as it fades
+        const pop = p.t < 0.1 ? p.t / 0.1 : 1;
+        const R = p.r * (0.6 + 0.4 * pop) * (0.55 + 0.45 * p.life), r2 = R * 0.46;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0);
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) { const rr = k % 2 ? r2 : R, an = -Math.PI / 2 + k * Math.PI / 5; ctx.lineTo(Math.cos(an) * rr, Math.sin(an) * rr); }
+        ctx.closePath();
+        ctx.fillStyle = '#FFD84A'; ctx.fill();
+        ctx.lineWidth = Math.max(1.5, R * 0.14); ctx.lineJoin = 'round'; ctx.strokeStyle = '#C4631B'; ctx.stroke();
         ctx.restore();
       } else if (p.kind === 'sparkle') {
         // a four-pointed glint, brightest at birth and shrinking as it fades
@@ -3424,7 +3518,7 @@ class PlayerController {
     this.sheet = img('run'); this.jumpSheet = img('jump');
     this.skidSheet = img('skid'); this.shakeSheet = img('shake');
     this.idleSheet = img('idle');          // the standing loop for LOOK_DOWN
-    this.trampleSheet = img('trample');    // the stamp-and-settle loop at the edge
+    this.trembleSheet = img('tremble');    // the 12-frame reaction at the edge, see CFG.sprite.tremble
     this.hurtSheet = img('hurt');          // optional; falls back to reversed shake
     /* NO per-frame correction any more, and that is a fix rather than a removal.
 
@@ -3442,7 +3536,7 @@ class PlayerController {
     /* Frame counts, with the slots that no longer have art at zero rather than
        undefined — every `Math.min(F.x - 1, ...)` downstream would otherwise produce
        NaN and pick frame NaN. */
-    this.F = Object.assign({ run: 0, jump: 0, skid: 0, shake: 0, hurt: 0 }, character.frames);
+    this.F = Object.assign({ run: 0, jump: 0, skid: 0, shake: 0, hurt: 0, idle: 0, tremble: 0 }, character.frames);
     this.J = character.jumpMap;
     this.scale = character.scale || CFG.sprite.scale;
     // world distance one full run cycle covers, which also sets the cycle's cadence
@@ -3467,6 +3561,9 @@ class PlayerController {
     this.gulp = 0; this.gulpClock = 0;
     this.wobX = 0; this.wobRot = 0; this.wobSq = 0;
     this.knock = 0;                  // backward recoil from an impact, in px
+    /* THE TREMBLE PLAN'S CLOCKS (see update): which step, how far into it, and whether
+       its sound has fired this visit. shakeY is the secondary shake's vertical part. */
+    this.trembleStep = 0; this.trembleClock = 0; this.trembleFired = false; this.shakeY = 0;
   }
   /** 0..1 through the slide — drives which skid frame is showing. */
   setSkidProgress(p) { this.skidP = clamp(p, 0, 1); }
@@ -3501,6 +3598,7 @@ class PlayerController {
     this.jolt(power);
     this.lean = 0;
     this.gulpClock = CFG.comedy.gulpEvery * 0.45;   // the first gulp lands during the shake
+    this.trembleStep = 0; this.trembleClock = 0; this.trembleFired = false;   // the plan starts over
     this.setState('SHAKE');
     this.audio.gasp();
   }
@@ -3599,10 +3697,27 @@ class PlayerController {
        fright state was left on the frame after it was entered and the mammoth never
        visibly reacted to the hole at all. The fallback is now a real duration, which
        is what the procedural shudder below plays across. */
-    if (this.state === 'SHAKE' &&
-        this.t > (this.trampleSheet && this.F.trample ? this.F.trample / CFG.sprite.trampleFps   // one whole trample loop
-                  : this.F.shake ? this.F.shake / CFG.sprite.tremorFps
-                  : CFG.comedy.shakeHoldMs / 1000)) this.setState('LOOK_DOWN');
+    /* THE TREMBLE PLAN. SHAKE walks CFG.sprite.tremble.plan by ELAPSED TIME: the clock
+       accumulates dt and a step is spent when its ms are up, so the performance runs at
+       the same speed on a 60 Hz and a 144 Hz screen, and a slow frame skips no beat, it
+       holds. The sound fires once, as the strong tremble begins, so picture and sound land
+       together. When the plan is spent the state hands over to LOOK_DOWN — the settle the
+       sheet ends on flows into the idle's breathing. Without the sheet the older exits hold. */
+    if (this.state === 'SHAKE') {
+      const TP = CFG.sprite.tremble;
+      if (this.trembleSheet && this.F.tremble && TP && TP.plan) {
+        this.trembleClock += dt * 1000;
+        while (this.trembleStep < TP.plan.length && this.trembleClock >= TP.plan[this.trembleStep][1]) {
+          this.trembleClock -= TP.plan[this.trembleStep][1];
+          this.trembleStep++;
+        }
+        const strong = TP.strong && this.trembleStep >= TP.strong[0] && this.trembleStep <= TP.strong[1];
+        if (strong && !this.trembleFired) { this.trembleFired = true; this.audio.tremble(); }
+        if (this.trembleStep >= TP.plan.length) this.setState('LOOK_DOWN');
+      } else if (this.t > (this.F.shake ? this.F.shake / CFG.sprite.tremorFps : CFG.comedy.shakeHoldMs / 1000)) {
+        this.setState('LOOK_DOWN');
+      }
+    }
 
     /* ---- NO PROCEDURAL SHUDDER ----
      *
@@ -3627,7 +3742,43 @@ class PlayerController {
     this.tremorT += dt;
     this.scare = Math.max(0, this.scare - dt / CM.scareDecay);
     const peering = this.state === 'SHAKE' || this.state === 'LOOK_DOWN';
-    this.wobX = 0; this.wobRot = 0; this.wobSq = 0;
+    this.wobX = 0; this.wobRot = 0; this.wobSq = 0; this.shakeY = 0;
+    /* THE SECONDARY SHAKE, on the strong tremble only. The frames already tremble; this
+       adds a small deterministic knock under them — ±3 px sideways, ±1.4 px up, ±0.8° —
+       on a fixed six-beat pattern (0, -2, +3, -2, +2, 0 in the brief's rhythm), stepped
+       with the plan and eased in and out across the phase. Stage units, so it scales with
+       the stage. It is drawn, not simulated: the collider reads none of these fields.
+       Under prefers-reduced-motion the pattern is off and the poses carry the beat. */
+    if (this.state === 'SHAKE' && this.trembleSheet && CFG.sprite.tremble && CFG.sprite.tremble.strong) {
+      const TP = CFG.sprite.tremble, s0 = TP.strong[0], s1 = TP.strong[1];
+      const k = this.trembleStep - s0, n = s1 - s0 + 1;
+      const reducedMotion = this.reducedMotion && this.reducedMotion();
+      if (k >= 0 && k < n && !reducedMotion) {
+        const within = this.trembleClock / TP.plan[this.trembleStep][1];
+        const env = Math.sin(Math.PI * (k + within) / n);
+        const PAT = [0, -0.66, 1, -0.66, 0.66, 0];
+        const beat = PAT[k % PAT.length];
+        this.wobX = beat * (TP.shakeX || 3) * env;
+        this.wobRot = beat * (TP.shakeRot || 0.014) * env;
+        this.shakeY = Math.abs(beat) * (TP.shakeY || 1.4) * env * (k % 2 ? -1 : 1);
+      }
+    }
+    /* THE CRASH SHAKE (asked for: a short, exaggerated body shake when he crashes, cartoon
+       not camera). For the first 0.28 s after the hit the body rattles side to side — 9 px
+       and 3°, decaying — over the delivered clash frames; then, once the tumble has landed
+       him sitting dazed (the sheet holds from ~1.2 s), a small nervous tremble keeps him
+       alive until the run resumes. HURT, the running wince, gets the rattle only. Drawn,
+       never simulated: the collider and the world read none of it. Off under reduced motion. */
+    if ((this.state === 'KNOCKOUT' || this.state === 'HURT') && !(this.reducedMotion && this.reducedMotion())) {
+      if (this.t < 0.28) {
+        const e = 1 - this.t / 0.28;
+        this.wobX += Math.sin(this.t * 62) * 9 * e;
+        this.wobRot += Math.sin(this.t * 62) * 0.05 * e;
+      } else if (this.state === 'KNOCKOUT' && this.t > 1.2) {
+        this.wobX += Math.sin(this.t * 34) * 1.6;
+        this.wobRot += Math.sin(this.t * 34 + 1) * 0.008;
+      }
+    }
     /* DECAYS, it does not reset. Zeroing it here — which is what the first version
        of this did — cancels the recoil on the very next frame after the hit, so the
        displacement is set and then thrown away before it is ever drawn. It eases out
@@ -3750,40 +3901,28 @@ class PlayerController {
       // Both play the sheet through ONCE and hold the last frame — a looping tremble
       // read as a twitch, and the learner may sit on this pose for minutes.
       case 'SHAKE':
-        /* THE ARRIVAL IS THE TRAMPLE. He skids to the lip and the first thing he does is
-           rear up and stamp — the delivered loop from its first frame. SHAKE lasts exactly
-           one loop (see update), and LOOK_DOWN restarts its clock at the loop boundary,
-           so the same sheet keeps going and the state change is invisible. The shelved
-           fright sheet is still understood here, for the day it is listed again. */
-        if (this.trampleSheet && F.trample) { sheet = this.trampleSheet; f = Math.floor(this.t * SP.trampleFps) % F.trample; }
+        /* THE TREMBLE, one frame per plan step (see update). The frame index comes from the
+           plan, never from the clock directly, so the 4-5-6-5 oscillation is exactly the
+           frames the brief names. The shelved fright is still understood, for the day it is
+           listed again. */
+        if (this.trembleSheet && F.tremble && SP.tremble && SP.tremble.plan) {
+          sheet = this.trembleSheet;
+          const step = SP.tremble.plan[Math.min(this.trembleStep, SP.tremble.plan.length - 1)];
+          f = Math.max(0, Math.min(F.tremble - 1, step[0]));
+        }
         else if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = Math.min(F.shake - 1, Math.floor(this.t * SP.tremorFps)); }
         else f = J.alert;
         break;
       case 'LOOK_DOWN':
-        /* HOLDS THE FINAL FRAME OF THE DELIVERED FRIGHT. That frame is the pose the
-           character has just settled into after reacting to the hole, so holding it is
-           continuous with what the learner watched — this state is where the reaction
-           ENDS, not a second performance of it.
-
-           A looping breathing idle was tried here and held back: there is a delivered
-           idle sheet ready to go (see the note in CFG.characters.sheets), and replacing
-           the arrived-at pose with a neutral loop discards the reaction. Turn it on by
-           uncommenting the branch below and listing the sheet.
-
-           Deliberately not `alert` as the last resort: the learner may sit here for
-           minutes, and a startled face held that long reads as the game having hung. */
-        // if (this.idleSheet && F.idle) {
-        //   sheet = this.idleSheet; f = Math.floor(this.t * SP.idleFps) % F.idle;
-        /* THE TRAMPLE LOOPS while he stands at the hole — the delivered 'Tribbling/
-           Trampling': he rears up, brings a front foot down, then settles and shifts his
-           weight, for as long as the learner takes. SHAKE has already played the first
-           loop; its clock hands over at the loop boundary. The game's update fires a
-           puff, a jolt and a thud on the stomp frame. */
-        if (this.trampleSheet && F.trample) {
-          sheet = this.trampleSheet; f = Math.floor(this.t * SP.trampleFps) % F.trample;
-          break;
-        }
-        if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = F.shake - 1; }
+        /* THE STOP IS A STOP. Asked for: once he has stopped, the feet stop too. This used
+           to loop the trample — a stamp every 2.5 s for as long as the learner thought,
+           which read as feet that could not keep still. The tremble ends on a settle, and
+           the settle flows into the delivered idle: 36 frames of breathing on planted feet
+           (measured: the foot band does not move between frames). If the idle is missing
+           the tremble's last frame is held and the procedural breath keeps it alive. */
+        if (this.idleSheet && F.idle) { sheet = this.idleSheet; f = Math.floor(this.t * SP.idleFps) % F.idle; }
+        else if (this.trembleSheet && F.tremble) { sheet = this.trembleSheet; f = F.tremble - 1; }
+        else if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = F.shake - 1; }
         else f = J.idle;
         break;
       // Winces on impact. Uses a dedicated hurt sheet if one is ever added, and
@@ -3864,7 +4003,7 @@ class PlayerController {
     this.lastFrame = f;
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
-      : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : sheet === this.trampleSheet ? 'trample' : '?';
+      : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : sheet === this.trembleSheet ? 'tremble' : '?';
     /* GROUNDED poses are placed on THIS frame's own footline. A run cycle's vertical
        variation is the bob and has to be kept, and an airborne frame's tucked legs are
        the art; but a pose the character holds while standing still has no business
@@ -3894,7 +4033,7 @@ class PlayerController {
     const sqX = (1 - br * 0.008) * (1 + this.wobSq * 0.85) / Math.sqrt(Math.max(0.35, sq));
     ctx.save();
     // knock is subtracted: a recoil is backward, which is left on this stage
-    ctx.translate(x + this.wobX + this.lean - this.knock, y - br * 3 + this.gulp * 3);
+    ctx.translate(x + this.wobX + this.lean - this.knock, y - br * 3 + this.gulp * 3 + (this.shakeY || 0));
     ctx.rotate(this.tilt + this.wobRot);
     // the breath narrows as it lifts, the way a chest does
     ctx.scale(sqX, sq);
@@ -5291,7 +5430,7 @@ function createGame(canvas, hooks = {}) {
     for (const k of OBSTACLE_ART) {
       jobs.push(loadImg('assets/env/obs-' + k + '.webp').then(i => { images['obs:' + k] = i; }));
     }
-    jobs.push(loadImg('assets/env/rope.webp').then(i => { images.rope = i; }));
+    jobs.push(loadImg(CFG.rope.src).then(i => { images.rope = i; }));
     // the carved ends of a platform, cut from the supplied pathui.png — see GroundManager.drawCap
     jobs.push(loadImg('assets/env/cap-l.webp').then(i => { images.capL = i; }));
     jobs.push(loadImg('assets/env/cap-r.webp').then(i => { images.capR = i; }));
@@ -7114,23 +7253,12 @@ function createGame(canvas, hooks = {}) {
         audio.trample();
       }
     } else G.trampled = false;
-    /* THE STOMP AT THE EDGE. SHAKE and LOOK_DOWN loop the delivered trample: he rears up and brings a
-       front foot down on frame CFG.sprite.trampleStomp. A stamp with nothing under it is a
-       drawing of a stamp — so the frame gets a puff of snow at his front feet, a small
-       jolt and a small punch. The thud plays for the first two stamps of a visit only: the
-       learner may stand here for a minute, and a thud every 2.5s becomes a drum. */
-    if ((mammoth.state === 'LOOK_DOWN' || mammoth.state === 'SHAKE') && mammoth.trampleSheet) {
-      const n = (mammoth.char.frames && mammoth.char.frames.trample) || 36;
-      const f = Math.floor(mammoth.t * CFG.sprite.trampleFps) % n;
-      if (f === CFG.sprite.trampleStomp && G.stompF !== f) {
-        if (!reduced) particles.poof(CFG.mammothX + 58, CFG.surfaceY, 4, 0.7);
-        shake(reduced ? 0.6 : 1.6, 120);
-        punch(CFG.juice.punchLand * 0.5, 160, CFG.mammothX, CFG.surfaceY);
-        if (G.stomps < 2) audio.stomp();
-        G.stomps++;
-      }
-      G.stompF = f;
-    } else { G.stompF = -1; G.stomps = 0; }
+    /* THE TREMBLE KICKS UP SNOW. As the strong tremble begins (the sound has just fired)
+       a small puff leaves his feet, once per visit — the feet are shaking, the ground says
+       so. The trample's stamp hook that used to live here went with the trample. */
+    if (mammoth.state === 'SHAKE' && mammoth.trembleFired) {
+      if (!G.trembleDust) { G.trembleDust = true; if (!reduced) particles.poof(CFG.mammothX + 24, CFG.surfaceY, 3, 0.6); }
+    } else G.trembleDust = false;
     particles.update(dt);
     // the last argument is what stops one bump burning all three strikes while
     // the world is stopped behind the Ouch card — see ObstacleController.update
@@ -7344,9 +7472,10 @@ function createGame(canvas, hooks = {}) {
        rock crumbles and the run simply continues. */
     G.hitCount = (G.hitCount || 0) + 1;
     if (G.hitCount >= 3) {
-      audio.bonk();
+      audio.bonk(); audio.crashComedy();
       particles.poof(CFG.mammothX + 50, CFG.surfaceY - 16, 8, 1.7);   // the crash: a big cloud
       particles.chips(sx, CFG.surfaceY - 20, 8, -240);
+      particles.stars(CFG.mammothX + 70, CFG.surfaceY - 230, 5, 150);   // "that hurt", at the point of contact
       shake(reduced ? 1.5 : 3, 220);
       hitStop(CFG.juice.stopHit * 0.7);
       punch(CFG.juice.punchHit * 0.8, 300, sx, CFG.surfaceY - 60);
@@ -7356,9 +7485,13 @@ function createGame(canvas, hooks = {}) {
       mammoth.knock = Math.max(mammoth.knock || 0, KO_KNOCK);
       return;                              // no panel, no stop: progress is guaranteed
     }
-    audio.bonk();
+    audio.bonk(); audio.knockout();
     particles.poof(CFG.mammothX + 50, CFG.surfaceY - 16, 8, 1.7);   // the crash: a big cloud
     particles.chips(CFG.mammothX + 60, CFG.surfaceY - 40, 5, -200);
+    /* STARS AT THE IMPACT (asked for: impact marks around him to sell the comedy crash).
+       They leave the point of contact on the frame of the hit, so they land with the bonk;
+       the orbiting daze ring (drawDazeStars) still comes in over the sat-down pose after. */
+    particles.stars(CFG.mammothX + 74, CFG.surfaceY - 240, 7, 190);
     shake(reduced ? 2 : 4, 260);
     // the hardest hold in the game: the character has physically stopped, and the
     // frame should stop with it
@@ -7815,6 +7948,37 @@ function createGame(canvas, hooks = {}) {
      having to be opaque enough to hide a rope's tip. */
   const ROPE_TOP = -24;
 
+  /* THE ROPE ART, DRAWN TO SCALE (CFG.rope). k is stage px per art px, from the cord's drawn
+     width; every slice is the strip's full width so the knot's bulge and the frays keep their
+     shape around the cord. drawRopeCord lays the twist UPWARD from distance `from` to `to`
+     above the current origin, SEG art rows a slice, wrapping through the cord region so the
+     twist keeps its own pitch whatever the length; bowAt(d) bends it sideways and each slice
+     turns to follow the bend. ropeKnot draws the knot-and-fray cap on the block and returns
+     the distance at which the cord takes over. */
+  function ropeK(w) { return w / ((CFG.rope && CFG.rope.cordW) || 35); }
+  function drawRopeCord(ctx, img, w, from, to, bowAt) {
+    const R = CFG.rope, k = ropeK(w), aw = R.artW || img.naturalWidth || 96;
+    const L = R.cord[1] - R.cord[0], SEG = R.seg || 280, segS = SEG * k, dw = aw * k;
+    for (let d = from, i = 0; d < to && i < 200; d += segS, i++) {
+      const row1 = R.cord[1] - (i * SEG) % L;            // the slice's lower row (nearer the knot)
+      const h = Math.min(segS, to - d), rows = h / k;
+      const dm = d + h / 2;
+      const x = bowAt ? bowAt(dm) : 0, slope = bowAt ? (bowAt(dm + 8) - bowAt(dm - 8)) / 16 : 0;
+      ctx.save();
+      ctx.translate(x, -dm);
+      if (slope) ctx.rotate(Math.atan(slope));
+      ctx.drawImage(img, 0, row1 - rows, aw, rows, -dw / 2, -h / 2 - 1, dw, h + 2);
+      ctx.restore();
+    }
+  }
+  function ropeKnot(ctx, img, w) {
+    const R = CFG.rope, k = ropeK(w), aw = R.artW || img.naturalWidth || 96, dw = aw * k;
+    const rows = R.knot[1] - R.knot[0], kh = rows * k;
+    // the knot's bulge is ~19 rows below the cap's top; it sits 6 art px above the block's edge
+    const top = -(19 + 6) * k;
+    ctx.drawImage(img, 0, R.knot[0], aw, rows, -dw / 2, top, dw, kh);
+    return -top;
+  }
   function drawRope(ctx, sh) {
     const img = images.rope;
     const s = ropeSpan(sh);
@@ -7851,7 +8015,21 @@ function createGame(canvas, hooks = {}) {
     ctx.save();
     ctx.translate(s.x1, s.y1);             // the attachment point on the block
     ctx.rotate(rigSwing());
-    if (img) ctx.drawImage(img, Math.round(-w / 2), Math.round(-UP), Math.round(w), Math.round(UP + overlap));
+    if (img && CFG.rope) {
+      /* TIED, NOT STUCK ON. The knot sits on the block's top edge with its frayed tail over
+         the face (the block is drawn after the ropes, so the tail tucks under its edge), and
+         the cord runs up from the knot's top. The bow is a slight sideways bend across the
+         visible length, swaying on its own phase per rope so the three never move as one;
+         it is drawing only — the cut test still runs along ropeSpan's straight line, and the
+         bend never leaves its 30px reach. Off under reduced motion. */
+      const k = ropeK(w), R = CFG.rope;
+      const d0 = ropeKnot(ctx, img, w);                                  // the cord starts above the knot
+      const VIS = Math.max(200, s.y1 + 40);                              // the visible length, attachment to frame top
+      const amp = reduced ? 0 : (R.bow || 7) * Math.sin(G.t * (R.swayHz || 0.35) * 6.2832 + (sh.phase || 0));
+      drawRopeCord(ctx, img, w, d0, UP, d => amp * Math.sin(Math.PI * clamp(d / VIS, 0, 1)));
+      void overlap; void k;
+    }
+    else if (img) ctx.drawImage(img, Math.round(-w / 2), Math.round(-UP), Math.round(w), Math.round(UP + overlap));
     else { ctx.fillStyle = 'rgba(228,246,255,0.95)'; ctx.fillRect(-w / 2, -UP, w, UP + overlap); }
     ctx.restore();
   }
@@ -7872,7 +8050,16 @@ function createGame(canvas, hooks = {}) {
     ctx.save();
     ctx.translate(st.x, L1.rigY);
     ctx.rotate(swing);
-    if (img) ctx.drawImage(img, -w / 2, -over, w, len + over);
+    if (img && CFG.rope) {
+      // the cut end frays: the fray cap at the bottom, the cord tiled up from it to off-screen
+      const R = CFG.rope, k = ropeK(w), aw = R.artW || img.naturalWidth || 96, dw = aw * k;
+      const frows = R.fray[1] - R.fray[0], fh = frows * k;
+      ctx.drawImage(img, 0, R.fray[0], aw, frows, -dw / 2, len - fh, dw, fh);
+      ctx.save(); ctx.translate(0, len - fh);
+      drawRopeCord(ctx, img, w, 0, len - fh + over, null);
+      ctx.restore();
+    }
+    else if (img) ctx.drawImage(img, -w / 2, -over, w, len + over);
     else { ctx.fillStyle = 'rgba(228,246,255,0.95)'; ctx.fillRect(-w / 2, -over, w, len + over); }
     ctx.restore();
   }
@@ -8014,7 +8201,9 @@ function createGame(canvas, hooks = {}) {
         const w = Math.max(11, (sh.w || SHAPE_W) * 0.055);
         ctx.save();
         ctx.translate(piv.x, piv.y);
-        if (img) ctx.drawImage(img, -w / 2, -sh.tail, w, sh.tail + 10);
+        // the knot stays tied to the block, with the cut length of cord above it
+        if (img && CFG.rope) { const d0 = ropeKnot(ctx, img, w); drawRopeCord(ctx, img, w, d0, d0 + sh.tail, null); }
+        else if (img) ctx.drawImage(img, -w / 2, -sh.tail, w, sh.tail + 10);
         ctx.restore();
       }
       ctx.restore();
@@ -8771,6 +8960,7 @@ function createGame(canvas, hooks = {}) {
       ['rock', 'rock', ...OBSTACLE_ART.map(k => k.split('-')[0])]);   // families, for planned combinations
     bgm = new BackgroundTimeManager(images);
     mammoth = new PlayerController(audio, particles, currentCharacter(), images);
+    mammoth.reducedMotion = () => reduced;   // the tremble's secondary shake is off under prefers-reduced-motion
     mammoth.onJump = () => atmos.pulse();
     // Wait on the title/select screens rather than dropping straight into the run,
     // so PLAY reframes into gameplay instead of cutting to it. Entered BEFORE the
@@ -9887,7 +10077,7 @@ class Tutorial {
        and a 2.4s cap: long enough to read four words, short enough to get out of the
        way before anyone is ready to act. */
     const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
-    this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null);
+    this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null, s.pause === false);
 
     // and a describing step moves on once it has been up long enough to read
     if (describing && this.t >= this.readTime(text)) this.next();
@@ -10053,7 +10243,8 @@ class Tutorial {
   }
 
   /* ---- the layer ---- */
-  show(box, text, describing, gesture, keepBox, focus) {
+  /** `running`: the step speaks over a game that has NOT been stopped (pause: false) — no veil. */
+  show(box, text, describing, gesture, keepBox, focus, running) {
     const L = this.el.layer;
     if (!L) return;
     if (!box) {
@@ -10067,7 +10258,11 @@ class Tutorial {
        very thing being asked for — and the cut-out would be a frozen copy over a
        moving game. On those steps the veil and the copy are both off and only the
        words and the hand remain. */
-    if (this.el.veil) this.el.veil.hidden = !describing;
+    /* AND NOT FOR A LINE SPOKEN OVER A RUNNING GAME. "Perfect fit! Keep going!" is a
+       describing step with pause:false — the run resumes under it — and it was blurring
+       the whole moving scene (asked: "why does this stage look blurred?"). A veil belongs
+       only to a step that has stopped the game to explain something. */
+    if (this.el.veil) this.el.veil.hidden = !describing || !!running;
     if (!describing || box.dom) this.hideFocus();
 
     const pc = (v, of) => (v / of * 100).toFixed(2) + '%';

@@ -126,7 +126,18 @@ const SHEETS = [
      as long as the learner thinks. bob is KEPT: the rear-up lifts the whole body off the
      ice, and flattening every frame onto the footline would delete the stamp. The stomp
      lands on frame 12, which the engine reads to fire a puff, a jolt and a thud. */
-  { src: 'trample-gif.png', slot: 'trample', bob: true },
+  /* SHELVED in turn: the arrival at the edge is now the delivered 12-frame tremble
+     (tremble-new.png, below), which ends on a settle, and the wait is the idle loop — so
+     the trample has no moment left. Still measured, so the shared scale does not move. */
+  { src: 'trample-gif.png', slot: 'trample', bob: true, shelved: true },
+  /* THE TREMBLE AT THE EDGE — the owner's 12-frame sheet (4x3, art-source/char-sheets/
+     tremble-src.png, re-guttered and pre-scaled by tools/sheet-to-grid.mjs). Notices the
+     drop, looks down, trembles, looks to the player, settles. bob is OFF: every pose stands
+     on four feet, and the delivery floats its rows at three different heights inside their
+     cells (45px apart) — that is not a bob, it is the generator's layout, and flattening
+     onto the shared foot line is what keeps him planted while the frames change. The
+     engine plays it by a per-frame timing table (CFG.sprite.tremble), not at one rate. */
+  { src: 'tremble-new.png', slot: 'tremble', bob: false },
   /* THE FRIGHT AT THE EDGE — the sheet SHAKE and LOOK_DOWN have been missing.
      Both states existed and had no art of their own: they fell back to a pose out of
      the jump sheet, so the one beat the whole puzzle hangs on — the character arriving

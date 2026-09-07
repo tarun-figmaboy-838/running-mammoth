@@ -473,7 +473,7 @@ export class Tutorial {
        and a 2.4s cap: long enough to read four words, short enough to get out of the
        way before anyone is ready to act. */
     const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
-    this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null);
+    this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null, s.pause === false);
 
     // and a describing step moves on once it has been up long enough to read
     if (describing && this.t >= this.readTime(text)) this.next();
@@ -639,7 +639,8 @@ export class Tutorial {
   }
 
   /* ---- the layer ---- */
-  show(box, text, describing, gesture, keepBox, focus) {
+  /** `running`: the step speaks over a game that has NOT been stopped (pause: false) — no veil. */
+  show(box, text, describing, gesture, keepBox, focus, running) {
     const L = this.el.layer;
     if (!L) return;
     if (!box) {
@@ -653,7 +654,11 @@ export class Tutorial {
        very thing being asked for — and the cut-out would be a frozen copy over a
        moving game. On those steps the veil and the copy are both off and only the
        words and the hand remain. */
-    if (this.el.veil) this.el.veil.hidden = !describing;
+    /* AND NOT FOR A LINE SPOKEN OVER A RUNNING GAME. "Perfect fit! Keep going!" is a
+       describing step with pause:false — the run resumes under it — and it was blurring
+       the whole moving scene (asked: "why does this stage look blurred?"). A veil belongs
+       only to a step that has stopped the game to explain something. */
+    if (this.el.veil) this.el.veil.hidden = !describing || !!running;
     if (!describing || box.dom) this.hideFocus();
 
     const pc = (v, of) => (v / of * 100).toFixed(2) + '%';

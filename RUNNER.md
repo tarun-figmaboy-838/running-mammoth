@@ -76,7 +76,7 @@ crossing:
 | `rotate` | degrees of tilt on the hanging chunks. **0 in every phase now** — the options were required to hang perfectly square and still (2026-09-04). The field and the renderer support it, so a brief can set it again, but be aware it is currently switched off everywhere on purpose. |
 | `irregular` | 0–0.16 radial jitter. Legacy, for the basic shapes only: it is **ignored** for a verified geometry, because jitter on a shape built to be concave or specifically irregular would break the property it exists to show. |
 | `tutorial` | shows the swipe-to-cut demonstration between two ropes. Phase 1 only. |
-| `swing` | how much the chunks sway on their ropes. **0 in every phase, and `rigSwing()` returns 0 regardless** — the sway, the arrival bounce and the missed-swipe jiggle were all removed together (2026-09-04): the options are the question being asked and a question should hold still while it is read. Setting this in a brief will not reintroduce motion without also changing `rigSwing()`. |
+| `swing` | how much the chunks sway on their ropes. **0 in every phase; `rigSwing()` is a shared ±1.3° breath and the rope itself bows (see "The tied rope")** — the sway, the arrival bounce and the missed-swipe jiggle were all removed together (2026-09-04): the options are the question being asked and a question should hold still while it is read. Setting this in a brief will not reintroduce motion without also changing `rigSwing()`. |
 | `instruction` | the sentence. **The only learner-facing text in a phase.** |
 
 Two lists must stay the same length as `phases`:
@@ -827,6 +827,8 @@ when the kit is absent, so every call site falls through to the local palette:
 | rope cut | `slice` |
 | wrong chunk hits the water | `splat`; the fall is `fallingWhistle` |
 | wrong answer | `wrong` — never `sadTrombone` (this game does not laugh at the learner) |
+| knockout crash | `bonk` + the owner's sad trumpet (`CFG.sfx.knockout`) — the owner's call for this moment; a third-strike wince keeps `cuckoo` + `sparkle` |
+| the tremble at the edge | the owner's cartoon blink (`CFG.sfx.tremble`), once, as the strong tremble begins |
 | right answer | `correct`, pitch rising with the streak; phase done → `levelUp` |
 | chunk arrives on its rope | `bubble` |
 | boings, missed-jump whiff, glints, prize, rock tick | `boing`, `swoosh`, `sparkle`, `gem`, `tick` |
@@ -961,23 +963,75 @@ him — so the cross-fade moves nobody; the pair then glides to centre stage ove
 card is the title and the seven stamps only, level and smaller; a tap on a stamp pops it and
 rings its coin, a tap on the dancers poofs and honks, a tap on the water splashes.
 
-### The trample (item 4), and the art at screen resolution
+### The tremble at the edge (the owner's 12-frame sheet), and the art at screen resolution
 
-`mammoth-trample.webp` is the delivered 36-frame loop the brief called "Tribbling/Trampling"
-(`art-source/gif/trample-new.gif`): standing at the edge he rears up, brings a front foot down,
-then settles and shifts his weight. It is the arrival reaction AND the wait: SHAKE plays it from
-its first frame for exactly one loop and LOOK_DOWN carries it on, at 14.3 fps (its authored 70 ms),
-for as long as the learner thinks. The delivered fright (`ditch-new.gif`) is shelved on request —
-built into `art-source/shelved/` in both sizes and still measured by the slicer, so listing it in
-CFG again is all it takes to bring it back (it also still lists nothing to load). The stomp lands on
-frame 20 (`CFG.sprite.trampleStomp`, read off the built sheet), and the update fires a puff of
-snow at his front feet, a small shake, a small punch and a soft thud on it — the thud for the
-first two stamps of a visit only, so a long think does not become a drum. The guessed tremble
-loop (`tremble-new.gif`) is no longer shipped.
+`mammoth-tremble.webp` is the owner's 12-frame reaction sheet (4x3, `art-source/char-sheets/
+tremble-src.png`): he notices the drop, looks down, grows nervous, trembles, trembles harder,
+looks to the player, settles. It is built by `tools/sheet-to-grid.mjs` (poses cut on their own
+connected outline — the second pose's tusk crosses its nominal cell, and cutting on the grid
+sliced it — pre-scaled to the shared 340 px reference, re-guttered) and then by
+`tools/slice-char.mjs` like every other sheet, `bob: false` so all twelve stand on the one foot
+line: the delivery floats its rows at three heights, and flattening is what keeps him planted while
+the frames change. The shared scale did not move (0.5037, baseGap 27), so he is exactly the size he
+is in the run and the idle.
+
+It is ACTED, not played at one rate: `CFG.sprite.tremble.plan` is a list of [frame, ms] steps —
+notice/look down slow (120-130 ms), the tremble quickening (85/70/65), the strong comical tremble
+as the oscillation 4-5-6-5 twice at 62 ms, the look to the player readable (120-130), the recovery
+slowest (130/160) — 1.86 s in all. PlayerController walks it by elapsed time (the clock accumulates
+dt and spends a step when its ms are up), so it plays at the same speed on 60, 90 and 144 Hz, and a
+slow frame holds a pose rather than skipping one. On the strong steps a small deterministic shake
+is drawn under the frames (±3 px, ±1.4 px, ±0.8°, on a fixed 0/-2/+3/-2/+2/0 rhythm, eased in and
+out; stage units so it scales; off under prefers-reduced-motion) — drawn, never simulated: the
+collider reads none of it. The owner's cartoon blink (`CFG.sfx.tremble`, four little pips) fires
+once as the strong tremble begins, with a puff of snow at his feet, so picture and sound land
+together. The trample is shelved beside the fright in `art-source/shelved/` (both sizes, still
+measured by the slicer); its stamp hook is gone with it. Test: tests/tremble.spec.mjs.
+
+### The stop is a stop
+
+Asked for: when he stops, the feet stop. They did not — LOOK_DOWN looped the trample, a stamp
+every 2.5 s for as long as the learner thought. Now the tremble ends on its settle and LOOK_DOWN
+plays the delivered idle (36 frames of breathing and a trunk sway on planted feet — the foot band
+was measured still between frames); without the idle the tremble's last frame is held under the
+procedural breath. Test: tremble.spec "waits on the idle with his feet still".
+
+### The comedy crash
+
+Asked for: an exaggerated body shake, stars/impact marks, and a playful "tue-tue" cue synced to
+the impact. On the frame of the bonk the character rattles side to side for 0.28 s (9 px, 3°,
+decaying) over the delivered clash frames, seven five-point stars burst from the point of contact
+(`particles.stars`; the orbiting daze ring still arrives over the sat-down pose), and the owner's
+sad trumpet (`CFG.sfx.knockout`, chosen by the owner for this moment) starts with the bonk. Once
+he is sitting dazed a small nervous tremble keeps him alive until the run resumes. The third-strike
+running wince gets the rattle and stars with the lighter kit cue (two falling notes and a twinkle,
+`crashComedy`). All of it is drawn on the sprite: the collider and the world never move.
+
+### The tied rope
+
+Asked for: the thread should look like the block is really tied to a rope, with a knot at the
+attachment and a slight natural curve. `assets/env/rope-tied.webp` is a 96 px strip cut from the
+owner's rope art (eye and knot at the top, twisted cord, a knot with a frayed tail at the bottom;
+`art-source/rope/rope-tied-src.png`). `CFG.rope` names its regions in strip rows. The knot-and-fray
+cap sits on the block's top edge with the tail tucked under the block (blocks draw after ropes);
+the cord is tiled UPWARD from the knot in 280-row slices through the 1120-row twist, so the twist
+keeps its own pitch however long the rope is; each rope bows sideways by up to 7 px across its
+visible length, swaying on its own phase, and each slice turns to follow the bend. A cut rope's
+stub ends in the fray; the falling block keeps its knot and the cut length above it. The bend is
+drawing only: the cut test still runs along `ropeSpan`'s straight line, which the bend never
+leaves by more than its 30 px reach. Tests: tremble.spec "the rope art", "a cut still parts the
+rope"; the existing rope-cut tests in polish, regression and game.
+
+### The last tutorial line runs unblurred
+
+"Perfect fit! Keep going!" is a describing step spoken over the resumed run (pause:false); the
+veil was blurring the whole moving scene under it. The veil now shows only for a describing step
+that has stopped the game.
 
 Every slot uses the newest GIF delivered for it: run and jump from the first delivery,
-`skid-new`, `ditch-new` (the fright), `ko-new` (the crash), `idle-new` (the finale),
-`trample-new` (the edge), `celebrate-duo` (the ending dance).
+`skid-new`, `ko-new` (the crash), `idle-new` (the finale and the wait at the edge), the owner's
+`tremble-src.png` sheet (the edge), `celebrate-duo` (the ending dance); `ditch-new` and
+`trample-new` are shelved.
 
 **Resolution.** Three things kept the game soft on good screens, and all three are fixed:
 
