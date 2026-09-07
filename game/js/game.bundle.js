@@ -2339,12 +2339,25 @@ class AudioManager {
          instead of none. */
       this.sfxLoading = true;
       this.sfxEl = {};
-      for (const [name, cue] of Object.entries(CFG.sfx || {})) {
+      /* SPACED OUT, 400 ms APART. Chromium caps the media loads it runs at once and ABORTS
+         the oldest (net::ERR_ABORTED — the music, 5.5 MB and still in flight, every time):
+         with eight cues plus the music created in one loop, the ninth request aborted the
+         first, and it showed as a failed request off the disk. Creating on `canplaythrough`
+         was tried and did not space them — off the disk a small file can play within a
+         frame — so this is a plain timer: each short cue finishes loading before the next
+         begins, and only the music is ever in flight beside one of them. A cue not yet
+         created keeps its synthesised version until it is (about three seconds in all). */
+      const queue = Object.entries(CFG.sfx || {});
+      const loadNext = () => {
+        if (!queue.length) return;
+        const [name, cue] = queue.shift();
         const el = new Audio(assetUrl(cue.src));
         el.preload = 'auto';
         el.volume = Math.min(1, cue.gain || 0.5);
         this.sfxEl[name] = { cue, hits: SFX_HITS[name] || [cue.at || 0], el, next: 0 };
-      }
+        if (queue.length) setTimeout(loadNext, 400);
+      };
+      loadNext();
       return;
     }
     this.sfxLoading = true;
@@ -9768,8 +9781,12 @@ class Tutorial {
       {
         id: 'gap',
         /* The ice has to have actually broken: g.open runs 0 -> 1 as the ground gives way. */
+        /* AND HE HAS STOPPED. The owner's sequence: the line and the lit gap come FIRST, then
+           the tremble. GLACIER_BREAK_1 is the skid, and firing there froze him mid-slide; from
+           PHASE_INTRO he is standing at the lip on the tremble's first pose — the freeze holds
+           him there while the line is read, and the tremble plays when it lets go. */
         at: g => (g.gapsThisPhase || []).some(gp => gp && (gp.open || 0) > 0.75) &&
-                 ['GLACIER_BREAK_1', 'PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
+                 ['PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
         spot: g => {
           const gp = (g.gapsThisPhase || [])[0];
           if (!gp) return null;

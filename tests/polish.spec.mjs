@@ -137,7 +137,7 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
       const [sheet, idx] = g.mammothFrame().split(':');
       seen.push({
         st: g.state(), anim: p.state, t: +p.t.toFixed(3), sheet, idx: +idx,
-        scare: +p.scare.toFixed(3), wobX: +p.wobX.toFixed(2),
+        scare: +p.scare.toFixed(3), wobX: +p.wobX.toFixed(2), step: p.trembleStep,
         lean: +p.lean.toFixed(2), gulp: +p.gulp.toFixed(2)
       });
       if (g.state() === 'PHASE_ACTIVE' && seen.length > 60) break;
@@ -180,14 +180,20 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
   /* THE TRAMPLE, since the fright sheet was shelved on request: the arrival at the edge
      is the delivered rear-up-and-stamp loop, played from its first frame, and LOOK_DOWN
      carries the same sheet on. One sheet throughout is still the thing to hold. */
-  expect(sheets, 'the arrival is drawn from the trample sheet').toEqual(['trample']);
+  expect(sheets, 'the arrival is drawn from the owner\'s tremble sheet').toEqual(['tremble']);
   expect(distinct, 'and the sheet actually advances').toBeGreaterThan(6);
 
   /* AND THE OLD SHUDDER STAYS GONE. Removed on request: two performances of one beat
      fight rather than add, and a sine wave shoving the sprite sideways over a drawn
      reaction reads as the picture vibrating. This is the guard against it creeping
      back the next time someone wants the fright to feel stronger. */
-  expect(maxWob, 'no procedural wobble on top of the art').toBe(0);
+  /* SINCE THE OWNER'S TREMBLE SHEET: a SMALL secondary shake is asked for, on the strong
+     tremble only (CFG.sprite.tremble.strong, plan steps 7-14) — ±3 px, never more — and
+     nothing anywhere else. The sine-wave shudder over the whole fright stays gone. */
+  const strong = s => s.step >= 7 && s.step <= 14;
+  const wobOutside = Math.max(0, ...trail.filter(s => !(s.anim === 'SHAKE' && strong(s))).map(s => Math.abs(s.wobX)));
+  expect(wobOutside, 'no procedural wobble outside the strong tremble').toBe(0);
+  expect(maxWob, 'and the secondary shake stays small').toBeLessThanOrEqual(3.5);
   expect(maxLean, 'and no procedural lean either').toBe(0);
 
   // scare itself still runs: it drives the gulp, which is a separate cue

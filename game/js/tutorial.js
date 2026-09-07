@@ -164,8 +164,12 @@ export class Tutorial {
       {
         id: 'gap',
         /* The ice has to have actually broken: g.open runs 0 -> 1 as the ground gives way. */
+        /* AND HE HAS STOPPED. The owner's sequence: the line and the lit gap come FIRST, then
+           the tremble. GLACIER_BREAK_1 is the skid, and firing there froze him mid-slide; from
+           PHASE_INTRO he is standing at the lip on the tremble's first pose — the freeze holds
+           him there while the line is read, and the tremble plays when it lets go. */
         at: g => (g.gapsThisPhase || []).some(gp => gp && (gp.open || 0) > 0.75) &&
-                 ['GLACIER_BREAK_1', 'PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
+                 ['PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
         spot: g => {
           const gp = (g.gapsThisPhase || [])[0];
           if (!gp) return null;

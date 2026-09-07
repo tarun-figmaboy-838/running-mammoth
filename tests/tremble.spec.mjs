@@ -93,9 +93,24 @@ test.describe('the tremble, the stop and the crash', () => {
     const veilOn = () => page.evaluate(() => { const v = document.getElementById('tut-veil'); return v ? !v.hidden : null; });
     await page.waitForFunction(() => /This is Momo/.test(document.getElementById('tut-text').textContent), null, { timeout: 40_000 });
     expect(await veilOn(), 'a frozen describing line is veiled').toBe(true);
-    await page.waitForFunction(() => /Tap to jump/.test(document.getElementById('tut-text').textContent), null, { timeout: 40_000 });
-    await page.waitForFunction(() => { const g = window.iceAgeGame, G = g.debug(); const L = g._obstacles().list.filter(o => !o.passed); return L.length && L[0].x - G.worldX < 640; }, null, { timeout: 20_000 });
-    await page.evaluate(() => window.iceAgeGame.jump());
+    await page.waitForFunction(() => /Tap to jump/.test(document.getElementById('tut-text').textContent), null, { timeout: 60_000 });
+    /* Jump whenever a rock is in range until the ice breaks — a missed jump under a loaded
+       test runner crashes, retries and comes round again, so one shot is not enough. */
+    await page.evaluate(async () => {
+      const g = window.iceAgeGame; const t0 = Date.now();
+      while (Date.now() - t0 < 60000 && !/GLACIER_BREAK_1|PHASE_/.test(g.debug().state)) {
+        const G = g.debug(); const L = g._obstacles().list.filter(o => !o.passed);
+        if (L.length && L[0].x - G.worldX < 640 && L[0].x - G.worldX > 380 && g.mammothState() === 'RUN') g.jump();
+        await new Promise(res => setTimeout(res, 40));
+      }
+    });
+    // the owner's sequence: the "Oh no" line comes once he has stopped, before the tremble plays
+    await page.waitForFunction(() => /path is broken/.test(document.getElementById('tut-text').textContent), null, { timeout: 60_000 });
+    const atOhNo = await page.evaluate(() => { const p = window.iceAgeGame._player(); return { state: window.iceAgeGame.debug().state, anim: p.state, step: p.trembleStep, veil: !document.getElementById('tut-veil').hidden }; });
+    expect(atOhNo.state, 'he has stopped when the line comes').not.toBe('GLACIER_BREAK_1');
+    expect(atOhNo.anim).toBe('SHAKE');
+    expect(atOhNo.step, 'the tremble waits on its first pose while the line is read').toBeLessThanOrEqual(1);
+    expect(atOhNo.veil).toBe(true);
     await page.waitForFunction(() => /right ice piece/.test(document.getElementById('tut-text').textContent), null, { timeout: 60_000 });
     await page.waitForFunction(() => { const L = window.iceAgeGame.debug().l1; return L && L.shapes.some(s => s.state === 'hang' && s.y > 400); }, null, { timeout: 20_000 });
     await page.evaluate(() => { const g = window.iceAgeGame; g._cut(g.debug().l1.unfilled[0]); });
