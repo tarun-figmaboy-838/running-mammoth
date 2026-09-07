@@ -7461,7 +7461,9 @@ export function createGame(canvas, hooks = {}) {
   const api = {
     jump() {
       audio.start(); audio.resume();
-      if (!G.jumpEnabled) return;
+      // nothing jumps while the game is frozen (a tutorial line being read): a jump queued
+      // then would fire the instant the run resumed, long before the obstacle
+      if (paused || !G.jumpEnabled) return;
       mammoth.requestJump(performance.now());
     },
     restart() { resetAll(); },

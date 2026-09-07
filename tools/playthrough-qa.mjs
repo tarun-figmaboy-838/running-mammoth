@@ -59,11 +59,12 @@ while (Date.now() - t0 < 420000) {
   if (s.state !== last) { last = s.state; lastChange = Date.now(); }
   else if (Date.now() - lastChange > 45000 && s.state !== 'PHASE_ACTIVE') { stalls.push(s.state + ' for 45s (phase ' + (s.phase + 1) + ')'); lastChange = Date.now(); }
   // beats
-  if (s.text.startsWith('This is your mammoth')) await shot('01-tut-mammoth');
-  if (s.text.startsWith('A rock')) await shot('02-tut-rock');
-  if (s.text.startsWith('This is the JUMP')) await shot('03-tut-button');
-  if (s.text.startsWith('The ice broke')) await shot('04-tut-gap');
-  if (s.text.startsWith('Blocks of ice')) await shot('05-tut-blocks');
+  if (s.text.startsWith('This is Momo')) await shot('01-tut-momo');
+  if (s.text.startsWith('Watch out')) await shot('02-tut-rock');
+  if (s.text.startsWith('Tap to jump')) await shot('03-tut-button');
+  if (s.text.startsWith('Oh no!')) await shot('04-tut-gap');
+  if (s.text.startsWith('Use the right')) await shot('05-tut-cut');
+  if (s.text.startsWith('Perfect fit')) await shot('06-tut-fit');
   if (s.text.startsWith('Swipe')) await shot('06-tut-cut');
   if (s.state === 'GLACIER_BREAK_1') await shot('10-break-p' + (s.phase + 1));
   if (s.state === 'PHASE_ACTIVE' && s.hang) await shot('11-active-p' + (s.phase + 1));

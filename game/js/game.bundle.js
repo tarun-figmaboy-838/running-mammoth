@@ -8325,7 +8325,9 @@ function createGame(canvas, hooks = {}) {
   const api = {
     jump() {
       audio.start(); audio.resume();
-      if (!G.jumpEnabled) return;
+      // nothing jumps while the game is frozen (a tutorial line being read): a jump queued
+      // then would fire the instant the run resumed, long before the obstacle
+      if (paused || !G.jumpEnabled) return;
       mammoth.requestJump(performance.now());
     },
     restart() { resetAll(); },
@@ -9225,85 +9227,74 @@ class Tutorial {
      `advance` says which kind it is: a NUMBER of seconds means describing and
      self-advancing; a string names the action to wait for. */
   get steps() {
+    /* SEVEN LINES, SHORT AND ACTION-ORIENTED (the owner's script, September 2026). The
+       earlier lines explained what the learner could already see ("He runs all by
+       himself!", "Blocks of ice are hanging on ropes up here."). These establish Momo, his
+       goal and the two controls, and get out of the way:
+
+         1 This is Momo. He needs to find his friend.       describing, frozen, Momo lit
+         2 Help Momo cross the Frozen Pass!                 describing, frozen, Momo lit
+         3 Watch out!                                       describing, frozen, obstacle lit
+         4 Tap to jump over obstacles.                      ASKING: frozen 1.6s to read, then tap hand on JUMP, waits for the jump
+         5 Oh no! The path is broken.                       describing, frozen, gap lit
+         6 Use the right ice piece to fix the path.         ASKING: sweep hand on the right rope, waits for the cut
+         7 Perfect fit! Keep going!                         describing, game running, self-advances
+
+       The pauses are what keep it fair: the obstacle is frozen on screen while 3 is read
+       and is jumpable the moment 4 starts; the gap and the blocks are frozen while 5 is
+       read. Line 4 folds the old "this is the button" and "tap it now" into one ask, so the
+       time from resume to the obstacle is exactly what it was. Line 6 is the ask itself:
+       the sweep hand on the rope of the answer says WHICH and HOW, the sentence says WHY. */
+    const momo = () => {
+      let feet = 840;
+      try {
+        const p = this.game._player && this.game._player();
+        if (p && typeof p.feetY === 'number') feet = p.feetY;
+      } catch (e) { /* fall back to the path line */ }
+      return { x: 430, y: feet - 200, rx: 165, ry: 205, world: true };
+    };
     return [
       {
         id: 'meet',
         at: g => ['RUN_SEGMENT_1', 'JUMP_CHALLENGE_1'].includes(g.state),
-        /* WHERE HE ACTUALLY IS, not where he usually is.
-
-           This was a hardcoded y of 690 and that is only right when he is standing on
-           the path with all four feet down. He bobs as he runs and he leaves the ground
-           entirely when he jumps, so the focus pointed at whatever happened to be below
-           him — and because the copy is taken from the canvas at that point, what got
-           lifted over the blur was a patch of sky and ice while the character himself
-           stayed blurred somewhere above it. The dialogue box was then placed clear of
-           the empty patch rather than clear of him, which is why it still landed across
-           his head after the placement maths had been fixed.
-
-           feetY is the line he is drawn from, so the body sits directly above it. */
-        spot: () => {
-          let feet = 840;
-          try {
-            const p = this.game._player && this.game._player();
-            if (p && typeof p.feetY === 'number') feet = p.feetY;
-          } catch (e) { /* fall back to the path line */ }
-          return { x: 430, y: feet - 200, rx: 165, ry: 205, world: true };
-        },
-        text: 'This is your mammoth. He runs all by himself!',
+        spot: momo,
+        text: 'This is Momo. He needs to find his friend.',
         focus: 'mammoth',
         advance: 0, pause: true
       },
       {
-        /* THE ROCK IS DESCRIBED BEFORE THE CONTROL IS OFFERED, and the game stops
-           while that happens. Previously the rock and the button were one step: the
-           sentence said "a rock, press JUMP" while the rock was still travelling, so
-           the player was reading and being asked to act at the same moment, and if
-           they read to the end they had already hit it. Freezing the run means the
-           obstacle can be looked at and understood before anything is expected. */
+        id: 'goal',
+        at: g => ['RUN_SEGMENT_1', 'JUMP_CHALLENGE_1'].includes(g.state),
+        spot: momo,
+        text: 'Help Momo cross the Frozen Pass!',
+        focus: 'mammoth',
+        advance: 0, pause: true
+      },
+      {
+        /* The obstacle is described with the game stopped, so it can be looked at before
+           anything is expected — and it is still there, frozen, when the ask begins. */
         id: 'rock',
         at: g => this.rockAhead(g) !== null,
         spot: g => {
           const sx = this.rockAhead(g);
           return sx === null ? null : { x: sx, y: 780, rx: 150, ry: 140, world: true };
         },
-        /* NAMED FOR WHAT IS ACTUALLY THERE. The obstacle roster has rocks, fallen logs and
-           fossils; a box saying 'rock' over a log taught a child the wrong word. */
-        text: g => this.thingAhead(g).cap + ' in the way! He cannot walk through it.',
+        text: 'Watch out!',
         focus: 'rock',
         advance: 0, pause: true
       },
       {
-        /* THE CONTROL IS NAMED BEFORE IT IS ASKED FOR. This step was missing: the
-           button went straight from not existing to having a hand on it and a sentence
-           telling the player to press it, so the one control in the game was never
-           introduced. Naming a thing and then asking for it is the whole pattern this
-           tutorial is built on, and the button was the one place it was skipped.
-
-           Still frozen, so the button can be looked at without the rock arriving. */
-        id: 'jumpbtn',
+        /* One ask instead of a description and an ask: the hand on the button says WHERE,
+           the sentence says WHAT and WHEN. A tap anywhere jumps too, and counts. */
+        id: 'jump',
         at: () => this.domSpot('#btn-jump', 40) !== null,
         spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
-        text: 'This is the JUMP button. It makes him hop. A tap anywhere does too!',
-        advance: 0, pause: true
-      },
-      {
-        /* AND NOW THE FINGER. The rock is still frozen where the two steps before left
-           it, so it is on screen and jumpable the moment the game restarts — which is
-           why they pause rather than describing on the move. The words say WHEN, which
-           is the part a hand cannot say by itself. */
-        id: 'jumpnow',
-        at: () => this.domSpot('#btn-jump', 40) !== null,
-        spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
-        text: g => 'Tap it now to jump over the ' + this.thingAhead(g).noun + '!',
-        advance: 'jumped', pause: false, hand: 'tap', follow: 'Nice hop!'
+        text: 'Tap to jump over obstacles.',
+        advance: 'jumped', pause: 1.6, hand: 'tap'
       },
       {
         id: 'gap',
-        /* THE ICE HAS TO HAVE ACTUALLY BROKEN. The gaps exist in the data from the
-           moment the collapse is set up, well before they have visibly opened — so
-           gating on their existence pointed the spotlight at unbroken ice while the
-           box said "The ice broke!". g.open runs 0 -> 1 as the ground gives way, so
-           waiting for it is waiting for the sentence to be true. */
+        /* The ice has to have actually broken: g.open runs 0 -> 1 as the ground gives way. */
         at: g => (g.gapsThisPhase || []).some(gp => gp && (gp.open || 0) > 0.75) &&
                  ['GLACIER_BREAK_1', 'PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
         spot: g => {
@@ -9312,34 +9303,29 @@ class Tutorial {
           const cx = (gp.x0 + gp.x1) / 2 - g.worldX;
           return { x: cx, y: 900, r: Math.max(185, (gp.x1 - gp.x0) * 0.62), world: true };
         },
-        text: 'The ice broke! This gap is far too wide to jump.',
+        text: 'Oh no! The path is broken.',
         focus: 'gap',
         advance: 0, pause: true
       },
       {
-        id: 'blocks',
-        /* THE WHOLE ROW, never one option. The row is the material; WHICH block fits is
-           the thing being taught, and a spotlight on one of them answers it. */
-        at: g => !!g.l1 && g.state === 'PHASE_ACTIVE' && this.rowBox(g) !== null,
-        spot: g => this.rowBox(g),
-        text: 'Blocks of ice are hanging on ropes up here.',
-        focus: 'blocks',
-        advance: 0, pause: true
-      },
-      {
+        /* THE ASK. The sweep hand is on the rope of the answer (ropeBox), the engine's demo
+           stroke crosses the same rope, and the bubble sits beneath the blocks so it never
+           hides the piece it means. */
         id: 'cut',
         at: g => !!g.l1 && g.state === 'PHASE_ACTIVE' && this.ropeBox(g) !== null,
         spot: g => this.ropeBox(g),
-        // names the shape the instruction asked for, so the sentence and the hand agree
-        text: g => 'Swipe across the ' + this.wantedNoun(g) + "'s rope!",
-        /* No hand of its own: the engine already strokes a demonstration swipe across
-           the middle rope (drawCutDemo), and its comment records an earlier version
-           that drew between two ropes and crossed neither. Two hands on screen is the
-           same double-up as a procedural shudder over a drawn fright. */
-        /* A SWEEP, not a tap. The gesture is a swipe across a rope, and a hand tapping
-           in place teaches the wrong movement — a child copies what the hand does, so
-           the hand has to do the thing being asked for. */
+        text: 'Use the right ice piece to fix the path.',
         advance: 'cut', pause: false, hand: 'sweep'
+      },
+      {
+        /* The reward line runs over the celebration and lets go by itself; the game is
+           not stopped for it. Only after a RIGHT cut — a wrong one gets the game's own
+           answer (the splash, the instruction back), not this. */
+        id: 'fit',
+        at: g => ['PHASE_SUCCESS', 'PHASE_DONE', 'PHASE_RUN'].includes(g.state),
+        spot: momo,
+        text: 'Perfect fit! Keep going!',
+        advance: 0, pause: false
       }
     ];
   }
@@ -9359,30 +9345,6 @@ class Tutorial {
   }
 
   /** The nearest obstacle ahead, as words: { noun: 'rock'|'log'|'fossil', cap: 'A rock'|... }. */
-  thingAhead(g) {
-    const list = this.game._obstacles ? this.game._obstacles().list : [];
-    let best = null, bx = Infinity;
-    for (const o of list) { const sx = o.x - g.worldX; if (!o.passed && o.hits < 3 && sx > 300 && sx < bx) { best = o; bx = sx; } }
-    const kind = best && this.game.obstacleName ? this.game.obstacleName(best.kind) : 'rock';
-    const noun = kind === 'log' ? 'log' : kind === 'bone' ? 'fossil' : 'rock';
-    return { noun, cap: 'A ' + noun };
-  }
-
-  /* THE ROPE OF THE MIDDLE BLOCK, which is where the cut actually happens.
-
-     The cut step used to point at the row of blocks, so the hand swept across a BLOCK
-     — and a swipe across a block cuts nothing. The rope is the cuttable thing and it
-     is above the block, not on it, so pointing at the row put the demonstration in the
-     wrong place entirely: a child copying it exactly would fail.
-
-     The middle rope, because a sweep centred there stays clear of both edges of the
-     row, and midway up it so the hand is on rope rather than at either end of it. */
-  /** The shape the current instruction asks for, as a word: "Cut the triangle." -> triangle. */
-  wantedNoun(g) {
-    const m = /the (\w+?)s?\.?\s*$/i.exec((g && g.instruction) || '');
-    return m ? m[1] : 'block';
-  }
-
   ropeBox(g) {
     const hang = ((g.l1 && g.l1.shapes) || []).filter(s => s.state === 'hang');
     if (!hang.length) return null;
@@ -9603,7 +9565,12 @@ class Tutorial {
     if (!box) { this.resume(); this.show(null); return; }
 
     this.t += dt;
-    if (s.pause) this.pause(); else this.resume();
+    /* A NUMBER freezes the game for that many seconds of the step, then lets it run: an ask
+       that has to be READ before it can be acted on ("Tap to jump over obstacles.") holds
+       the obstacle still for the reading, exactly as the old describing step did, and then
+       the run resumes with the hand still asking. `true` freezes for the whole step. */
+    const frozen = s.pause === true || (typeof s.pause === 'number' && this.t < s.pause);
+    if (frozen) this.pause(); else this.resume();
 
     /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
        frozen copy belong to describing steps; the hand belongs to asking ones. */
@@ -9673,7 +9640,7 @@ class Tutorial {
   setWords(text) {
     const el = this.el.text;
     if (!el) return;
-    const KEY = /^(jump|hop|rope|ropes|cut|swipe|rock|log|fossil|gap|ice|blocks?|mammoth|friend)[!.,?]*$/i;
+    const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
     const parts = (text || '').split(/(\s+)/);
     let i = 0, powed = false;
     el.textContent = '';

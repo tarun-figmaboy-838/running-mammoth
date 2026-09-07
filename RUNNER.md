@@ -1102,6 +1102,17 @@ the edge is still a poke, a tap on the water still splashes. The tutorial's butt
 "This is the JUMP button. It makes him hop. A tap anywhere does too!" Tests: game.spec "a tap
 anywhere jumps" and "a tap in a puzzle is a stroke, never a jump".
 
+### The tutorial script (seven lines)
+
+Rewritten to the owner's script, short and action-oriented: "This is Momo. He needs to find his
+friend." · "Help Momo cross the Frozen Pass!" · "Watch out!" · "Tap to jump over obstacles." ·
+"Oh no! The path is broken." · "Use the right ice piece to fix the path." · "Perfect fit! Keep
+going!" Lines 1–3 and 5 are describing steps (game frozen, subject lit); 4 and 6 are the asks
+(tap hand on JUMP, sweep hand on the rope of the answer); 7 runs over the celebration and lets
+go by itself. The old "this is the button" step and the "Nice hop!" follow-up are gone; the
+obstacle is no longer named in words (the picture is lit instead), so `thingAhead`/`wantedNoun`
+went with them. One key word pops per line: friend, cross, Watch, Tap, broken, right, Perfect.
+
 ### A temporary review control
 
 "Skip to ending" sits bottom-left during play (`#btn-skip-end`). It calls `game.skipToEnd()`,
