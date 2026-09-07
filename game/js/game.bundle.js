@@ -999,6 +999,13 @@ const CFG = {
      scale with the drawn width, so nothing else has to change. */
   obstacle: {
     height: 112, drawHeight: 184, sinkRatio: 0.11, runRoomS: 3.4, pairScale: 1,
+    /* THE JOURNEY LEAD. Asked for: after the tutorial the obstacles are placed far, so the run
+       between puzzles shows a journey like a real game. leadS is the clear running after a
+       puzzle before a stretch is laid out on the horizon (it spawns off-screen at 2150 px and
+       needs a further ~3.3 s to reach Momo, so the first rock arrives ~5.7 s into the run).
+       retryLeadS is the lead after a failed jump: the same stretch is retried at once, not after
+       the whole journey again. The tutorial's own rock is not led (timing.run1). */
+    leadS: 2.4, retryLeadS: 0.7,
     /* THE DIFFICULTY CURVE OF THE RUNS. Asked for: the running should become a real game as
        the learner progresses, instead of the same two-to-four rocks at the same spacing.
 
@@ -1202,10 +1209,15 @@ const CFG = {
     }
   ],
   timing: {
-    /* The run before the first crevasse, and the recovery after the first rock. Both
-       roughly tripled: the puzzles were arriving so close together that the game read
-       as a quiz with scenery rather than a journey with puzzles in it. */
-    run1: 7000, postJump1: 4200, run2: 2600, postJump2: 1900,
+    /* run1 is the run before the tutorial's rock. It was 7000 (tripled once so the game read
+       as a journey rather than a quiz), and with the seven-line script that left Momo running
+       alone for ~8 s after "Help Momo cross the Frozen Pass!" — it read as delay. The two
+       opening lines freeze the game at ~1.1 s of state time, so 1400 resumes the run for
+       ~0.3 s, the rock spawns off-screen at 2150 px and takes 2.1 s to reach the 1050 px
+       trigger: about 2.4 s of running, the rock visibly approaching, then "Watch out!".
+       The journey feel now lives AFTER the tutorial (CFG.obstacle.leadS). postJump1 is the
+       recovery after the first rock, before the first crevasse. */
+    run1: 1400, postJump1: 4200, run2: 2600, postJump2: 1900,
     /* breakSkid is the whole stop, and it is now 2300 rather than 920 because the skid
        sheet is 36 frames mapped across it: at 920ms those played at 46fps and the
        animation looked fast-forwarded. 140ms of that is the anticipation hold, leaving
@@ -5115,7 +5127,7 @@ function createGame(canvas, hooks = {}) {
   // retrying an obstacle: each state owns a progress band it eases across, and the
   // puzzle states hold the sky still for as long as the learner needs.
   const JOURNEY = {
-    RUN_SEGMENT_1:     [0.00, 0.06, 2400],
+    RUN_SEGMENT_1:     [0.00, 0.06, 1400],
     JUMP_CHALLENGE_1:  [0.06, 0.09, 3600],
     POST_JUMP_RUN_1:   [0.09, 0.12, 2000],
     // 0.12 -> 0.82 belongs to Level 1's six phases and is driven by phases
@@ -5340,7 +5352,7 @@ function createGame(canvas, hooks = {}) {
         /* The very first rock is always a single one: it is the step where the jump is
            being learned, and learning it against three at once is not a difficulty
            curve, it is a wall. */
-        obstacles.spawn(G.worldX, 2150, 1); G.jumpPulse = true; break;
+        obstacles.spawn(G.worldX, 2150, 1); G.jumpPulse = true; G.retryRun = false; break;
       case 'POST_JUMP_RUN_1':
         G.jumpPulse = false; G.hitCount = 0; break;
       case 'TITLE':
@@ -5359,6 +5371,9 @@ function createGame(canvas, hooks = {}) {
            phase actually advances instead (PHASE_DONE). */
         G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
         G.phaseJumped = false;
+        // the lead before this stretch: the journey's, or a retry's short run-up (see CFG.obstacle.leadS)
+        G.runLeadMs = (G.retryRun ? (CFG.obstacle.retryLeadS || 0.7) : (CFG.obstacle.leadS || 2.4)) * 1000;
+        G.retryRun = false;
         mammoth.setState('RUN'); break;
       case 'PHASE_INTRO':
         /* Frame the puzzle: the instruction, the blocks and the ditch become the whole
@@ -7257,7 +7272,7 @@ function createGame(canvas, hooks = {}) {
         // the phases the config asks for — not before every one
         const p = L1.phases[G.phase];
         const dur = L1.runMs[G.phase] || 3000;
-        if (L1.jumpBefore.includes(p.id) && !G.phaseJumped && G.st > 700) {
+        if (L1.jumpBefore.includes(p.id) && !G.phaseJumped && G.st > (G.runLeadMs || 700)) {
           G.phaseJumped = true;
           /* MORE ROCKS AS THE JOURNEY GOES ON — one before the first jump stretch, then
              two, then three, up to the cap. The run between puzzles gets harder as the
@@ -7378,6 +7393,7 @@ function createGame(canvas, hooks = {}) {
     G.jumpPulse = true;               // re-teach the control on the retry
     G.invincibleT = CFG.juice.respawnBlinkS || 1.6;   // blink, and no hit, for the first moment back
     mammoth.setState('RUN');
+    G.retryRun = true;                // the stretch is retried at once: PHASE_RUN keeps the short lead
     setState(G.hitReturn || 'RUN_SEGMENT_1');
   }
 
@@ -8549,6 +8565,7 @@ function createGame(canvas, hooks = {}) {
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
     G.bearAt = 0;                   // the friend is not placed until the run home
+    G.retryRun = false; G.runLeadMs = 0;
     slash = null; brk = null; taps.length = 0;
     ground.reset(); obstacles.reset(); particles.clear(); mammoth.reset(); bgm.reset();
     atmos.intensity = 0; atmos.flash = 0;

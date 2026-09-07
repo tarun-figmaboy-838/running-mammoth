@@ -65,6 +65,50 @@ test.describe('the difficulty curve of the runs', () => {
     expect(r.hits).toBe(1);
   });
 
+  test('after a puzzle the stretch is placed far (the journey lead); a retry keeps the short run-up', async ({ page }) => {
+    await boot(page, { fast: 1 });
+    const r = await page.evaluate(async () => {
+      const m = await import('/js/engine.js');
+      const g = window.iceAgeGame, G = g.debug(); const raf = () => new Promise(res => requestAnimationFrame(res));
+      const run = async () => {
+        const out = { spawnSt: null, spawnSx: null, hit: false };
+        const t0 = Date.now();
+        while (Date.now() - t0 < 20000) {
+          const L = g._obstacles().list.filter(o => !o.passed); const D = g.debug();
+          if (L.length && out.spawnSt === null) { out.spawnSt = D.st; out.spawnSx = L[0].x - D.worldX; }
+          if (D.state === 'OBSTACLE_HIT') { out.hit = true; break; }
+          await raf();
+        }
+        return out;
+      };
+      G.phase = 2; G.phaseJumped = false; g._force('PHASE_RUN');
+      const first = await run();                    // walk into the first rock
+      g.retryObstacle(); await raf();
+      const retry = await run();
+      return { first, retry, leadS: m.CFG.obstacle.leadS, retryLeadS: m.CFG.obstacle.retryLeadS };
+    });
+    expect(r.leadS, 'a real lead').toBeGreaterThanOrEqual(2);
+    expect(r.first.spawnSt, 'nothing on the ice before the lead').toBeGreaterThanOrEqual(r.leadS * 1000 - 40);
+    expect(r.first.spawnSx, 'and it appears off-screen').toBeGreaterThan(1920);
+    expect(r.first.hit, 'the walk-in crashed').toBe(true);
+    expect(r.retry.spawnSt, 'a retry is tried again at once').toBeLessThan(r.retryLeadS * 1000 + 400);
+    expect(r.retry.spawnSt).toBeLessThan(r.first.spawnSt);
+  });
+
+  test('the tutorial rock comes soon after the second line, visibly approaching', async ({ page }) => {
+    await boot(page, { tutorial: true, skipScreens: true });
+    await page.waitForFunction(() => { const l = document.getElementById('tutorial'), tx = document.getElementById('tut-text'); return l && !l.hidden && tx && /Help Momo cross/.test(tx.textContent); }, null, { timeout: 40_000 });
+    await page.waitForFunction(() => { const l = document.getElementById('tutorial'), tx = document.getElementById('tut-text'); return !(l && !l.hidden && tx && /Help Momo cross/.test(tx.textContent)); }, null, { timeout: 15_000 });
+    const tA = await page.evaluate(() => window.iceAgeGame.debug().t);
+    await page.waitForFunction(() => { const l = document.getElementById('tutorial'), tx = document.getElementById('tut-text'); return l && !l.hidden && tx && /Watch out/.test(tx.textContent); }, null, { timeout: 15_000 });
+    const r = await page.evaluate(() => { const g = window.iceAgeGame, G = g.debug(); const L = g._obstacles().list.filter(o => !o.passed).map(o => o.x - G.worldX); return { t: G.t, sx: Math.min(...L) }; });
+    const running = r.t - tA;
+    expect(running, 'running seconds between the second line and "Watch out!"').toBeGreaterThan(1.5);
+    expect(running).toBeLessThan(3.5);
+    expect(r.sx, 'the rock is right in his path').toBeLessThan(1050);
+    expect(r.sx).toBeGreaterThan(620);
+  });
+
   test('the first stretch after the tutorial is two far-apart obstacles', async ({ page }) => {
     await boot(page, { fast: 1 });
     const laid = await page.evaluate(async () => {

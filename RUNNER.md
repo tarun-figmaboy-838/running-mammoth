@@ -1144,6 +1144,16 @@ cut line"): the middle slice overlapped the caps by 1 px and a fractional device
 half-covered column. It now runs 12 px under each opaque cap. The letters carry a cream stroke
 (white around the blue polygon name) behind the fill, so the words lift off the wood grain.
 
+### The journey lead after a puzzle
+
+Asked for: after the tutorial the obstacles are placed far, so the running shows a journey like a
+real game. `CFG.obstacle.leadS` (2.4 s) is the clear running after a puzzle before a stretch is
+laid out; it spawns off-screen at 2150 px and takes a further ~3.3 s to reach Momo, so the first
+rock of a stretch arrives ~5.7 s into the run and the run ends only once the stretch is passed
+(`PHASE_RUN` waits for `clear`). A retry keeps a short lead (`retryLeadS`, 0.7 s): a failed jump
+is tried again at once, not after the journey again (`G.retryRun`, set by `retryObstacle` and
+consumed when PHASE_RUN is entered). Test: difficulty "after a puzzle the stretch is placed far".
+
 ### The brief's combination checks
 
 The owner's sequenced brief lists six cross-item conflicts. How each is closed here:
@@ -1187,7 +1197,10 @@ Rewritten to the owner's script, short and action-oriented: "This is Momo. He ne
 friend." · "Help Momo cross the Frozen Pass!" · "Watch out!" · "Tap to jump over obstacles." ·
 "Oh no! The path is broken." · "Use the right ice piece to fix the path." · "Perfect fit! Keep
 going!" The obstacle step triggers at 1050 px (was 1500, then 1200 — both still "looked far"), so Momo
-is right behind what "Watch out!" points at; the jump ask is frozen 1.2 s for reading, and a tap
+is right behind what "Watch out!" points at, and the run before it is short: `timing.run1` is
+1.4 s (was 7 s, which left Momo running alone for ~8 s after the second line and read as delay),
+so after "Help Momo cross the Frozen Pass!" the rock spawns off-screen almost at once and is
+about 2.4 s away, visibly approaching, when "Watch out!" freezes on it; the jump ask is frozen 1.2 s for reading, and a tap
 during that freeze is armed rather than dropped: the engine jumps when the obstacle is in range
 (`G.jumpArmed`), so a child who taps at once still clears it; a tap after the resume has ~0.8 s. Lines 1–3 and 5 are describing steps (game frozen, subject lit); 4 and 6 are the asks
 (tap hand on JUMP, sweep hand on the rope of the answer); 7 runs over the celebration and lets
