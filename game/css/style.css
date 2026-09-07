@@ -145,8 +145,6 @@ a:hover { color: var(--ice-pale); }
 .instruction[hidden] { display: none; }
 /* the polygon's name, set apart in the sentence: capitals, heavier, the key-word blue */
 .instruction-text .key { color: #1E56C4; font-weight: 900; letter-spacing: 0.01em; -webkit-text-stroke: calc(9 * var(--k)) #FFFFFF; paint-order: stroke fill; }
-/* the plural progress, small and quiet after the sentence */
-.instruction-text .tally { display: inline-block; margin-left: 0.45em; font-size: 0.56em; font-weight: 800; color: #7A4A1E; vertical-align: 0.12em; letter-spacing: 0; -webkit-text-stroke: calc(6 * var(--k)) #FFF6E0; paint-order: stroke fill; }
 .instruction.leaving {
   opacity: 0;
   transform: translateX(-50%) translateY(-18px) scale(0.97);

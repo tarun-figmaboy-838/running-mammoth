@@ -4358,9 +4358,6 @@ export function createGame(canvas, hooks = {}) {
       // HUD's change detection sees one value rather than a fresh array every frame
       mendedKinds: G.complete ? L1.phases.map(p => p.targets[0]).join(',') : '',
       oops: G.oops,
-      // "1 of 3" on a plural question, so a learner knows they are partway (the brief's phase 4)
-      tally: G.l1 && G.l1.targets && G.l1.targets.length > 1
-        ? G.l1.targets.filter(t => t.filled).length + ' of ' + G.l1.targets.length : '',
       // the hint control asks for attention once the learner has been stuck a while
       hintNudge: G.state === 'PHASE_ACTIVE' && (G.idle > CFG.hint.slotMs / 1000 || (G.l1 && G.l1.wrong >= 1)),
       // where to demonstrate the cut, once the learner has been idle a long while

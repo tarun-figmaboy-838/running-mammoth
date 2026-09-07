@@ -5222,9 +5222,6 @@ function createGame(canvas, hooks = {}) {
       // HUD's change detection sees one value rather than a fresh array every frame
       mendedKinds: G.complete ? L1.phases.map(p => p.targets[0]).join(',') : '',
       oops: G.oops,
-      // "1 of 3" on a plural question, so a learner knows they are partway (the brief's phase 4)
-      tally: G.l1 && G.l1.targets && G.l1.targets.length > 1
-        ? G.l1.targets.filter(t => t.filled).length + ' of ' + G.l1.targets.length : '',
       // the hint control asks for attention once the learner has been stuck a while
       hintNudge: G.state === 'PHASE_ACTIVE' && (G.idle > CFG.hint.slotMs / 1000 || (G.l1 && G.l1.wrong >= 1)),
       // where to demonstrate the cut, once the learner has been idle a long while
@@ -9037,7 +9034,7 @@ class Hud {
      stop kept (the owner's own wording). The engine's sentence is untouched (tests and the
      recall path read it); this is how it is shown. A sentence that does not fit the pattern
      is shown whole. */
-  setInstruction(message, tally) {
+  setInstruction(message) {
     const el = this.el.text;
     if (!el) return;
     const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
@@ -9049,9 +9046,6 @@ class Hud {
     key.textContent = (m[2] + m[3]).toUpperCase();
     el.appendChild(key);
     if (m[4]) el.appendChild(document.createTextNode(m[4]));   // the sentence keeps its full stop
-    /* A plural question carries its progress — "1 of 3" — small and after the sentence, so a
-       learner partway through "Cut all the PENTAGONS." can see it is going well. */
-    if (tally) { const t = document.createElement('span'); t.className = 'tally'; t.textContent = tally; el.appendChild(t); }
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
@@ -9195,14 +9189,12 @@ class Hud {
      * re-assert does not make the pill flash. */
     const el = this.el.instruction;
     const outOfSync = message && (el.hidden || el.classList.contains('leaving'));
-    // the plural tally changes without the sentence changing, so it is its own trigger
-    const tally = h.tally || '';
-    if (message !== this.lastMessage || outOfSync || tally !== this.lastTally) {
+    if (message !== this.lastMessage || outOfSync) {
       const isNewLine = message !== this.lastMessage;
-      this.lastMessage = message; this.lastTally = tally;
+      this.lastMessage = message;
       if (message) {
         clearTimeout(this._leaveT);
-        this.setInstruction(message, tally);
+        this.setInstruction(message);
         el.hidden = false;
         el.classList.remove('leaving');
         // restart the entrance animation only for a new line, never for a re-assert

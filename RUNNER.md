@@ -1158,7 +1158,7 @@ The owner's sequenced brief lists six cross-item conflicts. How each is closed h
 6. No dead zone: every spacing is one leap plus at least 0.6 s of running room, and a jump is
    accepted the moment he lands (LAND allows requestJump). Test: difficulty "every gap is
    clearable".
-The plural sign carries its progress ("1 of 3"), the brief's phase-4 decision.
+A progress tally on plural signs ("1 of 3", the brief's phase-4 suggestion) was tried and removed on request: the pieces filling the crossing are the progress.
 
 ### Two interaction modes
 
