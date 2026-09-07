@@ -137,7 +137,7 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
       const [sheet, idx] = g.mammothFrame().split(':');
       seen.push({
         st: g.state(), anim: p.state, t: +p.t.toFixed(3), sheet, idx: +idx,
-        scare: +p.scare.toFixed(3), wobX: +p.wobX.toFixed(2), step: p.trembleStep,
+        scare: +p.scare.toFixed(3), wobX: +p.wobX.toFixed(2), step: p.trembleStep, shiver: (p.shiverT || 0) > 0,
         lean: +p.lean.toFixed(2), gulp: +p.gulp.toFixed(2)
       });
       if (g.state() === 'PHASE_ACTIVE' && seen.length > 60) break;
@@ -190,10 +190,10 @@ test('the fright actually plays when he sees the ditch', async ({ page }) => {
   /* SINCE THE OWNER'S TREMBLE SHEET: a SMALL secondary shake is asked for, on the strong
      tremble only (CFG.sprite.tremble.strong, plan steps 7-14) — ±3 px, never more — and
      nothing anywhere else. The sine-wave shudder over the whole fright stays gone. */
-  const strong = s => s.step >= 7 && s.step <= 14;
+  const strong = s => s.step >= 7 && s.step <= 18;
   const wobOutside = Math.max(0, ...trail.filter(s => !(s.anim === 'SHAKE' && strong(s))).map(s => Math.abs(s.wobX)));
   expect(wobOutside, 'no procedural wobble outside the strong tremble').toBe(0);
-  expect(maxWob, 'and the secondary shake stays small').toBeLessThanOrEqual(3.5);
+  expect(maxWob, 'and the secondary shake stays a knock, not a launch').toBeLessThanOrEqual(8);
   expect(maxLean, 'and no procedural lean either').toBe(0);
 
   // scare itself still runs: it drives the gulp, which is a separate cue

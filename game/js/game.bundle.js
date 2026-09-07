@@ -1078,7 +1078,7 @@ const CFG = {
        each blink holds a readable 143 ms, and consecutive frames are CROSSFADED in draw (the
        next pose drawn over the current at the step's fraction), so small motions — a blink, a
        trunk drift — glide instead of stepping. The procedural breath still rides on top. */
-    idleFps: 7, idleBlend: true,
+    idleFps: 6, idleBlend: true,
     /* THE TRAMPLE at the edge is authored at 70ms a frame: 14.3fps plays it as drawn. The
        stomp — his raised front comes down 30px in three frames — lands on frame 20, read
        off the built sheet (the body's top row: 70 at frames 14-16, 86 at 19, 100 at 21). */
@@ -1089,16 +1089,22 @@ const CFG = {
        it by elapsed time, so a 144 Hz screen plays it no faster than a 60 Hz one. `strong`
        is the span of plan steps (inclusive) that carries the secondary shake and the
        sound; shakeX/Y are stage px and shakeRot radians at full strength — visual only. */
+    /* RETUNED ON REVIEW ("not evident, looks fast"): the first cut ran 1.86 s with 62 ms strong
+       steps and read as a flicker. Now each look holds 180-220 ms, the strong tremble is the
+       4-5-6-5 oscillation THREE times at 90 ms (1.1 s of visible shaking), the recovery is the
+       slowest beat, 3.3 s in all; the slow steps crossfade into the next pose (see draw), the
+       strong ones cut hard — the flicker IS the tremble there. The secondary shake is a real
+       cartoon knock now: ±7 px, ±3 px, ±2°, with a 4% jelly squash on each beat. */
     tremble: {
       plan: [
-        [0, 120], [1, 110], [2, 130], [3, 120],
-        [4, 85], [5, 70], [6, 65],
-        [4, 62], [5, 62], [6, 62], [5, 62], [4, 62], [5, 62], [6, 62], [5, 62],
-        [7, 120], [8, 130], [9, 120],
-        [10, 130], [11, 160]
+        [0, 200], [1, 180], [2, 220], [3, 200],
+        [4, 110], [5, 95], [6, 85],
+        [4, 90], [5, 90], [6, 90], [5, 90], [4, 90], [5, 90], [6, 90], [5, 90], [4, 90], [5, 90], [6, 90], [5, 90],
+        [7, 200], [8, 220], [9, 200],
+        [10, 220], [11, 300]
       ],
-      strong: [7, 14],
-      shakeX: 3, shakeY: 1.4, shakeRot: 0.014
+      strong: [7, 18],
+      shakeX: 7, shakeY: 3, shakeRot: 0.035, squash: 0.04
     },
     // 16 frames at 15fps is 1.07s, and the Try Again card comes in at T.knockout
     // (1100ms) — so the crash finishes playing just as the card arrives
@@ -3581,7 +3587,7 @@ class PlayerController {
     this.knock = 0;                  // backward recoil from an impact, in px
     /* THE TREMBLE PLAN'S CLOCKS (see update): which step, how far into it, and whether
        its sound has fired this visit. shakeY is the secondary shake's vertical part. */
-    this.trembleStep = 0; this.trembleClock = 0; this.trembleFired = false; this.shakeY = 0;
+    this.trembleStep = 0; this.trembleClock = 0; this.trembleFired = false; this.shakeY = 0; this.marksDrawn = 0;
   }
   /** 0..1 through the slide — drives which skid frame is showing. */
   setSkidProgress(p) { this.skidP = clamp(p, 0, 1); }
@@ -3779,8 +3785,11 @@ class PlayerController {
         this.wobX = beat * (TP.shakeX || 3) * env;
         this.wobRot = beat * (TP.shakeRot || 0.014) * env;
         this.shakeY = Math.abs(beat) * (TP.shakeY || 1.4) * env * (k % 2 ? -1 : 1);
+        this.wobSq = Math.abs(beat) * (TP.squash || 0) * env;      // the jelly: squashes on each knock
       }
     }
+    /* No shiver on the idle wait: tried as a knees-knock with each gulp and taken out on request —
+       the wait stays still, and the fear lives in the tremble (with its marks, see draw). */
     /* THE CRASH SHAKE (asked for: a short, exaggerated body shake when he crashes, cartoon
        not camera). For the first 0.28 s after the hit the body rattles side to side — 9 px
        and 3°, decaying — over the delivered clash frames; then, once the tumble has landed
@@ -3903,6 +3912,7 @@ class PlayerController {
 
     const J = this.J, SP = CFG.sprite, F = this.F;
     let sheet = this.jumpSheet || img, f = J.idle;
+    let blendF = -1, blendU = 0;                 // a second pose dissolved over the first (idle, slow tremble steps)
     switch (this.state) {
       case 'RUN':
         sheet = img;
@@ -3925,8 +3935,16 @@ class PlayerController {
            listed again. */
         if (this.trembleSheet && F.tremble && SP.tremble && SP.tremble.plan) {
           sheet = this.trembleSheet;
-          const step = SP.tremble.plan[Math.min(this.trembleStep, SP.tremble.plan.length - 1)];
+          const plan = SP.tremble.plan, si = Math.min(this.trembleStep, plan.length - 1), step = plan[si];
           f = Math.max(0, Math.min(F.tremble - 1, step[0]));
+          /* Slow steps (the looks, the recovery) dissolve into the next pose over the last 40%
+             of the step, so a head turn glides; the strong steps cut hard — the flicker IS the
+             tremble there. */
+          const next = plan[Math.min(si + 1, plan.length - 1)];
+          if (step[1] >= 150 && next[0] !== step[0]) {
+            blendF = Math.max(0, Math.min(F.tremble - 1, next[0]));
+            blendU = Math.max(0, (this.trembleClock / step[1] - 0.6) / 0.4);
+          }
         }
         else if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = Math.min(F.shake - 1, Math.floor(this.t * SP.tremorFps)); }
         else f = J.alert;
@@ -4021,7 +4039,6 @@ class PlayerController {
     /* THE IDLE CROSSFADE (see CFG.sprite.idleBlend): the next pose is drawn over the current one
        at the fraction of the step already spent, so twelve poses read as continuous motion.
        Same cell, same anchor, same scale — only a second blit with a second alpha. */
-    let blendF = -1, blendU = 0;
     if (SP.idleBlend && sheet === this.idleSheet && F.idle > 1) {
       const p = this.t * SP.idleFps, frac = p - Math.floor(p);
       /* Hold the pose for 60% of the step, then dissolve into the next over the last 40%
@@ -4075,9 +4092,42 @@ class PlayerController {
       ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
                     -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
       if (blendF >= 0 && blendU > 0.01) {
-        ctx.globalAlpha *= blendU;
+        const base = ctx.globalAlpha;
+        ctx.globalAlpha = base * blendU;
         ctx.drawImage(sheet, (blendF % COLS) * CW, Math.floor(blendF / COLS) * CH, CW, CH,
                       -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+        ctx.globalAlpha = base;
+      }
+    }
+    /* TREMBLE MARKS (asked for: comical shaking lines, like a real cartoon fear). Short arcs
+       beside the body — three a side, at shoulder, chest and hip — from the moment the tremble
+       starts, bold on the strong beat, one side heavier each beat and jittering against the
+       knock, in the art's own dark-brown ink. Drawn in the sprite's space (stage units, so they
+       scale and move with him) and read by nothing. The still-frame shake lines painted into the
+       sheet stay; these carry the beat between them. */
+    this.marksDrawn = 0;
+    if (this.state === 'SHAKE' && this.trembleSheet && SP.tremble && SP.tremble.plan) {
+      const TP = SP.tremble, n = TP.plan.length, si = Math.min(this.trembleStep, n - 1);
+      const strong = TP.strong && si >= TP.strong[0] && si <= TP.strong[1];
+      const warm = si >= 4 && !strong && si < (TP.strong ? TP.strong[0] : n);
+      if (strong || warm) {
+        const base = ctx.globalAlpha, a = strong ? 0.92 : 0.5, beat = si % 2;
+        const within = this.trembleClock / TP.plan[si][1];
+        const jit = (strong ? 6 : 2) * Math.sin(within * Math.PI * 2);
+        ctx.save();
+        ctx.strokeStyle = '#6E3410'; ctx.lineWidth = 5.5; ctx.lineCap = 'round';
+        const HTS = [-318, -238, -158], L = -168, R = 178;
+        for (let i = 0; i < 3; i++) {
+          const y = HTS[i] + (i % 2 ? jit : -jit);
+          for (const [sx, dir] of [[L - i * 7, -1], [R + i * 7, 1]]) {
+            ctx.globalAlpha = base * a * ((dir < 0) === (beat === 0) ? 1 : 0.5);
+            ctx.beginPath();
+            ctx.moveTo(sx, y - 15); ctx.quadraticCurveTo(sx + dir * 10, y, sx, y + 15);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+        this.marksDrawn = strong ? 2 : 1;
       }
     }
     ctx.restore();

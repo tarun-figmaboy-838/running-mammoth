@@ -22,11 +22,11 @@ test.describe('the tremble, the stop and the crash', () => {
     expect(r.hd).toBe('assets/char/hd/mammoth-tremble.webp');
     expect(r.frames).toBe(12);
     expect(r.trample, 'the trample is shelved, not fetched').toBeNull();
-    // 1.6-2.2 s in all, frames 0..11, starting on the notice and ending on the settle
-    expect(r.total).toBeGreaterThanOrEqual(1600); expect(r.total).toBeLessThanOrEqual(2200);
+    // about 3.3 s in all (retuned from 1.9 s: "not evident, looks fast"), frames 0..11, notice to settle
+    expect(r.total).toBeGreaterThanOrEqual(2800); expect(r.total).toBeLessThanOrEqual(3800);
     expect(r.maxFrame).toBe(11); expect(r.first).toBe(0); expect(r.last).toBe(11);
-    // the strong tremble is the 4-5-6-5 oscillation, twice
-    expect(r.strong).toEqual([4, 5, 6, 5, 4, 5, 6, 5]);
+    // the strong tremble is the 4-5-6-5 oscillation, three times, at a readable 90 ms
+    expect(r.strong).toEqual([4, 5, 6, 5, 4, 5, 6, 5, 4, 5, 6, 5]);
   });
 
   test('at the edge he trembles once, by the plan, then waits on the idle with his feet still', async ({ page }) => {
@@ -34,17 +34,18 @@ test.describe('the tremble, the stop and the crash', () => {
     await force(page, 'GLACIER_BREAK_1');
     await page.waitForFunction(() => window.iceAgeGame.mammothState() === 'SHAKE', null, { timeout: 20_000 });
     const r = await page.evaluate(async () => {
-      const p = window.iceAgeGame._player(); const seen = new Set(); let shook = false, fired = false;
+      const p = window.iceAgeGame._player(); const seen = new Set(); let shook = false, fired = false, marks = false;
       const t0 = Date.now();
-      while (Date.now() - t0 < 15000 && p.state === 'SHAKE') {      // a loaded runner plays game time at a third of wall time
+      while (Date.now() - t0 < 60000 && p.state === 'SHAKE') {      // 3.3 s of game time; a loaded runner plays it at a third of wall speed or slower
         seen.add(p.lastSheet + ':' + p.lastFrame);
         if (Math.abs(p.wobX) > 0.5) shook = true;
+        if (p.marksDrawn === 2) marks = true;
         if (p.trembleFired) fired = true;
         await new Promise(res => requestAnimationFrame(res));
       }
       const after = p.state, sheet0 = p.lastSheet;
       await new Promise(res => setTimeout(res, 700));
-      return { frames: [...seen].filter(k => k.startsWith('tremble')).length, shook, fired, after, sheet0, sheet1: p.lastSheet, wobAfter: Math.abs(p.wobX) };
+      return { frames: [...seen].filter(k => k.startsWith('tremble')).length, shook, fired, after, sheet0, sheet1: p.lastSheet, wobAfter: Math.abs(p.wobX), marks };
     });
     // sampled once per animation frame under a loaded runner, so 62 ms steps are missed: many, not all
     expect(r.frames, 'the tremble sheet is what plays').toBeGreaterThanOrEqual(6);
@@ -53,6 +54,7 @@ test.describe('the tremble, the stop and the crash', () => {
     expect(r.after).toBe('LOOK_DOWN');
     expect(r.sheet0, 'the wait is the idle loop, not a stamp').toBe('idle');
     expect(r.sheet1).toBe('idle');
+    expect(r.marks, 'the tremble marks were drawn on the strong beat').toBe(true);
     expect(r.wobAfter, 'and nothing shakes him while he waits').toBeLessThan(0.01);
   });
 
@@ -62,8 +64,16 @@ test.describe('the tremble, the stop and the crash', () => {
     await page.waitForFunction(() => window.iceAgeGame.debug().state === 'OBSTACLE_HIT', null, { timeout: 15_000 });
     const r = await page.evaluate(async () => {
       const g = window.iceAgeGame; const m = await import('/js/engine.js');
-      const stars = g._particles().list.filter(p => p.kind === 'star' && !p.dead);
-      const p = g._player();
+      /* The stars live under a second of game time; sample for a moment and keep the fullest
+         burst seen, so a slow poll on a loaded runner does not read an empty list. */
+      let best = []; const t0 = Date.now();
+      while (Date.now() - t0 < 2500) {
+        const now = g._particles().list.filter(p => p.kind === 'star' && !p.dead);
+        if (now.length > best.length) best = now.map(s => ({ y: s.y }));
+        if (best.length >= 5) break;
+        await new Promise(res => requestAnimationFrame(res));
+      }
+      const stars = best; const p = g._player();
       return { stars: stars.length, state: p.state, koCue: m.CFG.sfx.knockout && m.CFG.sfx.knockout.src, trembleCue: m.CFG.sfx.tremble && m.CFG.sfx.tremble.src,
                hits: m.SFX_HITS.knockout, minY: Math.min(...stars.map(s => s.y)), maxY: Math.max(...stars.map(s => s.y)) };
     });

@@ -976,14 +976,18 @@ the frames change. The shared scale did not move (0.5037, baseGap 27), so he is 
 is in the run and the idle.
 
 It is ACTED, not played at one rate: `CFG.sprite.tremble.plan` is a list of [frame, ms] steps —
-notice/look down slow (120-130 ms), the tremble quickening (85/70/65), the strong comical tremble
-as the oscillation 4-5-6-5 twice at 62 ms, the look to the player readable (120-130), the recovery
-slowest (130/160) — 1.86 s in all. PlayerController walks it by elapsed time (the clock accumulates
-dt and spends a step when its ms are up), so it plays at the same speed on 60, 90 and 144 Hz, and a
-slow frame holds a pose rather than skipping one. On the strong steps a small deterministic shake
-is drawn under the frames (±3 px, ±1.4 px, ±0.8°, on a fixed 0/-2/+3/-2/+2/0 rhythm, eased in and
-out; stage units so it scales; off under prefers-reduced-motion) — drawn, never simulated: the
-collider reads none of it. The owner's cartoon blink (`CFG.sfx.tremble`, four little pips) fires
+notice/look down slow (180-220 ms), the tremble quickening (110/95/85), the strong comical tremble
+as the oscillation 4-5-6-5 THREE times at 90 ms (1.1 s of visible shaking), the look to the player
+readable (200-220), the recovery slowest (220/300) — 3.3 s in all. The first cut was 1.86 s with
+62 ms strong steps and was reviewed as "not evident, looks fast"; this is the retune. PlayerController
+walks it by elapsed time (the clock accumulates dt and spends a step when its ms are up), so it plays
+at the same speed on 60, 90 and 144 Hz, and a slow frame holds a pose rather than skipping one. Slow
+steps (≥150 ms) crossfade into the next pose over their last 40%, so a head turn glides; the strong
+steps cut hard — the flicker IS the tremble there. On the strong steps a real cartoon knock is drawn
+under the frames (±7 px, ±3 px, ±2°, a 4% jelly squash on each beat, on a fixed 0/-2/+3/-2/+2/0
+rhythm, eased in and out; stage units so it scales; off under prefers-reduced-motion) — drawn, never
+simulated: the collider reads none of it. While he waits at the hole, every gulp brings half a second
+of small knees-knocking (±4 px, ±1°), so the wait stays comic. The owner's cartoon blink (`CFG.sfx.tremble`, four little pips) fires
 once as the strong tremble begins, with a puff of snow at his feet, so picture and sound land
 together. The trample is shelved beside the fright in `art-source/shelved/` (both sizes, still
 measured by the slicer); its stamp hook is gone with it. Test: tests/tremble.spec.mjs.
