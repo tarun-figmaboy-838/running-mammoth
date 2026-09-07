@@ -2841,6 +2841,15 @@ class ParticleManager {
   ring(x, y, r0 = 26, r1 = 190) {
     this.spawn(1, () => ({ x, y, vx: 0, vy: 0, r: r0, r1, dur: 0.42, kind: 'ring' }));
   }
+  /* THE SLASH. A cut is the one thing the learner DOES, and until now the stroke trail simply
+     vanished on the frame it landed: the rope parted and the block fell, but the gesture had
+     no mark of its own. Comic shorthand for a cut is a bright crescent along the swipe — a
+     lens that flashes to full length in a few frames and thins away — with a fainter echo
+     just behind it. Gold glow, the game's accent; white core like the trail it grew from. */
+  slashMark(x, y, ang = 0, len = 250) {
+    this.spawn(1, () => ({ x, y, vx: 0, vy: 0, r: len, ang, dur: 0.32, kind: 'slash', delay: 0 }));
+    this.spawn(1, () => ({ x: x + Math.sin(ang) * 14, y: y - Math.cos(ang) * 14, vx: 0, vy: 0, r: len * 0.55, ang, dur: 0.26, kind: 'slash', delay: 0.04 }));
+  }
   frost(x, y, n = 4) {
     this.spawn(n, () => ({ x: x + rand(-24, 24), y: y + rand(-24, 24), vx: rand(-30, 30), vy: rand(-40, -8), r: rand(2.5, 5.5), dur: rand(0.5, 0.9), kind: 'frost' }));
   }
@@ -2866,6 +2875,7 @@ class ParticleManager {
       if (p.t >= p.dur) { p.dead = true; continue; }
       // a sparkle is a glint of light, so it drifts rather than falls
       if (p.kind === 'ring') { p.life = 1 - p.t / p.dur; continue; }
+      if (p.kind === 'slash') { if (p.delay > 0) { p.delay -= dt; p.life = 1; continue; } p.life = 1 - p.t / p.dur; continue; }
       /* A staggered start. The piece exists from the beginning — so it is counted and
          pooled like everything else — but does not move or draw until its delay is up,
          which is what turns one sheet of confetti into a shower. */
@@ -2942,6 +2952,18 @@ class ParticleManager {
           ctx.ellipse(0, 0, p.r * (1 + Math.min(0.55, sp / 1600)), p.r * 0.78, 0, 0, 6.2832);
           ctx.fill();
         }
+        ctx.restore();
+      } else if (p.kind === 'slash') {
+        if (p.delay > 0) continue;
+        // a lens along the swipe: grows to full length over the first third, then thins; gold glow under a white core
+        const e = 1 - p.life, grow = Math.min(1, e / 0.3), L = p.r * (0.5 + 0.5 * grow), w = 30 * (1 - e * 0.8);
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.ang);
+        ctx.globalAlpha = Math.max(0, 1 - e * e) * 0.98;
+        const lens = (hw) => { ctx.beginPath(); ctx.moveTo(-L / 2, 0); ctx.quadraticCurveTo(0, -hw, L / 2, 0); ctx.quadraticCurveTo(0, hw, -L / 2, 0); ctx.closePath(); };
+        // gold body with a glow, a fine cocoa edge so it reads on pale sky, a white core
+        lens(w); ctx.shadowColor = 'rgba(255,190,50,1)'; ctx.shadowBlur = 28; ctx.fillStyle = 'rgba(255,200,70,0.95)'; ctx.fill();
+        ctx.shadowBlur = 0; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(90,46,10,0.45)'; ctx.stroke();
+        lens(w * 0.5); ctx.fillStyle = '#FFFFFF'; ctx.fill();
         ctx.restore();
       } else if (p.kind === 'confetti') {
         if (p.delay > 0) continue;           // not released yet
@@ -5761,7 +5783,7 @@ function createGame(canvas, hooks = {}) {
     return (G.gapsThisPhase || []).find(g => x > g.x0 - G.worldX && x < g.x1 - G.worldX) || null;
   }
 
-  function cutShape(sh) {
+  function cutShape(sh, hit) {
     const L = G.l1;
     if (L.demo) L.demo.done = true;   // retire the gesture hint on a real cut, not on any tap
     sh.cut = true; sh.state = 'falling'; sh.fallT = 0; sh.vy = 0;
@@ -5776,6 +5798,11 @@ function createGame(canvas, hooks = {}) {
       x: span.x0, w: sh.w || SHAPE_W, len: (span.y1 - span.y0) * 0.72, t: 0
     });
     particles.frost(span.x0, span.y0 + 30, 5);
+    /* the sweep-slash: on the crossing point, along the finger's direction (a test cut with no
+       stroke gets a level slash at the rope's middle) */
+    const hx = hit ? hit.x : span.x0, hy = hit ? hit.y : (ROPE_TOP + span.y1) / 2, ha = hit ? hit.ang : 0;
+    particles.slashMark(hx, hy, ha);
+    if (!reduced) particles.sparkle(hx, hy, 5, 70);
     audio.slice();
     particles.frost(sh.x, sh.y - (sh.h || SHAPE_H) / 2 - 20, 4);
 
@@ -6610,7 +6637,10 @@ function createGame(canvas, hooks = {}) {
           const crossed = segIntersect(a, b, top, bot);
           const grazed = slash.dist >= CUT_MIN_TRAVEL && nearSeg(p, top, bot, 30);
           if (crossed || grazed) {
-            slash = null; cutShape(sh); return;
+            // where and which way the finger crossed: the slash mark is drawn there
+            const hit = { x: s2.x0 + (s2.x1 - s2.x0) * clamp((p.y - ROPE_TOP) / Math.max(1, s2.y1 - ROPE_TOP), 0, 1),
+                          y: clamp(p.y, ROPE_TOP + 20, s2.y1), ang: Math.atan2(b.y - a.y, b.x - a.x) };
+            slash = null; cutShape(sh, hit); return;
           }
         }
       }
@@ -8459,6 +8489,7 @@ function createGame(canvas, hooks = {}) {
     /** Drive the character's animation state directly, for an animation audit. */
     _anim(s) { mammoth.setState(s); },
     _player: () => mammoth,
+    _particles: () => particles,
     /** Draw one frame now, without advancing the simulation — for a test that wants to
         measure a deterministic pose on the real backbuffer. */
     _renderOnce: () => render()

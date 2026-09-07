@@ -68,6 +68,36 @@ test.describe('controls', () => {
     expect(after.attempts).toBe(0);
   });
 
+  test('a real swipe leaves a sweep-slash where it crossed the rope', async ({ page }) => {
+    await boot(page);
+    await force(page, 'PHASE_INTRO');
+    await page.waitForFunction(() => window.iceAgeGame.state() === 'PHASE_ACTIVE', null, { timeout: 20_000 });
+    await page.waitForFunction(() => { const L = window.iceAgeGame.debug().l1; return L && L.shapes.some(s => s.state === 'hang' && s.y > 400); }, null, { timeout: 20_000 });
+    const geo = await page.evaluate(() => {
+      const G = window.iceAgeGame.debug(); const r = document.getElementById('stage').getBoundingClientRect();
+      const sh = G.l1.shapes.find(s => s.state === 'hang' && G.l1.unfilled.includes(s.kind));
+      const ax = sh.anchorX === undefined ? sh.x : sh.anchorX;
+      return { x: r.left + ax / 1920 * r.width, y: r.top + 300 / 1080 * r.height, span: 90 / 1920 * r.width };
+    });
+    /* Read the mark the moment the cut registers: a headless pointer step costs ~70ms of game
+       time, and a 0.3s flash is gone by the end of an eight-step swipe. */
+    await page.mouse.move(geo.x - geo.span, geo.y); await page.mouse.down();
+    let mark = { n: 0 };
+    for (let i = 1; i <= 8 && !mark.n; i++) {
+      await page.mouse.move(geo.x - geo.span + 2 * geo.span * i / 8, geo.y);
+      mark = await page.evaluate(() => {
+        const P = window.iceAgeGame._particles().list.filter(p => p.kind === 'slash' && !p.dead);
+        return { n: P.length, y: P[0] && P[0].y, ang: P[0] && P[0].ang, state: window.iceAgeGame.state() };
+      });
+    }
+    await page.mouse.up();
+    expect(mark.n, 'a slash mark and its echo').toBe(2);
+    expect(Math.abs(mark.ang), 'level swipe, level slash').toBeLessThan(0.2);
+    expect(mark.y, 'at the stroke height').toBeGreaterThan(250);
+    expect(mark.y).toBeLessThan(350);
+    expect(['PHASE_SUCCESS', 'PHASE_DONE', 'PHASE_RUN', 'PHASE_WRONG']).toContain(mark.state);
+  });
+
   test('the page has an icon, and no preload warnings', async ({ page }) => {
     const warnings = [];
     page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });

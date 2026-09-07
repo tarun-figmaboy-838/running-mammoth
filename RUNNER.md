@@ -1082,6 +1082,15 @@ file is a new URL; an unchanged one keeps its cache. `tests/bundle.spec.mjs` (vi
 `node tools/build-bundle.mjs --check`) fails if any of the three is out of date — so a rebuild
 is part of changing any asset. Paths in CFG stay bare so the asset tests can read them.
 
+### The sweep-slash on a cut
+
+Asked for: "add sweep slash effect when user cut the rope". The stroke detector hands `cutShape`
+the crossing point and the finger's direction; `particles.slashMark` draws a comic lens there — a
+gold body with a glow, a fine cocoa edge so it reads on pale sky, a white core — that flashes to
+full length over its first third and thins away (0.32 s), with a fainter echo 40 ms behind, plus a
+small sparkle burst at the snip point. A test cut with no stroke gets a level slash at the rope's
+middle. Test: controls.spec "a real swipe leaves a sweep-slash where it crossed the rope".
+
 ### Tap anywhere to jump
 
 Asked for: "user can tap anywhere to jump the mammoth like button, bg, mammoth etc like real game".
