@@ -8855,8 +8855,8 @@ class Hud {
   }
 
   /* THE POLYGON'S NAME IS SET APART IN THE SENTENCE — "Cut the TRIANGLE", "Cut all the
-     QUADRILATERALS": the noun in capitals, heavier and in the game's key-word blue, the full
-     stop dropped (the owner's own wording). The engine's sentence is untouched (tests and the
+     QUADRILATERALS.": the noun in capitals, heavier and in the game's key-word blue, the full
+     stop kept (the owner's own wording). The engine's sentence is untouched (tests and the
      recall path read it); this is how it is shown. A sentence that does not fit the pattern
      is shown whole. */
   setInstruction(message) {
@@ -8870,6 +8870,7 @@ class Hud {
     key.className = 'key';
     key.textContent = (m[2] + m[3]).toUpperCase();
     el.appendChild(key);
+    if (m[4]) el.appendChild(document.createTextNode(m[4]));   // the sentence keeps its full stop
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */

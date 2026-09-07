@@ -134,10 +134,10 @@ test.describe('ui', () => {
       const m = await import('/js/engine.js');
       return m.CFG.levelOne.phases[window.iceAgeGame.debug().phase].instruction;
     });
-    // the sentence with the polygon in capitals and no full stop: "Cut the TRIANGLE"
+    // the sentence with the polygon in capitals, full stop kept: "Cut the TRIANGLE."
     const shown = (await page.locator('#instruction-text').innerText()).trim();
-    const m = /^(.*?\bthe\s+)([a-z]+?)(s?)[.!]?$/i.exec(want);
-    expect(shown).toBe(m[1] + (m[2] + m[3]).toUpperCase());
+    const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec(want);
+    expect(shown).toBe(m[1] + (m[2] + m[3]).toUpperCase() + m[4]);
     await expect(page.locator('#instruction-text .key')).toHaveText(/^[A-Z]+$/);
 
     // nothing else is on the card

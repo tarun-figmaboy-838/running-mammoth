@@ -1107,8 +1107,8 @@ anywhere jumps" and "a tap in a puzzle is a stroke, never a jump".
 Asked for: the sentence must stay visible until the question is done. It is up from the intro
 until the last wanted piece has fitted, through wrong answers, and leaves on completion (the HUD
 state's `instruction` reads the open question, not only the hold). The plank shows the sentence
-with the polygon in capitals, heavier, in the key-word blue, without the full stop — "Cut the
-TRIANGLE", "Cut all the QUADRILATERALS", the owner's wording (`Hud.setInstruction`,
+with the polygon in capitals, heavier, in the key-word blue, full stop kept — "Cut the
+TRIANGLE.", "Cut all the QUADRILATERALS.", the owner's wording (`Hud.setInstruction`,
 `.instruction-text .key`, 126 art-px); the engine's sentence itself is unchanged. The sign still sits in the top band clear of the options and takes
 no pointer events. Test: ui.spec "the instruction stays for the whole question".
 
