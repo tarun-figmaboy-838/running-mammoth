@@ -5740,7 +5740,7 @@ export function createGame(canvas, hooks = {}) {
   }
 
   function onDown(e) {
-    if (paused) return;
+    if (paused) { if (G.jumpEnabled && RUN_STATES.has(G.state)) G.jumpArmed = true; return; }   // see api.jump
     audio.start(); audio.resume();
     const p = toLocal(e);
     G.idle = 0; G.idleHand = 0; G.handHint = null;
@@ -6108,6 +6108,16 @@ export function createGame(canvas, hooks = {}) {
        retryObstacle arms invincibleT, the character flickers while it runs, and no
        collision counts until it is spent. */
     if (G.invincibleT > 0) G.invincibleT = Math.max(0, G.invincibleT - dt);
+    /* the jump armed during a freeze fires when the nearest obstacle is in jumping range, and is
+       forgotten if the run state ends first */
+    if (G.jumpArmed) {
+      if (!RUN_STATES.has(G.state) || !G.jumpEnabled) G.jumpArmed = false;
+      else {
+        let near = null;
+        for (const o of obstacles.list) { const sx = o.x - G.worldX; if (!o.passed && (near === null || sx < near)) near = sx; }
+        if (near !== null && near < 700) { G.jumpArmed = false; mammoth.requestJump(performance.now()); if (hooks.onJumpInput) hooks.onJumpInput('armed'); }
+      }
+    }
     obstacles.update(dt, G.worldX, mammoth, onCrystalHit, G.moving && G.invincibleT <= 0);
     updateInstruction(dt);
     updateTaps(dt);
@@ -7321,7 +7331,7 @@ export function createGame(canvas, hooks = {}) {
     for (const o of obstacles.list) {
       if (o.passed || o.hits >= 3) continue;
       const sx = o.x - G.worldX;
-      if (sx > 620 && sx < 1200 && sx < bx) { best = o; bx = sx; }
+      if (sx > 620 && sx < 1050 && sx < bx) { best = o; bx = sx; }
     }
     return best;
   }
@@ -7516,7 +7526,7 @@ export function createGame(canvas, hooks = {}) {
     G.phase = 0; G.phasesDone = 0; G.gapsThisPhase = null; G.phaseLayout = null; G.phaseJumped = false;
     G.oops = false; G.hitFx = 0; G.hitObstacle = null; G.hitReturn = null; G.hitCount = 0;
     G.handHint = null; G.idleHand = 0; G.dropReady = false;
-    G.stompF = -1; G.stomps = 0; G.invincibleT = 0;
+    G.stompF = -1; G.stomps = 0; G.invincibleT = 0; G.jumpArmed = false;
     G.shakeAmp = 0; G.shakeLen = 0;
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
@@ -7531,9 +7541,13 @@ export function createGame(canvas, hooks = {}) {
   const api = {
     jump() {
       audio.start(); audio.resume();
-      // nothing jumps while the game is frozen (a tutorial line being read): a jump queued
-      // then would fire the instant the run resumed, long before the obstacle
-      if (paused || !G.jumpEnabled) return;
+      if (!G.jumpEnabled) return;
+      /* A JUMP ASKED FOR WHILE FROZEN IS ARMED, NOT DROPPED. The tutorial freezes the game while
+         "Tap to jump over obstacles." is read; a child who taps at once used to get nothing (and
+         a jump fired on resume would land long before the obstacle). Now the tap is remembered
+         and fired by update() when the obstacle is in range — the tutorial's one guaranteed
+         jump. Outside a freeze this is the ordinary jump. */
+      if (paused) { G.jumpArmed = true; return; }
       mammoth.requestJump(performance.now());
     },
     restart() { resetAll(); },

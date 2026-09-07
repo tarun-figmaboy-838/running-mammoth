@@ -104,7 +104,7 @@ export class Tutorial {
          1 This is Momo. He needs to find his friend.       describing, frozen, Momo lit
          2 Help Momo cross the Frozen Pass!                 describing, frozen, Momo lit
          3 Watch out!                                       describing, frozen, obstacle lit
-         4 Tap to jump over obstacles.                      ASKING: frozen 1.6s to read, then tap hand on JUMP, waits for the jump
+         4 Tap to jump over obstacles.                      ASKING: frozen 1.2s to read (a tap then is armed), tap hand on JUMP, waits for the jump
          5 Oh no! The path is broken.                       describing, frozen, gap lit
          6 Use the right ice piece to fix the path.         ASKING: sweep hand on the right rope, waits for the cut
          7 Perfect fit! Keep going!                         describing, game running, self-advances
@@ -159,7 +159,7 @@ export class Tutorial {
         at: () => this.domSpot('#btn-jump', 40) !== null,
         spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
         text: 'Tap to jump over obstacles.',
-        advance: 'jumped', pause: 1.6, hand: 'tap'
+        advance: 'jumped', pause: 1.2, hand: 'tap'
       },
       {
         id: 'gap',
@@ -202,17 +202,19 @@ export class Tutorial {
   /* ---- where things are ---- */
 
   /** The nearest rock still ahead of the character, in stage x, or null. */
-  /* WITHIN 1200px, not 1500: at 1500 the obstacle was described from a thousand pixels away and
-     looked like nothing to worry about ('the distance looks far'). At 1200 it is plainly close
-     while 'Watch out!' is read, and the jump ask still gets its frozen reading time before the
-     run resumes with about a second to the jump. The engine's rockAhead mirrors this number. */
+  /* WITHIN 1050px (was 1500, then 1200): described from a thousand pixels away the obstacle
+     looked like nothing to worry about, and it still read as far at 1200. At 1050 it is right in
+     his path while 'Watch out!' is read. The jump ask then freezes 1.2s for reading, and a tap
+     DURING that freeze is not thrown away: the engine arms it and jumps when the obstacle is in
+     range (api.jump / onDown while paused), so a child who taps at once still clears it. A tap
+     after the resume has about 0.8s. The engine's rockAhead mirrors this number. */
   rockAhead(g) {
     const list = this.game._obstacles ? this.game._obstacles().list : [];
     let best = null;
     for (const o of list) {
       if (o.passed || o.hits >= 3) continue;
       const sx = o.x - g.worldX;
-      if (sx > 620 && sx < 1200 && (best === null || sx < best)) best = sx;
+      if (sx > 620 && sx < 1050 && (best === null || sx < best)) best = sx;
     }
     return best;
   }

@@ -1118,6 +1118,13 @@ Asked for: platformer manners after a crash. `retryObstacle` arms `G.invincibleT
 (`CFG.juice.respawnBlinkS`, 1.6 s); the character flickers at ten a second (never fully gone)
 and no collision counts until it is spent. Test: controls.spec "after a crash Momo blinks".
 
+### The plank's seam, and strokes on its letters
+
+A rope hanging behind the sign showed through a hairline at the right cap on phones ("the blue
+cut line"): the middle slice overlapped the caps by 1 px and a fractional device pixel left a
+half-covered column. It now runs 12 px under each opaque cap. The letters carry a cream stroke
+(white around the blue polygon name) behind the fill, so the words lift off the wood grain.
+
 ### Two interaction modes
 
 Running mode: a tap or click anywhere jumps (see "Tap anywhere to jump"). Polygon mode: while a
@@ -1140,9 +1147,10 @@ single obstacle before puzzle 1 is unchanged. Test: tests/difficulty.spec.mjs.
 Rewritten to the owner's script, short and action-oriented: "This is Momo. He needs to find his
 friend." · "Help Momo cross the Frozen Pass!" · "Watch out!" · "Tap to jump over obstacles." ·
 "Oh no! The path is broken." · "Use the right ice piece to fix the path." · "Perfect fit! Keep
-going!" The obstacle step now triggers at 1200 px instead of 1500, so Momo is visibly close to what
-"Watch out!" points at (it looked far); the jump ask is frozen 1.6 s for reading, then the run
-resumes with about 1.2 s to the jump. Lines 1–3 and 5 are describing steps (game frozen, subject lit); 4 and 6 are the asks
+going!" The obstacle step triggers at 1050 px (was 1500, then 1200 — both still "looked far"), so Momo
+is right behind what "Watch out!" points at; the jump ask is frozen 1.2 s for reading, and a tap
+during that freeze is armed rather than dropped: the engine jumps when the obstacle is in range
+(`G.jumpArmed`), so a child who taps at once still clears it; a tap after the resume has ~0.8 s. Lines 1–3 and 5 are describing steps (game frozen, subject lit); 4 and 6 are the asks
 (tap hand on JUMP, sweep hand on the rope of the answer); 7 runs over the celebration and lets
 go by itself. The old "this is the button" step and the "Nice hop!" follow-up are gone; the
 obstacle is no longer named in words (the picture is lit instead), so `thingAhead`/`wantedNoun`

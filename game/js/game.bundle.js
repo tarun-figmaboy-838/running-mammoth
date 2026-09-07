@@ -6604,7 +6604,7 @@ function createGame(canvas, hooks = {}) {
   }
 
   function onDown(e) {
-    if (paused) return;
+    if (paused) { if (G.jumpEnabled && RUN_STATES.has(G.state)) G.jumpArmed = true; return; }   // see api.jump
     audio.start(); audio.resume();
     const p = toLocal(e);
     G.idle = 0; G.idleHand = 0; G.handHint = null;
@@ -6972,6 +6972,16 @@ function createGame(canvas, hooks = {}) {
        retryObstacle arms invincibleT, the character flickers while it runs, and no
        collision counts until it is spent. */
     if (G.invincibleT > 0) G.invincibleT = Math.max(0, G.invincibleT - dt);
+    /* the jump armed during a freeze fires when the nearest obstacle is in jumping range, and is
+       forgotten if the run state ends first */
+    if (G.jumpArmed) {
+      if (!RUN_STATES.has(G.state) || !G.jumpEnabled) G.jumpArmed = false;
+      else {
+        let near = null;
+        for (const o of obstacles.list) { const sx = o.x - G.worldX; if (!o.passed && (near === null || sx < near)) near = sx; }
+        if (near !== null && near < 700) { G.jumpArmed = false; mammoth.requestJump(performance.now()); if (hooks.onJumpInput) hooks.onJumpInput('armed'); }
+      }
+    }
     obstacles.update(dt, G.worldX, mammoth, onCrystalHit, G.moving && G.invincibleT <= 0);
     updateInstruction(dt);
     updateTaps(dt);
@@ -8185,7 +8195,7 @@ function createGame(canvas, hooks = {}) {
     for (const o of obstacles.list) {
       if (o.passed || o.hits >= 3) continue;
       const sx = o.x - G.worldX;
-      if (sx > 620 && sx < 1200 && sx < bx) { best = o; bx = sx; }
+      if (sx > 620 && sx < 1050 && sx < bx) { best = o; bx = sx; }
     }
     return best;
   }
@@ -8380,7 +8390,7 @@ function createGame(canvas, hooks = {}) {
     G.phase = 0; G.phasesDone = 0; G.gapsThisPhase = null; G.phaseLayout = null; G.phaseJumped = false;
     G.oops = false; G.hitFx = 0; G.hitObstacle = null; G.hitReturn = null; G.hitCount = 0;
     G.handHint = null; G.idleHand = 0; G.dropReady = false;
-    G.stompF = -1; G.stomps = 0; G.invincibleT = 0;
+    G.stompF = -1; G.stomps = 0; G.invincibleT = 0; G.jumpArmed = false;
     G.shakeAmp = 0; G.shakeLen = 0;
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
@@ -8395,9 +8405,13 @@ function createGame(canvas, hooks = {}) {
   const api = {
     jump() {
       audio.start(); audio.resume();
-      // nothing jumps while the game is frozen (a tutorial line being read): a jump queued
-      // then would fire the instant the run resumed, long before the obstacle
-      if (paused || !G.jumpEnabled) return;
+      if (!G.jumpEnabled) return;
+      /* A JUMP ASKED FOR WHILE FROZEN IS ARMED, NOT DROPPED. The tutorial freezes the game while
+         "Tap to jump over obstacles." is read; a child who taps at once used to get nothing (and
+         a jump fired on resume would land long before the obstacle). Now the tap is remembered
+         and fired by update() when the obstacle is in range — the tutorial's one guaranteed
+         jump. Outside a freeze this is the ordinary jump. */
+      if (paused) { G.jumpArmed = true; return; }
       mammoth.requestJump(performance.now());
     },
     restart() { resetAll(); },
@@ -9326,7 +9340,7 @@ class Tutorial {
          1 This is Momo. He needs to find his friend.       describing, frozen, Momo lit
          2 Help Momo cross the Frozen Pass!                 describing, frozen, Momo lit
          3 Watch out!                                       describing, frozen, obstacle lit
-         4 Tap to jump over obstacles.                      ASKING: frozen 1.6s to read, then tap hand on JUMP, waits for the jump
+         4 Tap to jump over obstacles.                      ASKING: frozen 1.2s to read (a tap then is armed), tap hand on JUMP, waits for the jump
          5 Oh no! The path is broken.                       describing, frozen, gap lit
          6 Use the right ice piece to fix the path.         ASKING: sweep hand on the right rope, waits for the cut
          7 Perfect fit! Keep going!                         describing, game running, self-advances
@@ -9381,7 +9395,7 @@ class Tutorial {
         at: () => this.domSpot('#btn-jump', 40) !== null,
         spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
         text: 'Tap to jump over obstacles.',
-        advance: 'jumped', pause: 1.6, hand: 'tap'
+        advance: 'jumped', pause: 1.2, hand: 'tap'
       },
       {
         id: 'gap',
@@ -9424,17 +9438,19 @@ class Tutorial {
   /* ---- where things are ---- */
 
   /** The nearest rock still ahead of the character, in stage x, or null. */
-  /* WITHIN 1200px, not 1500: at 1500 the obstacle was described from a thousand pixels away and
-     looked like nothing to worry about ('the distance looks far'). At 1200 it is plainly close
-     while 'Watch out!' is read, and the jump ask still gets its frozen reading time before the
-     run resumes with about a second to the jump. The engine's rockAhead mirrors this number. */
+  /* WITHIN 1050px (was 1500, then 1200): described from a thousand pixels away the obstacle
+     looked like nothing to worry about, and it still read as far at 1200. At 1050 it is right in
+     his path while 'Watch out!' is read. The jump ask then freezes 1.2s for reading, and a tap
+     DURING that freeze is not thrown away: the engine arms it and jumps when the obstacle is in
+     range (api.jump / onDown while paused), so a child who taps at once still clears it. A tap
+     after the resume has about 0.8s. The engine's rockAhead mirrors this number. */
   rockAhead(g) {
     const list = this.game._obstacles ? this.game._obstacles().list : [];
     let best = null;
     for (const o of list) {
       if (o.passed || o.hits >= 3) continue;
       const sx = o.x - g.worldX;
-      if (sx > 620 && sx < 1200 && (best === null || sx < best)) best = sx;
+      if (sx > 620 && sx < 1050 && (best === null || sx < best)) best = sx;
     }
     return best;
   }

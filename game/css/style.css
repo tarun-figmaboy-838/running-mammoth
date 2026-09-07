@@ -144,7 +144,7 @@ a:hover { color: var(--ice-pale); }
 }
 .instruction[hidden] { display: none; }
 /* the polygon's name, set apart in the sentence: capitals, heavier, the key-word blue */
-.instruction-text .key { color: #1E56C4; font-weight: 900; letter-spacing: 0.01em; }
+.instruction-text .key { color: #1E56C4; font-weight: 900; letter-spacing: 0.01em; -webkit-text-stroke: calc(9 * var(--k)) #FFFFFF; paint-order: stroke fill; }
 .instruction.leaving {
   opacity: 0;
   transform: translateX(-50%) translateY(-18px) scale(0.97);
@@ -197,7 +197,11 @@ a:hover { color: var(--ice-pale); }
   background:
     url("../assets/ui/sign-l.webp?v=6268bc50") left center / auto 100% no-repeat,
     url("../assets/ui/sign-r.webp?v=f07286b3") right center / auto 100% no-repeat,
-    url("../assets/ui/sign-m.webp?v=6ab3b619") center center / calc(100% - 679 * var(--k) + 2px) 100% no-repeat;
+    /* +24px, not +2: at a phone's fractional device pixels the middle's edge landed on a
+       half-covered column and a rope hanging behind the plank showed through as a thin blue
+       line at the seam ("the blue cut line"). Twelve pixels under each opaque cap leaves no
+       column for a resampler to expose. */
+    url("../assets/ui/sign-m.webp?v=6ab3b619") center center / calc(100% - 679 * var(--k) + 24px) 100% no-repeat;
 
   /* CENTRED ON THE WOOD, both ways. Two things were off before:
 
@@ -238,6 +242,11 @@ a:hover { color: var(--ice-pale); }
   /* dark warm brown, which is what reads on pale timber; the old deep blue was chosen
      against a white ice card and goes muddy on wood */
   color: #5A3617;
+  /* A CREAM STROKE around the letters (asked for: "strokes, to make it big and evident"): it
+     lifts the words off the wood grain without a black outline. paint-order puts the stroke
+     BEHIND the fill, so the letterforms keep their weight. */
+  -webkit-text-stroke: calc(9 * var(--k)) #FFF6E0;
+  paint-order: stroke fill;
   letter-spacing: -0.005em;
   text-align: center;
   white-space: nowrap;
