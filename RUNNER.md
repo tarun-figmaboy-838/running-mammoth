@@ -1134,7 +1134,7 @@ no pointer events. Test: ui.spec "the instruction stays for the whole question".
 ### A respawn blinks
 
 Asked for: platformer manners after a crash. `retryObstacle` arms `G.invincibleT`
-(`CFG.juice.respawnBlinkS`, 1.6 s); the character flickers at ten a second (never fully gone)
+(`CFG.juice.respawnBlinkS`, 1.0 s — was 1.6, which read as two seconds); the character flickers at ten a second (never fully gone)
 and no collision counts until it is spent. Test: controls.spec "after a crash Momo blinks".
 
 ### The plank's seam, and strokes on its letters
@@ -1190,6 +1190,24 @@ two far apart → three spaced → one then a near pair → three consecutive ti
 → bone with the last two close → a pair, a breath, a pair. The spawner always adds the leap, so
 nothing sits inside a jump; the three-strike crumble stays, so no stretch dead-ends. The tutorial's
 single obstacle before puzzle 1 is unchanged. Test: tests/difficulty.spec.mjs.
+
+### The dialogue box hugs its words
+
+`width: max-content` capped by `max-width` gives the box the whole cap whenever the sentence is
+longer than it, and `text-wrap: balance` then wraps to lines much shorter than the cap: measured
+82 px of empty yellow beside a three-line sentence. `Tutorial.hugWords` measures the laid-out
+lines (each word is its own inline-block, so `offsetTop` groups them and offsetLeft/offsetWidth
+bound them — layout, immune to the pop animation's transforms) and sets the box to the widest
+line, once per sentence and per stage size; a narrower box cannot pull a word up a line, and
+`balance` gets one chance to re-break the sentence with the wider result winning. The bottom
+padding is trimmed by `descent - (ascent - cap height)` (`inkTrim`, from the font's own metrics)
+so the air under the last line matches the air over the first line's capitals — measured 47 px
+against 42 px before. The box is also capped as a share of the STAGE (`min(46%, 500px)`) rather
+than of the viewport: the stage is letterboxed, so on a 844x390 phone the old `62vw` was 72% of
+the ice and the longest line ran to 464 px with the box hanging 77 px off the left edge, its
+first two words off screen. It now wraps to two lines there, and the placement clamp uses the
+box's own half-width so no edge can leave the stage. The sign needs none of this: it is `nowrap` and every phase sentence fits
+the plank's safe box with room at both sizes. Test: tests/fit.spec.mjs.
 
 ### The tutorial script (seven lines)
 

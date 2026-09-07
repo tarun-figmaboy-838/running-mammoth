@@ -806,7 +806,7 @@ export const CFG = {
     stopWedge: 62,        // ms frozen when a correct chunk seats
     stopSplash: 44,       // ms frozen when a wrong chunk hits the water
     stopHit: 96,          // ms frozen when the character walks into the rock
-    respawnBlinkS: 1.6,   // seconds of blinking invincibility after a crash respawn
+    respawnBlinkS: 1.0,   // seconds of blinking invincibility after a crash respawn (was 1.6, which read as two seconds; asked for about one)
     stopLand: 40,         // ms frozen as his feet hit the ice: the trample
     punchLand: 0.014,     // and the frame's flinch with it
     stopBreak: 110,       // ms frozen on the frame the ice gives way
@@ -6527,7 +6527,7 @@ export function createGame(canvas, hooks = {}) {
     // here or the world stays frozen and the obstacle can never be passed.
     G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
     G.jumpPulse = true;               // re-teach the control on the retry
-    G.invincibleT = CFG.juice.respawnBlinkS || 1.6;   // blink, and no hit, for the first moment back
+    G.invincibleT = CFG.juice.respawnBlinkS || 1.0;   // blink, and no hit, for the first moment back
     mammoth.setState('RUN');
     G.retryRun = true;                // the stretch is retried at once: PHASE_RUN keeps the short lead
     setState(G.hitReturn || 'RUN_SEGMENT_1');

@@ -1670,7 +1670,7 @@ const CFG = {
     stopWedge: 62,        // ms frozen when a correct chunk seats
     stopSplash: 44,       // ms frozen when a wrong chunk hits the water
     stopHit: 96,          // ms frozen when the character walks into the rock
-    respawnBlinkS: 1.6,   // seconds of blinking invincibility after a crash respawn
+    respawnBlinkS: 1.0,   // seconds of blinking invincibility after a crash respawn (was 1.6, which read as two seconds; asked for about one)
     stopLand: 40,         // ms frozen as his feet hit the ice: the trample
     punchLand: 0.014,     // and the frame's flinch with it
     stopBreak: 110,       // ms frozen on the frame the ice gives way
@@ -7391,7 +7391,7 @@ function createGame(canvas, hooks = {}) {
     // here or the world stays frozen and the obstacle can never be passed.
     G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
     G.jumpPulse = true;               // re-teach the control on the retry
-    G.invincibleT = CFG.juice.respawnBlinkS || 1.6;   // blink, and no hit, for the first moment back
+    G.invincibleT = CFG.juice.respawnBlinkS || 1.0;   // blink, and no hit, for the first moment back
     mammoth.setState('RUN');
     G.retryRun = true;                // the stretch is retried at once: PHASE_RUN keeps the short lead
     setState(G.hitReturn || 'RUN_SEGMENT_1');
@@ -9947,6 +9947,93 @@ class Tutorial {
     }
   }
 
+  /** THE BOX HUGS THE WORDS.
+   *
+   * `width: max-content` capped by `max-width` hands the box the WHOLE cap as soon as the
+   * sentence is longer than it, and `text-wrap: balance` then breaks that sentence into lines
+   * far shorter than the cap. Measured on "This is Momo. He needs to find his friend.": a 500px
+   * box with a 336px widest line — 82px of empty yellow, which is why the bubble read as
+   * half-empty with the words pushed to one side.
+   *
+   * So the lines are measured and the box is set to the widest of them. Every word is its own
+   * inline-block (setWords), so `offsetTop` groups them into lines and offsetLeft/offsetWidth
+   * bound each one — LAYOUT geometry, so the pop animation's transforms cannot corrupt it. A
+   * narrower box can never pull a word up onto the line above, so the wrap survives the change;
+   * `balance` is given one chance to re-break it and the wider result wins.
+   *
+   * The vertical air is balanced the same way. A line box reserves the font's descent plus
+   * half-leading under the baseline and only (ascent - cap height) plus half-leading over a
+   * capital, so equal padding leaves MORE space under the last line: measured 47px against
+   * 42px. The bottom padding is trimmed by the difference. */
+  hugWords(b) {
+    const tx = this.el.text;
+    if (!b || !tx) return;
+    b.style.width = ''; b.style.paddingBottom = '';      // measure the natural wrap, not the last hug
+    const cs = getComputedStyle(b);
+    const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0, padT = parseFloat(cs.paddingTop) || 0;
+    const lines = () => {
+      const ws = [];
+      for (const w of tx.querySelectorAll('.w')) ws.push({ l: w.offsetLeft, r: w.offsetLeft + w.offsetWidth, t: w.offsetTop });
+      const tops = [];
+      for (const w of ws) if (!tops.includes(w.t)) tops.push(w.t);
+      let widest = 0;
+      for (const t of tops) {
+        let a = Infinity, z = -Infinity;
+        for (const w of ws) if (w.t === t) { if (w.l < a) a = w.l; if (w.r > z) z = w.r; }
+        if (z - a > widest) widest = z - a;
+      }
+      return { widest, n: tops.length };
+    };
+    /* SLACK, AND THE LINE COUNT IS THE VERDICT. offsetLeft/offsetWidth are integers, so a line
+       measured at 226 can really need 226.4 — hugged to exactly 226 the last word wrapped and
+       "Watch out!" came out on two lines in a box twice as wide as it needed. So a few pixels
+       of slack are tried in turn and the first width that keeps the sentence on no more lines
+       than it already has wins; if none does, the inline width is dropped and the CSS cap
+       decides, as it did before.
+
+       AND IT REPEATS UNTIL IT SETTLES, because narrowing the box lets `balance` re-break the
+       same number of lines more evenly, which makes the widest line narrower again: measured
+       "Tap to jump over obstacles." hugging to 429 and then only using 308 of it. Three passes
+       is far more than the two any of these sentences take. */
+    let cur = lines();
+    for (let pass = 0; pass < 3 && cur.widest > 0; pass++) {
+      const settled = b.style.width && Math.abs(parseFloat(b.style.width) - (cur.widest + 2 + padL + padR)) < 4;
+      if (settled) break;
+      const wasWidth = b.style.width;
+      let ok = false;
+      for (const slack of [2, 5, 10, 18]) {
+        b.style.width = Math.ceil(cur.widest + slack + padL + padR) + 'px';
+        const after = lines();
+        if (after.n <= cur.n) { ok = true; cur = after; break; }
+      }
+      if (!ok) { b.style.width = wasWidth; break; }
+    }
+    const trim = this.inkTrim(tx);
+    if (trim > 0.5) b.style.paddingBottom = Math.max(0, padT - trim) + 'px';
+  }
+
+  /** descent - (ascent - cap height) for the words' own font, in px: how much more air a line
+      box leaves under a baseline than over a capital. Cached per font size; 0 if the metrics
+      are not available, which simply leaves the padding even. */
+  inkTrim(tx) {
+    const st = getComputedStyle(tx);
+    const font = st.fontWeight + ' ' + st.fontSize + ' ' + st.fontFamily;
+    if (this._trimFont === font) return this._trim;
+    let trim = 0;
+    try {
+      this._probe = this._probe || document.createElement('canvas');
+      const c = this._probe.getContext('2d');
+      c.font = font;
+      const m = c.measureText('Hxdp');
+      const fsz = parseFloat(st.fontSize) || 20;
+      const asc = m.fontBoundingBoxAscent, desc = m.fontBoundingBoxDescent, cap = m.actualBoundingBoxAscent;
+      trim = (asc && desc && cap) ? desc - (asc - cap) : 0;
+      trim = Math.max(0, Math.min(trim, fsz * 0.3));
+    } catch (e) { trim = 0; }
+    this._trimFont = font; this._trim = trim;
+    return trim;
+  }
+
   /* ---- the focus canvas ---- */
   showFocus(kind) {
     const f = this.el.focus;
@@ -10064,7 +10151,10 @@ class Tutorial {
          sentence changes: the first sentence's height was cached for all of them, which
          placed a three-line box as if it were two. */
       if (b && keepBox && b.hidden) b.hidden = false;
-      if (st && b && !b.hidden && (fresh || !this._boxH)) {
+      const sizeKey = st ? st.clientWidth + 'x' + st.clientHeight : '';
+      if (st && b && !b.hidden && (fresh || !this._boxH || this._sizeKey !== sizeKey)) {
+        this._sizeKey = sizeKey;
+        this.hugWords(b);
         const r = b.getBoundingClientRect();
         // back into stage units, so one number works at every viewport size
         if (r.height && st.clientHeight) this._boxH = r.height / st.clientHeight * H;
@@ -10099,7 +10189,12 @@ class Tutorial {
        * INSIDE it by however much the clamp moved it — which lands the tail on the
        * target whatever the box had to do. Kept clear of the rounded corners, because a
        * tail growing out of a curve looks detached however well it is aimed. */
-      const bx = Math.min(Math.max(box.x, 320), W - 320);
+      /* CLAMPED BY THE BOX'S OWN WIDTH. The margin used to be a flat 320 stage units, which is
+         half of a 640-wide box — anything wider hung over the edge, and on a phone the widest
+         sentence measured 1286 stage units and lost its first two words off the left of the
+         screen. The tail is offset back onto the subject below, so a clamp costs nothing. */
+      const halfW = Math.min((this._boxW || 420) / 2 + 12, W / 2);
+      const bx = clampN(box.x, halfW, W - halfW);
       b.style.left = pc(bx, W);
       b.style.top = pc(y, H);
       b.dataset.side = above ? 'above' : 'below';
@@ -10111,7 +10206,7 @@ class Tutorial {
       const boxW = this._boxW || 420;
       const at = clampN(0.5 + (box.x - bx) / boxW, 0.14, 0.86);
       const lean = box.x < bx ? -1 : 1;
-      const key = [above ? 'a' : 'b', at.toFixed(2), lean, text].join('|');
+      const key = [above ? 'a' : 'b', at.toFixed(2), lean, text, b.offsetWidth, b.offsetHeight].join('|');
       if (this._bubbleKey !== key && this.el.shape) {
         this._bubbleKey = key;
         // the box ABOVE the subject hangs its tail BELOW, toward the subject, and vice versa

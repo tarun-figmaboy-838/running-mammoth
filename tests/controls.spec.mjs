@@ -108,16 +108,19 @@ test.describe('controls', () => {
       const hits = g.debug().hitCount;
       g.retryObstacle();
       const armed = g.debug().invincibleT;
-      // run into whatever is there for a second: nothing may count while the blink is on
+      const blinkS = (await import('/js/engine.js')).CFG.juice.respawnBlinkS;
+      // run on for most of the blink: nothing may count while it is on
       const t1 = Date.now();
-      while (Date.now() - t1 < 1000) await new Promise(res => requestAnimationFrame(res));
+      while (Date.now() - t1 < 600) await new Promise(res => requestAnimationFrame(res));
       const during = { hits: g.debug().hitCount, inv: g.debug().invincibleT };
       const t2 = Date.now();
       while (Date.now() - t2 < 1500 && g.debug().invincibleT > 0) await new Promise(res => requestAnimationFrame(res));
-      return { hits, armed, during, after: g.debug().invincibleT };
+      return { hits, armed, blinkS, during, after: g.debug().invincibleT };
     });
     expect(r.hits, 'one crash').toBe(1);
-    expect(r.armed, 'the blink is armed on respawn').toBeGreaterThan(1);
+    expect(r.blinkS, 'about one second, as asked (1.6 read as two)').toBeLessThanOrEqual(1.05);
+    expect(r.blinkS).toBeGreaterThanOrEqual(0.8);
+    expect(r.armed, 'the blink is armed on respawn').toBeGreaterThanOrEqual(r.blinkS - 0.05);
     expect(r.during.hits, 'no second hit while blinking').toBe(1);
     expect(r.after, 'and it wears off').toBe(0);
   });

@@ -480,8 +480,18 @@
 .tut-bubble {
   position: absolute;
   translate: -50% -50%;
+  /* The cap is where the sentence WRAPS; the box is then shrunk to the widest line it wrapped
+     to, by Tutorial.hugWords — CSS cannot do that second part, and without it a balanced
+     three-line sentence sat in a box 82px wider than its longest line.
+
+     A SHARE OF THE STAGE, NOT OF THE VIEWPORT. It was 62vw, and the stage is letterboxed: a
+     844x390 phone gets a 693px stage inside a 844px window, so 62vw was 72% of the ice and the
+     longest line ran to 464px on one line with the box hanging 77px off the left edge — the
+     first two words were cut off the screen. 46% resolves against #tutorial, which is the
+     stage, so the same sentence wraps to two readable lines wherever it is read. Desktop is
+     unchanged: 46% of 1920 is past the 500px cap. */
   width: max-content;
-  max-width: min(62vw, 500px);
+  max-width: min(46%, 500px);
   padding: clamp(15px, 1.6vw, 30px) clamp(21px, 2.2vw, 41px);
   text-align: center;
   rotate: -1.1deg;
