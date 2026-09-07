@@ -8185,7 +8185,7 @@ function createGame(canvas, hooks = {}) {
     for (const o of obstacles.list) {
       if (o.passed || o.hits >= 3) continue;
       const sx = o.x - G.worldX;
-      if (sx > 620 && sx < 1500 && sx < bx) { best = o; bx = sx; }
+      if (sx > 620 && sx < 1200 && sx < bx) { best = o; bx = sx; }
     }
     return best;
   }
@@ -9424,13 +9424,17 @@ class Tutorial {
   /* ---- where things are ---- */
 
   /** The nearest rock still ahead of the character, in stage x, or null. */
+  /* WITHIN 1200px, not 1500: at 1500 the obstacle was described from a thousand pixels away and
+     looked like nothing to worry about ('the distance looks far'). At 1200 it is plainly close
+     while 'Watch out!' is read, and the jump ask still gets its frozen reading time before the
+     run resumes with about a second to the jump. The engine's rockAhead mirrors this number. */
   rockAhead(g) {
     const list = this.game._obstacles ? this.game._obstacles().list : [];
     let best = null;
     for (const o of list) {
       if (o.passed || o.hits >= 3) continue;
       const sx = o.x - g.worldX;
-      if (sx > 620 && sx < 1500 && (best === null || sx < best)) best = sx;
+      if (sx > 620 && sx < 1200 && (best === null || sx < best)) best = sx;
     }
     return best;
   }

@@ -7321,7 +7321,7 @@ export function createGame(canvas, hooks = {}) {
     for (const o of obstacles.list) {
       if (o.passed || o.hits >= 3) continue;
       const sx = o.x - G.worldX;
-      if (sx > 620 && sx < 1500 && sx < bx) { best = o; bx = sx; }
+      if (sx > 620 && sx < 1200 && sx < bx) { best = o; bx = sx; }
     }
     return best;
   }
