@@ -1082,6 +1082,17 @@ file is a new URL; an unchanged one keeps its cache. `tests/bundle.spec.mjs` (vi
 `node tools/build-bundle.mjs --check`) fails if any of the three is out of date — so a rebuild
 is part of changing any asset. Paths in CFG stay bare so the asset tests can read them.
 
+### Tap anywhere to jump
+
+Asked for: "user can tap anywhere to jump the mammoth like button, bg, mammoth etc like real game".
+A pointerdown on the canvas in any run state with jumping allowed (`RUN_STATES` and
+`G.jumpEnabled`) calls `requestJump` exactly as the button does (a mid-air tap is buffered the
+same way) and flashes the JUMP button (`hooks.onJumpInput` → `hud.flashJump`), so the two read as
+one control. In puzzle states nothing changes: a tap is still a stroke, a tap on the mammoth at
+the edge is still a poke, a tap on the water still splashes. The tutorial's button step says so:
+"This is the JUMP button. It makes him hop. A tap anywhere does too!" Tests: game.spec "a tap
+anywhere jumps" and "a tap in a puzzle is a stroke, never a jump".
+
 ### A temporary review control
 
 "Skip to ending" sits bottom-left during play (`#btn-skip-end`). It calls `game.skipToEnd()`,

@@ -96,6 +96,31 @@ test.describe('controls', () => {
     await page.waitForFunction('window.iceAgeGame.mammothState() !== "RUN"', null, { timeout: 20_000 });
   });
 
+  test('a tap anywhere jumps, like the button: the sky, then the mammoth himself', async ({ page }) => {
+    await boot(page, { fast: 4 });
+    await waitState(page, 'RUN_SEGMENT_1');
+    await page.waitForFunction('window.iceAgeGame.debug().jumpEnabled === true');
+    const r = await page.locator('#stage').boundingBox();
+    await page.mouse.click(r.x + r.width * 0.62, r.y + r.height * 0.18);          // the sky
+    await page.waitForFunction('window.iceAgeGame.mammothState() !== "RUN"', null, { timeout: 20_000 });
+    await page.waitForFunction('window.iceAgeGame.mammothState() === "RUN"', null, { timeout: 20_000 });   // landed
+    await page.mouse.click(r.x + 430 / 1920 * r.width, r.y + 720 / 1080 * r.height);   // the mammoth
+    await page.waitForFunction('window.iceAgeGame.mammothState() !== "RUN"', null, { timeout: 20_000 });
+  });
+
+  test('a tap in a puzzle is a stroke, never a jump', async ({ page }) => {
+    await boot(page);
+    await force(page, 'PHASE_INTRO');
+    await waitState(page, 'PHASE_ACTIVE', 20_000);
+    await page.waitForTimeout(400);
+    const r = await page.locator('#stage').boundingBox();
+    await page.mouse.click(r.x + r.width * 0.62, r.y + r.height * 0.18);
+    await page.waitForTimeout(300);
+    const s = await page.evaluate(() => ({ state: window.iceAgeGame.state(), m: window.iceAgeGame.mammothState() }));
+    expect(s.state).toBe('PHASE_ACTIVE');
+    expect(['SHAKE', 'LOOK_DOWN']).toContain(s.m);
+  });
+
   test('jump is refused while the puzzle owns the screen', async ({ page }) => {
     await boot(page);
     await force(page, 'PHASE_INTRO');

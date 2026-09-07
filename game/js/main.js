@@ -110,6 +110,8 @@ const wantHd = () => {
 const game = createGame(canvas, {
   renderScale: wantScale(),
   hdArt: wantHd(),
+  // a tap on the stage jumped: flash the button, so the tap and the button read as one control
+  onJumpInput: () => hud.flashJump(),
   renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
     if (flag('skip', false)) { game.begin(); startTutorial(); return; }

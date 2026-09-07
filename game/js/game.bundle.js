@@ -6525,6 +6525,18 @@ function createGame(canvas, hooks = {}) {
     G.idle = 0; G.idleHand = 0; G.handHint = null;
     addTap(p.x, p.y);                 // every touch gets an answer, in every state
     skipPreRoll();                    // a tap gets past the collapse and the card
+    /* TAP ANYWHERE TO JUMP, the way a runner plays. The JUMP button and the keys still
+       work and the tutorial still names the button — but a child taps where they are
+       looking: the mammoth, the sky, the ice. Asked for, and only while jumping is allowed
+       (the run states), so a tap in a puzzle is still a stroke and a tap on him while he
+       waits at the edge is still a poke. The button flashes so the two read as one control.
+       requestJump buffers a tap that lands mid-air, exactly as the button does. */
+    if (G.jumpEnabled && RUN_STATES.has(G.state)) {
+      mammoth.requestJump(performance.now());
+      if (hooks.onJumpInput) hooks.onJumpInput('tap');
+      canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+      return;
+    }
     /* THE STROKE IS ARMED THROUGH THE WHOLE OF A PUZZLE, not only in PHASE_ACTIVE.
 
        In a multi-answer phase ("cut all the pentagons") the state leaves PHASE_ACTIVE
@@ -9240,7 +9252,7 @@ class Tutorial {
         id: 'jumpbtn',
         at: () => this.domSpot('#btn-jump', 40) !== null,
         spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
-        text: 'This is the JUMP button. It makes him hop.',
+        text: 'This is the JUMP button. It makes him hop. A tap anywhere does too!',
         advance: 0, pause: true
       },
       {
@@ -9963,6 +9975,8 @@ const wantHd = () => {
 const game = createGame(canvas, {
   renderScale: wantScale(),
   hdArt: wantHd(),
+  // a tap on the stage jumped: flash the button, so the tap and the button read as one control
+  onJumpInput: () => hud.flashJump(),
   renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
     if (flag('skip', false)) { game.begin(); startTutorial(); return; }

@@ -154,7 +154,7 @@ export class Tutorial {
         id: 'jumpbtn',
         at: () => this.domSpot('#btn-jump', 40) !== null,
         spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
-        text: 'This is the JUMP button. It makes him hop.',
+        text: 'This is the JUMP button. It makes him hop. A tap anywhere does too!',
         advance: 0, pause: true
       },
       {
