@@ -1363,6 +1363,13 @@ const CFG = {
        of the shape is the overhang: from throatDepth the walls curl out to the void.
        Nothing is drawn around the plug; its flat edge spans the neck (see _ditchPath). */
     mouth: 1.6,
+    /* THE NOTCH — TEMPORARY, pending the owner's feedback. 'off' draws the plain neck; 'exact'
+       cuts every gap to its answer's silhouette from the start; 'reveal' (the current pick, from
+       the owner's gap-notch brief) shows a generic faceted break before the answer — "clean
+       geometry goes here", not "a triangle goes here", so the lesson stays a shape lesson and
+       not a silhouette match — and resolves it to the exact outline as the right piece seats.
+       The satisfying fit is feedback, not a hint. */
+    notch: 'reveal',
     throatDepth: 36,
     /* How far past the character the near lip opens — and, because the option row is
        centred on the crevasse, what decides how BIG an option can be.
@@ -3992,8 +3999,41 @@ class GroundManager {
       p.quadraticCurveTo(ax, y0 + a.dy, (ax + bx) / 2, y0 + (a.dy + b.dy) / 2);
     }
     { const last = pr.top[pr.top.length - 1]; p.lineTo(nx0 + nw * last.u, y0 + last.dy); }
-    // right side: down the neck, then the overhang curls out to the void wall
     p.lineTo(nx1, y0);
+    /* THE NOTCH. Asked for: the gap should show which piece belongs in it. Each slot knows
+       the answer it will take (buildPhase sets slot.notch: the chunk's own points at the
+       fit and seat the resting plug will have), so instead of straight walls down to the
+       throat the neck follows the answer's LOWER OUTLINE — a triangle's hole is a V, a
+       pentagon's is a shouldered cup, a square's a box — as a lower envelope sampled across
+       the neck, so two pieces in one ditch and concave shapes all come out right. Below the
+       deepest point the walls open into the undercut chasm as before, so a wrong piece
+       still falls through to the water and the right one hangs over the dark exactly where
+       its silhouette says. With no notch data the old straight neck is drawn. */
+    const env = this._notchEnvelope(x0, g, nx0, nx1, y0);
+    let yR = y0 + T, yL = y0 + T;
+    if (env) {
+      let imR = 0, imL = 0;
+      for (let i = 0; i < env.length; i++) { if (env[i].y > env[imR].y) imR = i; }
+      for (let i = env.length - 1; i >= 0; i--) { if (env[i].y > env[imL].y) imL = i; }
+      // the flat run at the deepest level, if there is one, is left open to the chasm
+      let a = imR; while (a + 1 < env.length && env[a + 1].y >= env[imR].y - 0.5) a++;
+      let b = imL; while (b - 1 >= 0 && env[b - 1].y >= env[imL].y - 0.5) b--;
+      for (let i = env.length - 1; i >= a; i--) p.lineTo(env[i].x, env[i].y);
+      yR = Math.max(env[a].y + 40, y0 + T + 60);
+      p.quadraticCurveTo(env[a].x + (x1 - env[a].x) * 0.35, env[a].y + 46, x1, yR);
+      const tvR = (yR - y0) / span;
+      for (const q of pr.R) if (q.v > tvR) p.lineTo(x1 - w * q.f, y0 + span * q.v);
+      p.lineTo(x1, yB);
+      p.lineTo(x0, yB);
+      yL = Math.max(env[b].y + 40, y0 + T + 60);
+      const tvL = (yL - y0) / span;
+      for (let i = pr.L.length - 1; i >= 0; i--) { const q = pr.L[i]; if (q.v > tvL) p.lineTo(x0 + w * q.f, y0 + span * q.v); }
+      p.quadraticCurveTo(env[b].x - (env[b].x - x0) * 0.35, env[b].y + 46, env[b].x, env[b].y);
+      for (let i = b - 1; i >= 0; i--) p.lineTo(env[i].x, env[i].y);
+      p.lineTo(nx0, y0);
+      p.closePath();
+      return p;
+    }
     p.lineTo(nx1, y0 + T);
     if (ins > 0) p.quadraticCurveTo(nx1 + ins * 0.15, y0 + T + 52, x1, y0 + T + 60);
     for (const q of pr.R) if (q.v > tv) p.lineTo(x1 - w * q.f, y0 + span * q.v);
@@ -4005,6 +4045,94 @@ class GroundManager {
     p.lineTo(nx0, y0);
     p.closePath();
     return p;
+  }
+  /** How wide the hole is at a depth below the surface, for a gap: the span of the notch's
+      envelope still open there. Zero when the notch has closed above that depth. A test
+      hook (api._notchWidth): a tapering answer must read narrower lower down. */
+  notchWidthAt(g, depth) {
+    const y0 = CFG.surfaceY, gw = g.x1 - g.x0;
+    const mk = g.throat ? gw / g.throat : 1, ins = mk > 1 ? gw * (1 - 1 / mk) / 2 : 0;
+    const env = this._notchEnvelope(0, g, ins, gw - ins, y0);
+    if (!env) return 0;
+    const open = env.filter(q => q.y >= y0 + depth);
+    return open.length ? open[open.length - 1].x - open[0].x : 0;
+  }
+  /** The notch's lower outline across the neck, as points from nx0 to nx1 in screen space:
+      for every sample x, the deepest boundary of any slot's answer silhouette there (or the
+      surface where no silhouette reaches). Null when no slot carries a notch. */
+  /** The generic break: straight facets, sharp corners, a near-flat seat in the middle, more
+      facets than any answer has sides (nine reads as "fractured", three or five as "a shape").
+      Deterministic per gap. Returns depth (px below y0) at x, over nx0..nx1. */
+  _genericBreak(nx0, nx1, depth, seed) {
+    let sd = (Math.abs(Math.round(seed)) | 0) || 1;
+    const r = () => { sd = (sd * 1103515245 + 12345) & 0x7fffffff; return sd / 0x7fffffff; };
+    const n = 9, L = 0.18, w = nx1 - nx0;
+    const seatFrom = 0.30 + r() * 0.10, seatTo = seatFrom + 0.24 + r() * 0.12;
+    const pts = [{ x: nx0, y: 0 }];
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      let y;
+      if (t >= seatFrom && t <= seatTo) y = depth * (0.93 + r() * 0.07);
+      else { const edge = Math.min(t, 1 - t) / seatFrom; y = depth * (L + (0.95 - L) * edge + (r() - 0.5) * 0.18); }
+      pts.push({ x: nx0 + w * t, y: Math.max(0, Math.min(depth, y)) });
+    }
+    pts.push({ x: nx1, y: 0 });
+    return x => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        if (x >= a.x - 0.01 && x <= b.x + 0.01) { const t = b.x === a.x ? 0 : (x - a.x) / (b.x - a.x); return a.y + (b.y - a.y) * t; }
+      }
+      return 0;
+    };
+  }
+  _notchEnvelope(x0, g, nx0, nx1, y0, revealOverride) {
+    const mode = CFG.levelOne.notch || 'off';
+    if (mode === 'off') return null;
+    const polys = [];
+    for (const s of (g && g.slots) || []) {
+      const n = s.notch; if (!n || !n.pts || n.pts.length < 3) continue;
+      const cx = x0 + ((s.x0 + s.x1) / 2 - g.x0), top = y0 + n.dy0;
+      polys.push(n.pts.map(q => ({ x: cx + q.x * n.fit, y: top + q.y * n.fit })));
+    }
+    if (!polys.length) return null;
+    const xs = new Set();
+    const N = 40;
+    for (let i = 0; i <= N; i++) xs.add(nx0 + (nx1 - nx0) * i / N);
+    for (const P of polys) for (const q of P) if (q.x > nx0 && q.x < nx1) xs.add(q.x);
+    const out = [];
+    const maxDepth = CFG.H - y0 - 40;
+    for (const x of [...xs].sort((a, b) => a - b)) {
+      let deep = y0;
+      for (const P of polys) {
+        for (let i = 0; i < P.length; i++) {
+          const a = P[i], b = P[(i + 1) % P.length];
+          if (a.x === b.x) continue;
+          if ((x >= Math.min(a.x, b.x) - 0.01) && (x <= Math.max(a.x, b.x) + 0.01)) {
+            const t = (x - a.x) / (b.x - a.x), y = a.y + (b.y - a.y) * t;
+            if (y > deep) deep = y;
+          }
+        }
+      }
+      out.push({ x, y: Math.min(y0 + maxDepth, Math.max(y0 + 2, deep)) });
+    }
+    /* 'exact' is the answer's outline throughout. 'reveal' shows the generic break until the
+       piece seats (g.reveal runs 0 -> 1 in lockIn's wake) and lerps the two depth profiles. */
+    const reveal = revealOverride !== undefined ? revealOverride : (mode === 'exact' ? 1 : (g.reveal || 0));
+    if (reveal >= 1) return out;
+    let deepest = 0; for (const q of out) deepest = Math.max(deepest, q.y - y0);
+    const gen = this._genericBreak(nx0, nx1, Math.max(60, Math.min(130, deepest * 0.5)), g.x0);
+    return out.map(q => ({ x: q.x, y: y0 + Math.max(2, gen(q.x) + ((q.y - y0) - gen(q.x)) * reveal) }));
+  }
+  /** How far the current break still is from the answer's outline, 0 (the answer) .. 1 (far):
+      mean depth difference over the notch's own depth. The leak check: before the answer this
+      must stay well away from 0, or the hole is giving the answer away. */
+  notchLeak(g) {
+    const y0 = CFG.surfaceY, gw = g.x1 - g.x0;
+    const mk = g.throat ? gw / g.throat : 1, ins = mk > 1 ? gw * (1 - 1 / mk) / 2 : 0;
+    const now = this._notchEnvelope(0, g, ins, gw - ins, y0), exact = this._notchEnvelope(0, g, ins, gw - ins, y0, 1);
+    if (!now || !exact) return 1;
+    let sum = 0, deep = 1; for (let i = 0; i < now.length; i++) { sum += Math.abs(now[i].y - exact[i].y); deep = Math.max(deep, exact[i].y - y0); }
+    return Math.min(1, (sum / now.length) / deep);
   }
 
   /** Water surface height at a screen x, so ripples and splashes agree on one line. */
@@ -5661,6 +5789,21 @@ function createGame(canvas, hooks = {}) {
     // the rope hangs from each chunk's own highest point, so the anchor goes above
     // THAT rather than above the chunk's centre — otherwise the body swings out of
     // its slot by the pivot's offset
+    /* EACH SLOT KNOWS ITS ANSWER, so the crevasse can be cut to it (GroundManager._ditchPath).
+       Slot i takes target i; the notch is the chunk's own outline at the fit and seat the
+       resting plug will have (see lockIn / drawKeystone), so the piece that lands fills the
+       hole it was shown. targetFor prefers a slot cut for the kind being dropped. */
+    for (const gp of G.gapsThisPhase || []) { gp.reveal = 0; gp.revealTarget = 0; }
+    G.l1.slots.forEach((s, i) => {
+      const kind = p.targets[Math.min(i, p.targets.length - 1)];
+      const sh = G.l1.shapes.find(x => x.kind === kind);
+      s.kind = kind;
+      if (sh) {
+        const sb = polyBounds(sh.pts);
+        const fit = Math.min(1, sb.h > 0 ? (CFG.H - CFG.surfaceY - 6) / sb.h : 1);
+        s.notch = { pts: sh.pts, fit, dy0: PLUG_SINK - sb.y0 * fit };
+      }
+    });
     for (const sh of G.l1.shapes) {
       sh.pivot = chunkPivot(sh);
       sh.anchorX = sh.slotX + sh.pivot.x;
@@ -5795,6 +5938,9 @@ function createGame(canvas, hooks = {}) {
       const d = Math.abs((s.x0 + s.x1) / 2 - G.worldX - x);
       if (d < bd) { bd = d; best = s; }
     }
+    // the slot that was cut for this kind wins over the nearest one: the notch is a promise
+    const mine = open.find(s => s.kind === kind && s.notch);
+    if (mine) best = mine;
     L.wanted.splice(i, 1);
     L.unfilled = L.wanted.slice();
     // mark the required-set entry this cut answers, so `targets` reads as progress
@@ -5947,6 +6093,7 @@ function createGame(canvas, hooks = {}) {
       const slot = sh.target;
       slot.filled = true;
       const g = gapOf(slot);
+      g.revealTarget = 1;                 // the break resolves to the answer's outline (see _notchEnvelope)
       // The wedged chunk becomes part of the crossing. The falling copy is retired
       // in the same breath — leaving both in play drew the chunk twice.
       /* The chunk GROWS to span ITS SLOT.
@@ -6986,6 +7133,9 @@ function createGame(canvas, hooks = {}) {
     updateInstruction(dt);
     updateTaps(dt);
     updateHints(dt);
+    for (const gp of G.gapsThisPhase || []) {
+      if (gp.revealTarget && (gp.reveal || 0) < 1) gp.reveal = Math.min(1, (gp.reveal || 0) + dt / 0.45);
+    }
     if (G.l1) updateL1(dt);
     updatePieces(dt);
     /* CULL CROSSINGS THAT ARE OFF SCREEN BEHIND US.
@@ -8549,6 +8699,9 @@ function createGame(canvas, hooks = {}) {
     /* The live particle list, so a test or a capture harness can wait for the exact
        frame an effect exists on rather than guessing at a delay. */
     _particles: () => particles,
+    _notchWidth: (i, depth) => { const g = (G.gapsThisPhase || [])[i]; return g ? ground.notchWidthAt(g, depth) : -1; },
+    _notchLeak: i => { const g = (G.gapsThisPhase || [])[i]; return g ? ground.notchLeak(g) : -1; },
+    _notchReveal: i => { const g = (G.gapsThisPhase || [])[i]; return g ? (g.reveal || 0) : -1; },
     /** The run's obstacle plan for a stretch index, and the leap in px — for the difficulty test. */
     _runPlan: i => ({ plan: (CFG.obstacle.runs || [])[Math.min(i, (CFG.obstacle.runs || []).length - 1)] || null, leap: obstacles ? obstacles.leap : 0, speed: CFG.runSpeed }),
     _force(s) { obstacles.reset(); setState(s); },

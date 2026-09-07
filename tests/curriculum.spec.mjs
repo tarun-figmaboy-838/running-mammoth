@@ -454,7 +454,7 @@ test.describe('multi-answer phases', () => {
      same size. That is strictly stronger, since it checks the outcome rather than a
      stand-in for it. Phases 6 and 7 open two crevasses again, which also widens the
      option row and so makes every shape bigger. */
-  test('no repair slot is bound to a shape in advance', async ({ page }) => {
+  test('every repair slot is cut for one answer, and any answer still lands somewhere', async ({ page }) => {
     test.setTimeout(180_000);
     await boot(page, { speed: 900, fast: 4 });
     await enterPhase(page, 5);
@@ -462,12 +462,15 @@ test.describe('multi-answer phases', () => {
       const G = window.iceAgeGame.debug();
       return {
         gaps: G.gapsThisPhase.length,
-        // no slot is bound to a shape before anything is cut
-        preBound: G.l1.slots.filter(s => s.kind).length,
+        // EVERY slot is cut for an answer before anything is cut (the notch shows which)
+        preBound: G.l1.slots.filter(s => s.kind && s.notch).length,
         widths: G.l1.slots.map(s => Math.round(s.x1 - s.x0))
       };
     });
-    expect(before.preBound, 'no slot expects a particular shape up front').toBe(0);
+    /* REVERSED on request (September 2026): the gap now shows the silhouette of the piece that
+       belongs in it, so every slot is bound to a target up front. What must still hold is that
+       cutting in any order works: the piece goes to the slot cut for it, never refused. */
+    expect(before.preBound, 'every slot expects a particular shape up front').toBe(3);
     expect(before.widths.length, 'one slot per answer').toBe(3);
     /* Cut the answer hanging FURTHEST RIGHT first. If any allocation were hidden in
        the data this is where it would show up as a refusal. */

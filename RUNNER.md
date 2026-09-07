@@ -1102,6 +1102,21 @@ the edge is still a poke, a tap on the water still splashes. The tutorial's butt
 "This is the JUMP button. It makes him hop. A tap anywhere does too!" Tests: game.spec "a tap
 anywhere jumps" and "a tap in a puzzle is a stroke, never a jump".
 
+### The notch — TEMPORARY, pending feedback
+
+Point 5 asked for a polygon-shaped cut in the gap's top edge. Taken literally it would let a
+learner match a silhouette without knowing what a triangle is, so it is built in two states, per
+the owner's gap-notch brief, behind `CFG.levelOne.notch` ('reveal' now; 'exact' cuts the answer's
+outline from the start; 'off' is the plain neck): BEFORE the answer the gap shows a generic faceted
+break — nine straight facets with a near-flat seat, deterministic per gap, resembling no option
+("clean geometry goes here", not "a triangle goes here"); AFTER the right piece seats the break
+resolves to the exact answer outline over 0.45 s (`g.reveal`) and the plug fills it. Each slot is
+bound to its target up front (`slot.kind`, `slot.notch`) so the outline it resolves to and the
+piece that lands agree, and `targetFor` sends a cut piece to the slot cut for it. Below the
+deepest point the chasm stays open, so a wrong piece still falls through. A leak check
+(`_notchLeak`) holds that the pre-answer break stays far from the answer's outline. Instruction
+noun and target kind are checked against each other by test. Test: tests/notch.spec.mjs.
+
 ### The instruction stays, with the polygon set apart
 
 Asked for: the sentence must stay visible until the question is done. It is up from the intro
