@@ -164,12 +164,15 @@ export class Tutorial {
       {
         id: 'gap',
         /* The ice has to have actually broken: g.open runs 0 -> 1 as the ground gives way. */
-        /* AND HE HAS STOPPED. The owner's sequence: the line and the lit gap come FIRST, then
-           the tremble. GLACIER_BREAK_1 is the skid, and firing there froze him mid-slide; from
-           PHASE_INTRO he is standing at the lip on the tremble's first pose — the freeze holds
-           him there while the line is read, and the tremble plays when it lets go. */
+        /* AND HE HAS STOPPED AND TREMBLED. The owner's sequence: he arrives at the lip, the
+           whole tremble plays (notice, look down, tremble, look to the player, settle), and
+           THEN the line comes with the gap lit — the reaction first, the words about it
+           after. GLACIER_BREAK_1 is the skid, and firing there froze him mid-slide; SHAKE is
+           the tremble, and firing during it froze the performance. So: stopped, and no
+           longer trembling. */
         at: g => (g.gapsThisPhase || []).some(gp => gp && (gp.open || 0) > 0.75) &&
-                 ['PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
+                 ['PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state) &&
+                 (() => { const p = this.game._player && this.game._player(); return !p || p.state !== 'SHAKE'; })(),
         spot: g => {
           const gp = (g.gapsThisPhase || [])[0];
           if (!gp) return null;

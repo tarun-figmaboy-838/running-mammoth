@@ -104,12 +104,15 @@ test.describe('the tremble, the stop and the crash', () => {
         await new Promise(res => setTimeout(res, 40));
       }
     });
-    // the owner's sequence: the "Oh no" line comes once he has stopped, before the tremble plays
+    // the owner's sequence: the whole tremble plays first, THEN the "Oh no" line comes
     await page.waitForFunction(() => /path is broken/.test(document.getElementById('tut-text').textContent), null, { timeout: 60_000 });
-    const atOhNo = await page.evaluate(() => { const p = window.iceAgeGame._player(); return { state: window.iceAgeGame.debug().state, anim: p.state, step: p.trembleStep, veil: !document.getElementById('tut-veil').hidden }; });
+    const atOhNo = await page.evaluate(async () => {
+      const m = await import('/js/engine.js'); const p = window.iceAgeGame._player();
+      return { state: window.iceAgeGame.debug().state, anim: p.state, step: p.trembleStep, plan: m.CFG.sprite.tremble.plan.length, veil: !document.getElementById('tut-veil').hidden };
+    });
     expect(atOhNo.state, 'he has stopped when the line comes').not.toBe('GLACIER_BREAK_1');
-    expect(atOhNo.anim).toBe('SHAKE');
-    expect(atOhNo.step, 'the tremble waits on its first pose while the line is read').toBeLessThanOrEqual(1);
+    expect(atOhNo.anim, 'the tremble has finished: he is on the idle wait').toBe('LOOK_DOWN');
+    expect(atOhNo.step, 'every step of the plan was spent before the line').toBe(atOhNo.plan);
     expect(atOhNo.veil).toBe(true);
     await page.waitForFunction(() => /right ice piece/.test(document.getElementById('tut-text').textContent), null, { timeout: 60_000 });
     await page.waitForFunction(() => { const L = window.iceAgeGame.debug().l1; return L && L.shapes.some(s => s.state === 'hang' && s.y > 400); }, null, { timeout: 20_000 });

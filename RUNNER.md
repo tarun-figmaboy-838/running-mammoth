@@ -1022,6 +1022,14 @@ drawing only: the cut test still runs along `ropeSpan`'s straight line, which th
 leaves by more than its 30 px reach. Tests: tremble.spec "the rope art", "a cut still parts the
 rope"; the existing rope-cut tests in polish, regression and game.
 
+### The sequence at the edge (tutorial)
+
+The owner's order: he skids to the lip, the WHOLE tremble plays, and then "Oh no! The path is
+broken." comes with the gap lit and the game frozen; the cut ask follows. The gap step's trigger
+is therefore "stopped (PHASE_INTRO or later, never the skid) and no longer in SHAKE". Firing during
+the skid froze him mid-slide; firing during the tremble froze the performance. Test: tremble.spec
+"the last tutorial line ..." asserts LOOK_DOWN and a spent plan at the moment the line appears.
+
 ### The last tutorial line runs unblurred
 
 "Perfect fit! Keep going!" is a describing step spoken over the resumed run (pause:false); the
