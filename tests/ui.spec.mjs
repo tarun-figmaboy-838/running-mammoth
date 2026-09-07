@@ -134,10 +134,12 @@ test.describe('ui', () => {
       const m = await import('/js/engine.js');
       return m.CFG.levelOne.phases[window.iceAgeGame.debug().phase].instruction;
     });
-    // shown with the polygon's name in capitals and no full stop; the words are the phase's own
+    // the plank shows only the polygon's name, big and in capitals ("TRIANGLE", "ALL PENTAGONS")
     const shown = (await page.locator('#instruction-text').innerText()).trim();
-    expect(shown.toLowerCase().replace(/\.$/, '')).toBe(want.toLowerCase().replace(/\.$/, ''));
-    await expect(page.locator('#instruction-text .key')).toHaveText(/^[A-Z]+$/);
+    const m = /^(.*?)\bthe\s+([a-z]+?)(s?)[.!]?$/i.exec(want);
+    const wantShown = ((/\ball\b/i.test(m[1]) ? 'ALL ' : '') + m[2] + m[3]).toUpperCase();
+    expect(shown).toBe(wantShown);
+    await expect(page.locator('#instruction-text .key')).toHaveText(/^[A-Z ]+$/);
 
     // nothing else is on the card
     expect(await page.locator('#instruction-shapes').count(), 'the shape chip is gone').toBe(0);

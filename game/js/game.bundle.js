@@ -8854,21 +8854,20 @@ class Hud {
     }
   }
 
-  /* THE POLYGON'S NAME IS THE THING TO LOOK FOR, so it is set apart: "Cut the TRIANGLE",
-     "Cut all the QUADRILATERALS" — the noun in capitals, heavier and in the game's key-word
-     blue, the full stop dropped. The engine's sentence is untouched (tests and the recall
-     path read it); this is how it is shown. A sentence that does not fit the pattern is
-     shown as it is. */
+  /* THE SIGN SAYS ONLY WHAT TO LOOK FOR, BIG: "TRIANGLE", "ALL PENTAGONS". Asked for — the
+     "Cut the" lead was dropped from the plank and the name made large; the tutorial has
+     already said what a cut is for ("Use the right ice piece to fix the path."). The engine's
+     sentence is untouched (tests and the recall path read it); this is how it is shown. A
+     sentence that does not fit the "…the <noun>" pattern is shown whole. */
   setInstruction(message) {
     const el = this.el.text;
     if (!el) return;
-    const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
+    const m = /^(.*?)\bthe\s+([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
     el.textContent = '';
     if (!m) { el.textContent = message; return; }
-    el.appendChild(document.createTextNode(m[1]));
     const key = document.createElement('span');
     key.className = 'key';
-    key.textContent = (m[2] + m[3]).toUpperCase();
+    key.textContent = ((/\ball\b/i.test(m[1]) ? 'ALL ' : '') + m[2] + m[3]).toUpperCase();
     el.appendChild(key);
   }
 
@@ -9856,7 +9855,15 @@ class Tutorial {
        * guess and the real box is 147-213 depending on how the sentence wraps, so even
        * the sign of the error changed with the text. */
       const st = this.root.getElementById('stage');
-      if (!this._boxH && st) {
+      /* MEASURED VISIBLE, AND MEASURED PER SENTENCE. The previous asking step hides the box
+         once its words have been read (the hand carries on alone), so the next describing
+         step used to measure and fit a HIDDEN box: zero wide, and fitBubble drew a 40x30
+         sliver with a tail off to one side while the words floated over the blur (seen on
+         "Oh no! The path is broken."). Unhide before measuring. And re-measure whenever the
+         sentence changes: the first sentence's height was cached for all of them, which
+         placed a three-line box as if it were two. */
+      if (b && keepBox && b.hidden) b.hidden = false;
+      if (st && b && !b.hidden && (fresh || !this._boxH)) {
         const r = b.getBoundingClientRect();
         // back into stage units, so one number works at every viewport size
         if (r.height && st.clientHeight) this._boxH = r.height / st.clientHeight * H;

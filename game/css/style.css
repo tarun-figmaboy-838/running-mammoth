@@ -214,8 +214,8 @@ a:hover { color: var(--ice-pale); }
      two ends, under the caps). */
   /* the caps are part of the padding now (there is no border): 340 and 339 art-px of
      cap plus the 60 of clear wood either side of the words */
-  padding: calc(214 * var(--k)) calc(399 * var(--k))
-           calc(127 * var(--k)) calc(400 * var(--k));
+  padding: calc(220 * var(--k)) calc(399 * var(--k))
+           calc(93 * var(--k)) calc(400 * var(--k));
 
   animation: pillIn 240ms cubic-bezier(.2,1.3,.4,1) both;
 }
@@ -230,9 +230,12 @@ a:hover { color: var(--ice-pale); }
      the snow reaches down to about 213, so a 132px line left 0.3px of clearance —
      within font-metric noise of touching the snow. 120 keeps the same centre and
      gives 7px of air. */
-  font-size: calc(120 * var(--k));
+  /* 160 art-px, centred lower on the wood (see the padding): the plank now carries only the
+     polygon's name, in capitals, and it is asked to be big. 220..380 sits clear of the snow
+     (which reaches 213) and inside the wood (to 434). */
+  font-size: calc(160 * var(--k));
   line-height: 1;
-  font-weight: 800;
+  font-weight: 900;
   /* dark warm brown, which is what reads on pale timber; the old deep blue was chosen
      against a white ice card and goes muddy on wood */
   color: #5A3617;

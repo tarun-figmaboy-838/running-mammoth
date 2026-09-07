@@ -635,7 +635,15 @@ export class Tutorial {
        * guess and the real box is 147-213 depending on how the sentence wraps, so even
        * the sign of the error changed with the text. */
       const st = this.root.getElementById('stage');
-      if (!this._boxH && st) {
+      /* MEASURED VISIBLE, AND MEASURED PER SENTENCE. The previous asking step hides the box
+         once its words have been read (the hand carries on alone), so the next describing
+         step used to measure and fit a HIDDEN box: zero wide, and fitBubble drew a 40x30
+         sliver with a tail off to one side while the words floated over the blur (seen on
+         "Oh no! The path is broken."). Unhide before measuring. And re-measure whenever the
+         sentence changes: the first sentence's height was cached for all of them, which
+         placed a three-line box as if it were two. */
+      if (b && keepBox && b.hidden) b.hidden = false;
+      if (st && b && !b.hidden && (fresh || !this._boxH)) {
         const r = b.getBoundingClientRect();
         // back into stage units, so one number works at every viewport size
         if (r.height && st.clientHeight) this._boxH = r.height / st.clientHeight * H;
