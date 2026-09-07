@@ -122,6 +122,40 @@ test.describe('controls', () => {
     expect(r.after, 'and it wears off').toBe(0);
   });
 
+  test('invincibility never touches input: a jump works during the blink', async ({ page }) => {
+    await boot(page, { fast: 1 });
+    const r = await page.evaluate(async () => {
+      const g = window.iceAgeGame;
+      g._force('JUMP_CHALLENGE_1');
+      const t0 = Date.now();
+      while (Date.now() - t0 < 12000 && g.debug().state !== 'OBSTACLE_HIT') await new Promise(res => requestAnimationFrame(res));
+      g.retryObstacle();
+      const t1 = Date.now();
+      while (Date.now() - t1 < 3000 && !(g.debug().jumpEnabled && g.mammothState() === 'RUN')) await new Promise(res => requestAnimationFrame(res));
+      const inv = g.debug().invincibleT;
+      g.jump();
+      await new Promise(res => setTimeout(res, 150));
+      return { inv, state: g.mammothState() };
+    });
+    expect(r.inv, 'still blinking').toBeGreaterThan(0.5);
+    expect(r.state, 'and the jump was taken').not.toBe('RUN');
+  });
+
+  test('dismissing a dialogue line never jumps: a tap while a line is read arms nothing', async ({ page }) => {
+    await boot(page, { tutorial: true, skipScreens: true });
+    // the first describing line freezes the game in a run state with jumping enabled
+    await page.waitForFunction(() => { const l = document.getElementById('tutorial'); const tx = document.getElementById('tut-text'); return l && !l.hidden && tx && /This is Momo/.test(tx.textContent); }, null, { timeout: 30_000 });
+    await page.waitForFunction(() => window.iceAgeGame.paused && window.iceAgeGame.paused(), null, { timeout: 5_000 }).catch(() => {});
+    const r = await page.evaluate(() => {
+      const c = document.getElementById('game-canvas');
+      c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 400, clientY: 200, pointerId: 3, pointerType: 'touch', isPrimary: true }));
+      window.iceAgeGame.jump();                                   // the button, too
+      return { armed: !!window.iceAgeGame.debug().jumpArmed, state: window.iceAgeGame.debug().state, m: window.iceAgeGame.mammothState() };
+    });
+    expect(r.armed, 'a dismissing tap must not arm a jump').toBe(false);
+    expect(r.m).toBe('RUN');
+  });
+
   test('the page has an icon, and no preload warnings', async ({ page }) => {
     const warnings = [];
     page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });

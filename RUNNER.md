@@ -1140,6 +1140,26 @@ cut line"): the middle slice overlapped the caps by 1 px and a fractional device
 half-covered column. It now runs 12 px under each opaque cap. The letters carry a cream stroke
 (white around the blue polygon name) behind the fill, so the words lift off the wood grain.
 
+### The brief's combination checks
+
+The owner's sequenced brief lists six cross-item conflicts. How each is closed here:
+1. A tap that dismisses a dialogue line never jumps — describing lines freeze the game, and a
+   frozen tap arms a jump only when the freeze is an ASK (`setPaused(v, { asking })`, set by the
+   tutorial for the jump line alone). Test: controls "dismissing a dialogue line never jumps".
+2. The tap that completes a question is a stroke in a puzzle state; a jump needs a fresh
+   pointerdown in a run state, so nothing crosses the boundary. Tests: game "a tap in a puzzle is a
+   stroke, never a jump".
+3. Invincibility suppresses collision only; input is untouched. Test: controls "a jump works
+   during the blink".
+4. Notch outline and instruction come from one answer: the slot's target kind; the instruction's
+   noun is checked against every target kind. Test: notch "one source of truth".
+5. A respawn re-spawns the stretch fresh 2150 px ahead, so it never lands inside a cluster. Test:
+   difficulty "a respawn on the densest stretch lands on clear ground".
+6. No dead zone: every spacing is one leap plus at least 0.6 s of running room, and a jump is
+   accepted the moment he lands (LAND allows requestJump). Test: difficulty "every gap is
+   clearable".
+The plural sign carries its progress ("1 of 3"), the brief's phase-4 decision.
+
 ### Two interaction modes
 
 Running mode: a tap or click anywhere jumps (see "Tap anywhere to jump"). Polygon mode: while a

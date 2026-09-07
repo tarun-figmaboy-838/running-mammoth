@@ -4198,6 +4198,7 @@ export function createGame(canvas, hooks = {}) {
      it) and re-picks it on resize. Phones land on 1: a 16:9 stage capped by a 1080px-tall
      screen is 1920 device pixels wide, and they pay nothing for this. */
   let rs = 1, rsCap = 2;
+  let pausedAsking = false;             // see api.setPaused
   function setRenderScale(k) {
     k = clamp(Math.min(Number(k) || 1, rsCap), 1, 2);
     const w = Math.round(CFG.W * k), h = Math.round(CFG.H * k);
@@ -4357,6 +4358,9 @@ export function createGame(canvas, hooks = {}) {
       // HUD's change detection sees one value rather than a fresh array every frame
       mendedKinds: G.complete ? L1.phases.map(p => p.targets[0]).join(',') : '',
       oops: G.oops,
+      // "1 of 3" on a plural question, so a learner knows they are partway (the brief's phase 4)
+      tally: G.l1 && G.l1.targets && G.l1.targets.length > 1
+        ? G.l1.targets.filter(t => t.filled).length + ' of ' + G.l1.targets.length : '',
       // the hint control asks for attention once the learner has been stuck a while
       hintNudge: G.state === 'PHASE_ACTIVE' && (G.idle > CFG.hint.slotMs / 1000 || (G.l1 && G.l1.wrong >= 1)),
       // where to demonstrate the cut, once the learner has been idle a long while
@@ -5887,7 +5891,7 @@ export function createGame(canvas, hooks = {}) {
   }
 
   function onDown(e) {
-    if (paused) { if (G.jumpEnabled && RUN_STATES.has(G.state)) G.jumpArmed = true; return; }   // see api.jump
+    if (paused) { if (pausedAsking && G.jumpEnabled && RUN_STATES.has(G.state)) G.jumpArmed = true; return; }   // see api.setPaused
     audio.start(); audio.resume();
     const p = toLocal(e);
     G.idle = 0; G.idleHand = 0; G.handHint = null;
@@ -7700,7 +7704,7 @@ export function createGame(canvas, hooks = {}) {
          a jump fired on resume would land long before the obstacle). Now the tap is remembered
          and fired by update() when the obstacle is in range — the tutorial's one guaranteed
          jump. Outside a freeze this is the ordinary jump. */
-      if (paused) { G.jumpArmed = true; return; }
+      if (paused) { if (pausedAsking) G.jumpArmed = true; return; }
       mammoth.requestJump(performance.now());
     },
     restart() { resetAll(); },
@@ -7736,7 +7740,11 @@ export function createGame(canvas, hooks = {}) {
     renderScale: () => rs,
     /** Which character art set was loaded: 'hd' (1.5x cells) or 'base'. */
     artSet: () => hdArt ? 'hd' : 'base',
-    setPaused(v) { paused = v; if (!v) last = 0; },
+    /** Freeze the simulation. `opts.asking` marks a freeze that is waiting for the player to
+        act (the tutorial's frozen "Tap to jump" line): only then may a jump input be ARMED for
+        later; a freeze for a line being read (asking false) never turns a dismissing tap into a
+        jump — the brief's conflict 1. */
+    setPaused(v, opts) { paused = v; pausedAsking = !!(v && opts && opts.asking); if (!v) last = 0; },
     /* READABLE, so a test can tell a frozen simulation from a slow one. paused is a
        closure variable and there was no way to observe it: a harness had to infer the
        freeze from G.moving, which is the CHARACTER movement flag and is already false

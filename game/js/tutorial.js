@@ -360,10 +360,11 @@ export class Tutorial {
     this._bubbleKey = null;
   }
 
-  pause() {
-    if (this._wasPaused) return;
-    this._wasPaused = true;
-    this.game.setPaused(true);
+  pause(asking) {
+    // an ask's freeze may arm a jump for later; a line being read never may (see api.setPaused)
+    if (this._wasPaused && this._askingPause === !!asking) return;
+    this._wasPaused = true; this._askingPause = !!asking;
+    this.game.setPaused(true, { asking: !!asking });
   }
   resume() {
     if (!this._wasPaused) return;
@@ -445,7 +446,7 @@ export class Tutorial {
        the obstacle still for the reading, exactly as the old describing step did, and then
        the run resumes with the hand still asking. `true` freezes for the whole step. */
     const frozen = s.pause === true || (typeof s.pause === 'number' && this.t < s.pause);
-    if (frozen) this.pause(); else this.resume();
+    if (frozen) this.pause(typeof s.pause === 'number'); else this.resume();
 
     /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
        frozen copy belong to describing steps; the hand belongs to asking ones. */

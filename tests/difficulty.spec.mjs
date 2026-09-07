@@ -46,6 +46,25 @@ test.describe('the difficulty curve of the runs', () => {
     expect(laid.families).toEqual(['rock', 'log', 'bone']);
   });
 
+  test('a respawn on the densest stretch lands on clear ground, never inside the cluster', async ({ page }) => {
+    await boot(page, { fast: 1 });
+    const r = await page.evaluate(async () => {
+      const g = window.iceAgeGame; const G = g.debug();
+      G.phase = 6; G.phaseJumped = false;
+      g._force('PHASE_RUN');
+      const t0 = Date.now();
+      while (Date.now() - t0 < 15000 && g.debug().state !== 'OBSTACLE_HIT') await new Promise(res => requestAnimationFrame(res));   // walk into the first one
+      const hit = g.debug().state === 'OBSTACLE_HIT';
+      g.retryObstacle();
+      await new Promise(res => requestAnimationFrame(res));
+      let nearest = Infinity; for (const o of g._obstacles().list) { const sx = o.x - g.debug().worldX; if (!o.passed) nearest = Math.min(nearest, sx); }
+      return { hit, nearest, hits: g.debug().hitCount };
+    });
+    expect(r.hit, 'the walk-in crashed').toBe(true);
+    expect(r.nearest, 'the runway after a respawn is clear').toBeGreaterThan(1500);
+    expect(r.hits).toBe(1);
+  });
+
   test('the first stretch after the tutorial is two far-apart obstacles', async ({ page }) => {
     await boot(page, { fast: 1 });
     const laid = await page.evaluate(async () => {

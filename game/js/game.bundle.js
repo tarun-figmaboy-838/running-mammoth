@@ -5062,6 +5062,7 @@ function createGame(canvas, hooks = {}) {
      it) and re-picks it on resize. Phones land on 1: a 16:9 stage capped by a 1080px-tall
      screen is 1920 device pixels wide, and they pay nothing for this. */
   let rs = 1, rsCap = 2;
+  let pausedAsking = false;             // see api.setPaused
   function setRenderScale(k) {
     k = clamp(Math.min(Number(k) || 1, rsCap), 1, 2);
     const w = Math.round(CFG.W * k), h = Math.round(CFG.H * k);
@@ -5221,6 +5222,9 @@ function createGame(canvas, hooks = {}) {
       // HUD's change detection sees one value rather than a fresh array every frame
       mendedKinds: G.complete ? L1.phases.map(p => p.targets[0]).join(',') : '',
       oops: G.oops,
+      // "1 of 3" on a plural question, so a learner knows they are partway (the brief's phase 4)
+      tally: G.l1 && G.l1.targets && G.l1.targets.length > 1
+        ? G.l1.targets.filter(t => t.filled).length + ' of ' + G.l1.targets.length : '',
       // the hint control asks for attention once the learner has been stuck a while
       hintNudge: G.state === 'PHASE_ACTIVE' && (G.idle > CFG.hint.slotMs / 1000 || (G.l1 && G.l1.wrong >= 1)),
       // where to demonstrate the cut, once the learner has been idle a long while
@@ -6751,7 +6755,7 @@ function createGame(canvas, hooks = {}) {
   }
 
   function onDown(e) {
-    if (paused) { if (G.jumpEnabled && RUN_STATES.has(G.state)) G.jumpArmed = true; return; }   // see api.jump
+    if (paused) { if (pausedAsking && G.jumpEnabled && RUN_STATES.has(G.state)) G.jumpArmed = true; return; }   // see api.setPaused
     audio.start(); audio.resume();
     const p = toLocal(e);
     G.idle = 0; G.idleHand = 0; G.handHint = null;
@@ -8564,7 +8568,7 @@ function createGame(canvas, hooks = {}) {
          a jump fired on resume would land long before the obstacle). Now the tap is remembered
          and fired by update() when the obstacle is in range — the tutorial's one guaranteed
          jump. Outside a freeze this is the ordinary jump. */
-      if (paused) { G.jumpArmed = true; return; }
+      if (paused) { if (pausedAsking) G.jumpArmed = true; return; }
       mammoth.requestJump(performance.now());
     },
     restart() { resetAll(); },
@@ -8600,7 +8604,11 @@ function createGame(canvas, hooks = {}) {
     renderScale: () => rs,
     /** Which character art set was loaded: 'hd' (1.5x cells) or 'base'. */
     artSet: () => hdArt ? 'hd' : 'base',
-    setPaused(v) { paused = v; if (!v) last = 0; },
+    /** Freeze the simulation. `opts.asking` marks a freeze that is waiting for the player to
+        act (the tutorial's frozen "Tap to jump" line): only then may a jump input be ARMED for
+        later; a freeze for a line being read (asking false) never turns a dismissing tap into a
+        jump — the brief's conflict 1. */
+    setPaused(v, opts) { paused = v; pausedAsking = !!(v && opts && opts.asking); if (!v) last = 0; },
     /* READABLE, so a test can tell a frozen simulation from a slow one. paused is a
        closure variable and there was no way to observe it: a harness had to infer the
        freeze from G.moving, which is the CHARACTER movement flag and is already false
@@ -9029,7 +9037,7 @@ class Hud {
      stop kept (the owner's own wording). The engine's sentence is untouched (tests and the
      recall path read it); this is how it is shown. A sentence that does not fit the pattern
      is shown whole. */
-  setInstruction(message) {
+  setInstruction(message, tally) {
     const el = this.el.text;
     if (!el) return;
     const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
@@ -9041,6 +9049,9 @@ class Hud {
     key.textContent = (m[2] + m[3]).toUpperCase();
     el.appendChild(key);
     if (m[4]) el.appendChild(document.createTextNode(m[4]));   // the sentence keeps its full stop
+    /* A plural question carries its progress — "1 of 3" — small and after the sentence, so a
+       learner partway through "Cut all the PENTAGONS." can see it is going well. */
+    if (tally) { const t = document.createElement('span'); t.className = 'tally'; t.textContent = tally; el.appendChild(t); }
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
@@ -9184,12 +9195,14 @@ class Hud {
      * re-assert does not make the pill flash. */
     const el = this.el.instruction;
     const outOfSync = message && (el.hidden || el.classList.contains('leaving'));
-    if (message !== this.lastMessage || outOfSync) {
+    // the plural tally changes without the sentence changing, so it is its own trigger
+    const tally = h.tally || '';
+    if (message !== this.lastMessage || outOfSync || tally !== this.lastTally) {
       const isNewLine = message !== this.lastMessage;
-      this.lastMessage = message;
+      this.lastMessage = message; this.lastTally = tally;
       if (message) {
         clearTimeout(this._leaveT);
-        this.setInstruction(message);
+        this.setInstruction(message, tally);
         el.hidden = false;
         el.classList.remove('leaving');
         // restart the entrance animation only for a new line, never for a re-assert
@@ -9752,10 +9765,11 @@ class Tutorial {
     this._bubbleKey = null;
   }
 
-  pause() {
-    if (this._wasPaused) return;
-    this._wasPaused = true;
-    this.game.setPaused(true);
+  pause(asking) {
+    // an ask's freeze may arm a jump for later; a line being read never may (see api.setPaused)
+    if (this._wasPaused && this._askingPause === !!asking) return;
+    this._wasPaused = true; this._askingPause = !!asking;
+    this.game.setPaused(true, { asking: !!asking });
   }
   resume() {
     if (!this._wasPaused) return;
@@ -9837,7 +9851,7 @@ class Tutorial {
        the obstacle still for the reading, exactly as the old describing step did, and then
        the run resumes with the hand still asking. `true` freezes for the whole step. */
     const frozen = s.pause === true || (typeof s.pause === 'number' && this.t < s.pause);
-    if (frozen) this.pause(); else this.resume();
+    if (frozen) this.pause(typeof s.pause === 'number'); else this.resume();
 
     /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
        frozen copy belong to describing steps; the hand belongs to asking ones. */
