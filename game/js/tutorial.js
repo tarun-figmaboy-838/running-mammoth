@@ -49,7 +49,7 @@ const W = 1920, H = 1080;
 const clampN = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
 
 
-import { fitBubble } from './bubble.js';
+import { fitBubble, BUBBLE } from './bubble.js';
 
 export class Tutorial {
   /**
@@ -177,7 +177,12 @@ export class Tutorial {
           const gp = (g.gapsThisPhase || [])[0];
           if (!gp) return null;
           const cx = (gp.x0 + gp.x1) / 2 - g.worldX;
-          return { x: cx, y: 900, r: Math.max(185, (gp.x1 - gp.x0) * 0.62), world: true };
+          /* THE HOLE ITSELF, not a halo round it. The old spot was a 185px circle, so the
+             bubble's tail stopped 100px above the ice with the hole nowhere near it (asked:
+             the dialogue must point at the ditch). The hole's visible top is the ice surface
+             (~845 stage px); an oval 62 tall about y 900 puts that edge where the tail tip
+             lands, over the middle of the gap. */
+          return { x: cx, y: 900, rx: Math.max(150, (gp.x1 - gp.x0) * 0.62), ry: 62, world: true };
         },
         text: 'Oh no! The path is broken.',
         focus: 'gap',
@@ -247,8 +252,11 @@ export class Tutorial {
        blocks, so the bubble lands beneath them, over open ice; the hand still aims at the
        rope itself (handY), which is where the swipe has to happen. */
     const bottom = mid.y + (mid.h || 200) / 2 + 12;
+    /* aimX is the BLOCK's centre: the zone keeps the bubble off the ropes and blocks, the
+       tail points at the piece the sentence means (asked: it must point at the right option,
+       not at the air beside it). */
     return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y: (60 + bottom) / 2, rx: 150, ry: (bottom - 60) / 2,
-             handY: ropeY, world: true };
+             aimX: mid.x, handY: ropeY, world: true };
   }
 
   /** A box around every hanging block, in stage coordinates. */
@@ -507,6 +515,7 @@ export class Tutorial {
     };
     // both axes scale, or an oval stops matching the row it hugs
     if (box.r !== undefined) out.r = box.r * k;
+    if (box.aimX !== undefined) out.aimX = fx + (box.aimX - fx) * k;
     if (box.rx !== undefined) out.rx = box.rx * k;
     if (box.ry !== undefined) out.ry = box.ry * k;
     return out;
@@ -753,15 +762,27 @@ export class Tutorial {
       if (st && b && !b.hidden && (fresh || !this._boxH || this._sizeKey !== sizeKey)) {
         this._sizeKey = sizeKey;
         this.hugWords(b);
-        const r = b.getBoundingClientRect();
-        // back into stage units, so one number works at every viewport size
-        if (r.height && st.clientHeight) this._boxH = r.height / st.clientHeight * H;
-        if (r.width && st.clientWidth) this._boxW = r.width / st.clientWidth * W;
+      }
+      /* MEASURED WHENEVER THE BOX CHANGES SIZE, from layout (offsetWidth/Height ignore the
+         pop-in transform), back into stage units. Measured once per sentence it went stale:
+         the words re-wrapped a frame after the hug, the box grew from 449 to 502 stage px, and
+         the edge clamp — still working off 449 — let "piece to fix the path." run 44px off the
+         right of the stage on the rightmost block. */
+      if (st && b && !b.hidden && (fresh || !this._boxH || b.offsetWidth !== this._measW || b.offsetHeight !== this._measH)) {
+        this._measW = b.offsetWidth; this._measH = b.offsetHeight;
+        if (b.offsetHeight && st.clientHeight) this._boxH = b.offsetHeight / st.clientHeight * H;
+        if (b.offsetWidth && st.clientWidth) this._boxW = b.offsetWidth / st.clientWidth * W;
       }
       const HALF = (this._boxH || 200) / 2;
       /* Room for the tail plus clear air. The tail is ~30 stage px, and a panel that
          merely touches the subject still reads as resting on it. */
-      const GAP = 54;
+      /* THE TIP TOUCHES THE SUBJECT. The gap between the body and the subject IS the tail's
+         length (bubble.js: 17% of the body height, 56..110 CSS px, converted to stage units),
+         plus 6px of air — so the tip lands on the subject's edge instead of the body sitting
+         a fixed 54px away with the tail poking into a halo that is not the thing. */
+      const stageK = st && st.clientHeight ? H / st.clientHeight : 1;
+      const tailCss = clampN((b.offsetHeight || 120) * BUBBLE.tailLen, BUBBLE.tailLenMin, BUBBLE.tailLenMax);
+      const GAP = tailCss * stageK + 6;
       const upY = box.y - ry - GAP - HALF;      // bottom edge clears the subject top
       const dnY = box.y + ry + GAP + HALF;      // top edge clears the subject bottom
       const upFits = upY - HALF > 0;
@@ -802,8 +823,16 @@ export class Tutorial {
          clamp moved the box. Rebuilt only when the box or the aim changes: fitBubble
          reads the box's layout, which is not something to do sixty times a second. */
       const boxW = this._boxW || 420;
-      const at = clampN(0.5 + (box.x - bx) / boxW, 0.14, 0.86);
-      const lean = box.x < bx ? -1 : 1;
+      /* THE TIP, NOT THE BASE, LANDS ON THE AIM. bubble.js sweeps the tail so its tip sits
+         0.62 of the tail's base width to the leaning side of where it leaves the body — up
+         to 93px. Aiming the BASE at the subject (as this did) put the tip 93px beside it:
+         the ditch line pointed at the ice next to the hole, the option line at the air
+         beside the block. So the base is set back by that sweep, and the tip lands on the
+         aim; the lean runs from the body's centre outward so the base stays inside it. */
+      const aimX = box.aimX !== undefined ? box.aimX : box.x;
+      const lean = aimX >= bx ? 1 : -1;
+      const tipFrac = Math.min(BUBBLE.tailBaseMax / (b.offsetWidth || 400), BUBBLE.tailBase) * 0.62;
+      const at = clampN(0.5 + (aimX - bx) / boxW - lean * tipFrac, 0.14, 0.86);
       const key = [above ? 'a' : 'b', at.toFixed(2), lean, text, b.offsetWidth, b.offsetHeight].join('|');
       if (this._bubbleKey !== key && this.el.shape) {
         this._bubbleKey = key;

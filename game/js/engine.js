@@ -207,7 +207,12 @@ export const CFG = {
     tremorFps: 16.67, lookFps: 9,
     /* The delivered idle is authored at 60ms a frame like the rest, so 16.67fps plays
        it at the speed it was drawn for — 36 frames is a 2.16s breathing loop. */
-    idleFps: 16.67,
+    /* THE IDLE IS TWELVE POSES NOW (the owner's sheet: blink, trunk sway, weight shift), not a
+       36-frame GIF. Twelve at 16.67 would loop in 0.7 s and jitter; at 7 fps the loop is 1.7 s,
+       each blink holds a readable 143 ms, and consecutive frames are CROSSFADED in draw (the
+       next pose drawn over the current at the step's fraction), so small motions — a blink, a
+       trunk drift — glide instead of stepping. The procedural breath still rides on top. */
+    idleFps: 7, idleBlend: true,
     /* THE TRAMPLE at the edge is authored at 70ms a frame: 14.3fps plays it as drawn. The
        stomp — his raised front comes down 30px in three frames — lands on frame 20, read
        off the built sheet (the body's top row: 70 at frames 14-16, 86 at 19, 100 at 21). */
@@ -322,7 +327,7 @@ export const CFG = {
       /* Straight from tools/slice-char.mjs — the sheets are built to these counts, so
          the two move together. The run is 20 because the source art had 20 and the
          cycle is distance-driven, so it is simply smoother; nothing else changes. */
-      frames: { run: 36, jump: 10, skid: 36, hurt: 36, idle: 36, tremble: 12 },
+      frames: { run: 36, jump: 10, skid: 36, hurt: 36, idle: 12, tremble: 12 },
       /* The same seven sheets at 1.5x, listed in full rather than derived from the paths
          above so the asset tests see and fetch them (a built string is invisible to the
          scanner). Loaded instead of `sheets` when CFG.sprite.hd applies; see there. */
@@ -3147,6 +3152,16 @@ class PlayerController {
       }
     }
 
+    /* THE IDLE CROSSFADE (see CFG.sprite.idleBlend): the next pose is drawn over the current one
+       at the fraction of the step already spent, so twelve poses read as continuous motion.
+       Same cell, same anchor, same scale — only a second blit with a second alpha. */
+    let blendF = -1, blendU = 0;
+    if (SP.idleBlend && sheet === this.idleSheet && F.idle > 1) {
+      const p = this.t * SP.idleFps, frac = p - Math.floor(p);
+      /* Hold the pose for 60% of the step, then dissolve into the next over the last 40%
+         (~57 ms): a full-step dissolve left a doubled tusk on screen most of the time. */
+      blendU = Math.max(0, (frac - 0.6) / 0.4); blendF = (f + 1) % F.idle;
+    }
     this.lastFrame = f;
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
@@ -3193,6 +3208,11 @@ class PlayerController {
     if (sheet) {
       ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
                     -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+      if (blendF >= 0 && blendU > 0.01) {
+        ctx.globalAlpha *= blendU;
+        ctx.drawImage(sheet, (blendF % COLS) * CW, Math.floor(blendF / COLS) * CH, CW, CH,
+                      -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+      }
     }
     ctx.restore();
   }
@@ -7419,13 +7439,16 @@ export function createGame(canvas, hooks = {}) {
       ctx.lineCap = 'butt';
       ctx.setLineDash(DASH);
       ctx.lineDashOffset = march;
-      ctx.shadowColor = 'rgba(255,196,60,0.95)';
-      ctx.shadowBlur = 12;
-      ctx.strokeStyle = '#FFD24A'; ctx.lineWidth = 4;
+      /* WHITE, GLOWING (asked for, replacing the gold): a white core inside a cool white
+         halo. Against the pale sky the halo's blue tint is what keeps it visible; against
+         the dark rock the white core is. */
+      ctx.shadowColor = 'rgba(210,240,255,1)';
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.moveTo(-half, 0); ctx.lineTo(half, 0); ctx.stroke();
       // a second pass with no blur so the dash itself stays crisp inside its glow
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#FFE58A'; ctx.lineWidth = 2;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(-half, 0); ctx.lineTo(half, 0); ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();

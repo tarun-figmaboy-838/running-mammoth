@@ -39,17 +39,17 @@ const ASSET_V = {
   "assets/char/duo-celebrate.webp": "78df9a33",
   "assets/char/hd/bear.webp": "d257b5b8",
   "assets/char/hd/mammoth-hurt.webp": "c32cf9bc",
-  "assets/char/hd/mammoth-idle.webp": "10ebb07e",
+  "assets/char/hd/mammoth-idle.webp": "db0e5422",
   "assets/char/hd/mammoth-jump.webp": "9b67b6a2",
   "assets/char/hd/mammoth-run.webp": "97f41757",
   "assets/char/hd/mammoth-skid.webp": "820a18a1",
-  "assets/char/hd/mammoth-tremble.webp": "62c06f19",
+  "assets/char/hd/mammoth-tremble.webp": "889e9461",
   "assets/char/mammoth-hurt.webp": "8a886c8e",
-  "assets/char/mammoth-idle.webp": "3b2a53cc",
+  "assets/char/mammoth-idle.webp": "f1bbf762",
   "assets/char/mammoth-jump.webp": "6b17e847",
   "assets/char/mammoth-run.webp": "d3ab6c72",
   "assets/char/mammoth-skid.webp": "ee6c20a7",
-  "assets/char/mammoth-tremble.webp": "41dbabd8",
+  "assets/char/mammoth-tremble.webp": "2f1852f5",
   "assets/env/cap-l.webp": "500443c3",
   "assets/env/cap-r.webp": "2f0a5554",
   "assets/env/obs-bone-arch.webp": "6b0db5b5",
@@ -1073,7 +1073,12 @@ const CFG = {
     tremorFps: 16.67, lookFps: 9,
     /* The delivered idle is authored at 60ms a frame like the rest, so 16.67fps plays
        it at the speed it was drawn for — 36 frames is a 2.16s breathing loop. */
-    idleFps: 16.67,
+    /* THE IDLE IS TWELVE POSES NOW (the owner's sheet: blink, trunk sway, weight shift), not a
+       36-frame GIF. Twelve at 16.67 would loop in 0.7 s and jitter; at 7 fps the loop is 1.7 s,
+       each blink holds a readable 143 ms, and consecutive frames are CROSSFADED in draw (the
+       next pose drawn over the current at the step's fraction), so small motions — a blink, a
+       trunk drift — glide instead of stepping. The procedural breath still rides on top. */
+    idleFps: 7, idleBlend: true,
     /* THE TRAMPLE at the edge is authored at 70ms a frame: 14.3fps plays it as drawn. The
        stomp — his raised front comes down 30px in three frames — lands on frame 20, read
        off the built sheet (the body's top row: 70 at frames 14-16, 86 at 19, 100 at 21). */
@@ -1188,7 +1193,7 @@ const CFG = {
       /* Straight from tools/slice-char.mjs — the sheets are built to these counts, so
          the two move together. The run is 20 because the source art had 20 and the
          cycle is distance-driven, so it is simply smoother; nothing else changes. */
-      frames: { run: 36, jump: 10, skid: 36, hurt: 36, idle: 36, tremble: 12 },
+      frames: { run: 36, jump: 10, skid: 36, hurt: 36, idle: 12, tremble: 12 },
       /* The same seven sheets at 1.5x, listed in full rather than derived from the paths
          above so the asset tests see and fetch them (a built string is invisible to the
          scanner). Loaded instead of `sheets` when CFG.sprite.hd applies; see there. */
@@ -4013,6 +4018,16 @@ class PlayerController {
       }
     }
 
+    /* THE IDLE CROSSFADE (see CFG.sprite.idleBlend): the next pose is drawn over the current one
+       at the fraction of the step already spent, so twelve poses read as continuous motion.
+       Same cell, same anchor, same scale — only a second blit with a second alpha. */
+    let blendF = -1, blendU = 0;
+    if (SP.idleBlend && sheet === this.idleSheet && F.idle > 1) {
+      const p = this.t * SP.idleFps, frac = p - Math.floor(p);
+      /* Hold the pose for 60% of the step, then dissolve into the next over the last 40%
+         (~57 ms): a full-step dissolve left a doubled tusk on screen most of the time. */
+      blendU = Math.max(0, (frac - 0.6) / 0.4); blendF = (f + 1) % F.idle;
+    }
     this.lastFrame = f;
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
@@ -4059,6 +4074,11 @@ class PlayerController {
     if (sheet) {
       ctx.drawImage(sheet, (f % COLS) * CW, Math.floor(f / COLS) * CH, CW, CH,
                     -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+      if (blendF >= 0 && blendU > 0.01) {
+        ctx.globalAlpha *= blendU;
+        ctx.drawImage(sheet, (blendF % COLS) * CW, Math.floor(blendF / COLS) * CH, CW, CH,
+                      -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+      }
     }
     ctx.restore();
   }
@@ -8285,13 +8305,16 @@ function createGame(canvas, hooks = {}) {
       ctx.lineCap = 'butt';
       ctx.setLineDash(DASH);
       ctx.lineDashOffset = march;
-      ctx.shadowColor = 'rgba(255,196,60,0.95)';
-      ctx.shadowBlur = 12;
-      ctx.strokeStyle = '#FFD24A'; ctx.lineWidth = 4;
+      /* WHITE, GLOWING (asked for, replacing the gold): a white core inside a cool white
+         halo. Against the pale sky the halo's blue tint is what keeps it visible; against
+         the dark rock the white core is. */
+      ctx.shadowColor = 'rgba(210,240,255,1)';
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.moveTo(-half, 0); ctx.lineTo(half, 0); ctx.stroke();
       // a second pass with no blur so the dash itself stays crisp inside its glow
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#FFE58A'; ctx.lineWidth = 2;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(-half, 0); ctx.lineTo(half, 0); ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
@@ -9794,7 +9817,12 @@ class Tutorial {
           const gp = (g.gapsThisPhase || [])[0];
           if (!gp) return null;
           const cx = (gp.x0 + gp.x1) / 2 - g.worldX;
-          return { x: cx, y: 900, r: Math.max(185, (gp.x1 - gp.x0) * 0.62), world: true };
+          /* THE HOLE ITSELF, not a halo round it. The old spot was a 185px circle, so the
+             bubble's tail stopped 100px above the ice with the hole nowhere near it (asked:
+             the dialogue must point at the ditch). The hole's visible top is the ice surface
+             (~845 stage px); an oval 62 tall about y 900 puts that edge where the tail tip
+             lands, over the middle of the gap. */
+          return { x: cx, y: 900, rx: Math.max(150, (gp.x1 - gp.x0) * 0.62), ry: 62, world: true };
         },
         text: 'Oh no! The path is broken.',
         focus: 'gap',
@@ -9864,8 +9892,11 @@ class Tutorial {
        blocks, so the bubble lands beneath them, over open ice; the hand still aims at the
        rope itself (handY), which is where the swipe has to happen. */
     const bottom = mid.y + (mid.h || 200) / 2 + 12;
+    /* aimX is the BLOCK's centre: the zone keeps the bubble off the ropes and blocks, the
+       tail points at the piece the sentence means (asked: it must point at the right option,
+       not at the air beside it). */
     return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y: (60 + bottom) / 2, rx: 150, ry: (bottom - 60) / 2,
-             handY: ropeY, world: true };
+             aimX: mid.x, handY: ropeY, world: true };
   }
 
   /** A box around every hanging block, in stage coordinates. */
@@ -10124,6 +10155,7 @@ class Tutorial {
     };
     // both axes scale, or an oval stops matching the row it hugs
     if (box.r !== undefined) out.r = box.r * k;
+    if (box.aimX !== undefined) out.aimX = fx + (box.aimX - fx) * k;
     if (box.rx !== undefined) out.rx = box.rx * k;
     if (box.ry !== undefined) out.ry = box.ry * k;
     return out;
@@ -10370,15 +10402,27 @@ class Tutorial {
       if (st && b && !b.hidden && (fresh || !this._boxH || this._sizeKey !== sizeKey)) {
         this._sizeKey = sizeKey;
         this.hugWords(b);
-        const r = b.getBoundingClientRect();
-        // back into stage units, so one number works at every viewport size
-        if (r.height && st.clientHeight) this._boxH = r.height / st.clientHeight * H;
-        if (r.width && st.clientWidth) this._boxW = r.width / st.clientWidth * W;
+      }
+      /* MEASURED WHENEVER THE BOX CHANGES SIZE, from layout (offsetWidth/Height ignore the
+         pop-in transform), back into stage units. Measured once per sentence it went stale:
+         the words re-wrapped a frame after the hug, the box grew from 449 to 502 stage px, and
+         the edge clamp — still working off 449 — let "piece to fix the path." run 44px off the
+         right of the stage on the rightmost block. */
+      if (st && b && !b.hidden && (fresh || !this._boxH || b.offsetWidth !== this._measW || b.offsetHeight !== this._measH)) {
+        this._measW = b.offsetWidth; this._measH = b.offsetHeight;
+        if (b.offsetHeight && st.clientHeight) this._boxH = b.offsetHeight / st.clientHeight * H;
+        if (b.offsetWidth && st.clientWidth) this._boxW = b.offsetWidth / st.clientWidth * W;
       }
       const HALF = (this._boxH || 200) / 2;
       /* Room for the tail plus clear air. The tail is ~30 stage px, and a panel that
          merely touches the subject still reads as resting on it. */
-      const GAP = 54;
+      /* THE TIP TOUCHES THE SUBJECT. The gap between the body and the subject IS the tail's
+         length (bubble.js: 17% of the body height, 56..110 CSS px, converted to stage units),
+         plus 6px of air — so the tip lands on the subject's edge instead of the body sitting
+         a fixed 54px away with the tail poking into a halo that is not the thing. */
+      const stageK = st && st.clientHeight ? H / st.clientHeight : 1;
+      const tailCss = clampN((b.offsetHeight || 120) * BUBBLE.tailLen, BUBBLE.tailLenMin, BUBBLE.tailLenMax);
+      const GAP = tailCss * stageK + 6;
       const upY = box.y - ry - GAP - HALF;      // bottom edge clears the subject top
       const dnY = box.y + ry + GAP + HALF;      // top edge clears the subject bottom
       const upFits = upY - HALF > 0;
@@ -10419,8 +10463,16 @@ class Tutorial {
          clamp moved the box. Rebuilt only when the box or the aim changes: fitBubble
          reads the box's layout, which is not something to do sixty times a second. */
       const boxW = this._boxW || 420;
-      const at = clampN(0.5 + (box.x - bx) / boxW, 0.14, 0.86);
-      const lean = box.x < bx ? -1 : 1;
+      /* THE TIP, NOT THE BASE, LANDS ON THE AIM. bubble.js sweeps the tail so its tip sits
+         0.62 of the tail's base width to the leaning side of where it leaves the body — up
+         to 93px. Aiming the BASE at the subject (as this did) put the tip 93px beside it:
+         the ditch line pointed at the ice next to the hole, the option line at the air
+         beside the block. So the base is set back by that sweep, and the tip lands on the
+         aim; the lean runs from the body's centre outward so the base stays inside it. */
+      const aimX = box.aimX !== undefined ? box.aimX : box.x;
+      const lean = aimX >= bx ? 1 : -1;
+      const tipFrac = Math.min(BUBBLE.tailBaseMax / (b.offsetWidth || 400), BUBBLE.tailBase) * 0.62;
+      const at = clampN(0.5 + (aimX - bx) / boxW - lean * tipFrac, 0.14, 0.86);
       const key = [above ? 'a' : 'b', at.toFixed(2), lean, text, b.offsetWidth, b.offsetHeight].join('|');
       if (this._bubbleKey !== key && this.el.shape) {
         this._bubbleKey = key;

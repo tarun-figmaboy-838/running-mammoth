@@ -170,7 +170,11 @@ const SHEETS = [
      this pose for minutes". So for most of the runtime the character was a still
      image. 36 frames of breathing and a slight sway fix that with no gameplay
      change at all. */
-  { src: 'idle-new-gif.png',  slot: 'idle',  bob: false },
+  /* THE IDLE, redelivered as a 12-pose sheet (idle-src.png, 2026-09-07): blink, trunk sway,
+     weight shift. Built like the tremble, through tools/sheet-to-grid.mjs. The engine
+     crossfades consecutive frames at CFG.sprite.idleFps so twelve poses read as one
+     smooth breath. The 36-frame GIF take (idle-new-gif.png) is superseded. */
+  { src: 'idle-sheet.png', slot: 'idle', bob: false },
 ];
 
 const ALPHA = 40;          // a pixel counts as content above this

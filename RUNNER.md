@@ -992,9 +992,17 @@ measured by the slicer); its stamp hook is gone with it. Test: tests/tremble.spe
 
 Asked for: when he stops, the feet stop. They did not — LOOK_DOWN looped the trample, a stamp
 every 2.5 s for as long as the learner thought. Now the tremble ends on its settle and LOOK_DOWN
-plays the delivered idle (36 frames of breathing and a trunk sway on planted feet — the foot band
-was measured still between frames); without the idle the tremble's last frame is held under the
-procedural breath. Test: tremble.spec "waits on the idle with his feet still".
+plays the delivered idle; without the idle the tremble's last frame is held under the procedural
+breath. Test: tremble.spec "waits on the idle with his feet still".
+
+The idle is now the owner's 12-pose sheet (idle-src.png, 2026-09-07: blink, trunk sway, weight
+shift), built through tools/sheet-to-grid.mjs like the tremble, replacing the 36-frame GIF take.
+Twelve poses at the old 16.67 fps would loop in 0.7 s and jitter, so it runs at 7 fps (a 1.7 s
+loop, each blink a readable 143 ms) and consecutive poses are CROSSFADED in draw for the last 40%
+of each step (`CFG.sprite.idleBlend`): the next pose is drawn over the current at the step's
+fraction, same cell, same anchor, same scale — so a blink or a trunk drift glides instead of
+stepping, and the pose is clean for most of the step (a full-step dissolve doubled the tusks).
+The procedural breath rides on top. Feet stay planted (measured across the sheet).
 
 ### The comedy crash
 
@@ -1029,6 +1037,21 @@ broken." comes with the gap lit and the game frozen; the cut ask follows. The ga
 is therefore "stopped (PHASE_INTRO or later, never the skid) and no longer in SHAKE". Firing during
 the skid froze him mid-slide; firing during the tremble froze the performance. Test: tremble.spec
 "the last tutorial line ..." asserts LOOK_DOWN and a spent plan at the moment the line appears.
+
+### The bubbles point at the thing (tutorial)
+
+Asked for: the ditch line must point at the ditch and the option line at the right option, not at
+the air beside them. Two causes, both fixed in tutorial.js. (1) The tail's TIP is swept 0.62 of
+its base width to the leaning side (bubble.js), so aiming the base at the subject put the tip up
+to 93 px beside it — the base is now set back by that sweep and the tip lands on the aim
+(\`aimX\`, the block's centre for the option line). (2) The body sat a fixed 54 px from a spot that
+was a halo, not the thing: the gap spot is now the hole itself (an oval 62 tall about the ice
+surface) and the gap between body and subject IS the tail's length plus 6 px, so the tip touches
+the edge. The box is re-measured whenever its layout size changes, so the edge clamp never works
+off a stale width (the option line used to run 44 px off the right of the stage on the rightmost
+block). The cut-here dashes on the ropes are white with a cool white glow, on request (were gold).
+The tremble sheet is the owner's second delivery of 2026-09-07 (same 12-pose performance,
+tremble-src.png), built through the same pipeline; scale unchanged.
 
 ### The last tutorial line runs unblurred
 
