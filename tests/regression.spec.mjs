@@ -45,11 +45,19 @@ test.describe('the cut', () => {
       const r = document.getElementById('game-canvas').getBoundingClientRect();
       // halfway down the rope, above the chunk
       const midY = (sh.y - 120) / 2;
+      /* AIMED WHERE THE ROPE IS DRAWN, which is what a player does. The puzzle pushes the view
+         in about (zoomVX, zoomVY) by G.zoom, so the rope's world x is not its screen x — and
+         the engine now inverts that mapping for pointer input (it used to test the raw stage
+         point, up to 96px from the rope the finger was on). This aim goes through the same
+         forward map the renderer uses, so the test asks the question the player asks. */
+      const z = G.zoom || 1;
+      const sx = G.zoomVX + (sh.anchorX - G.zoomVX) * z;
+      const sy = G.zoomVY + (midY - G.zoomVY) * z;
       return {
         kind: want,
-        cssX: r.left + (sh.anchorX / 1920) * r.width,
-        cssY: r.top + (midY / 1080) * r.height,
-        span: (70 / 1920) * r.width
+        cssX: r.left + (sx / 1920) * r.width,
+        cssY: r.top + (sy / 1080) * r.height,
+        span: (70 / 1920) * r.width * z
       };
     });
 

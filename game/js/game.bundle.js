@@ -2613,7 +2613,13 @@ class AudioManager {
   /** Speak one line of CFG.vo. Returns its length in seconds, or 0 if nothing will be heard. */
   say(id) {
     const L = this.voLine(id);
-    if (!L || !this.enabled) return 0;
+    /* WHAT WAS SAID, AND WHETHER IT COULD BE HEARD. The log is how a test proves the whole
+       script is wired: every call is recorded with the reason it made no sound, if it did not. */
+    this.saidLog = this.saidLog || [];
+    if (!L) { this.saidLog.push(id + ':no-window'); return 0; }
+    if (!this.enabled) { this.saidLog.push(id + ':muted'); return 0; }
+    if (!this.vo && !this.voEl) { this.saidLog.push(id + ':not-loaded'); return 0; }
+    this.saidLog.push(id + (this.ctx && this.ctx.state !== 'running' ? ':ctx-' + this.ctx.state : ''));
     this.stopSay();
     const done = () => { this.saying = null; this.setDuck(1); };
     if (this.voEl) {
@@ -5187,6 +5193,7 @@ class GroundManager {
     g.globalCompositeOperation = 'source-over';
     const art = { canvas: c, w: c.width, h: H };
     this._wallCache[key] = art;
+    this._trimWalls();
     return art;
   }
   _wallArt(side, ww) {
@@ -5240,8 +5247,8 @@ class GroundManager {
     g.fillStyle = dk; g.fillRect(0, 0, c.width, H);
     g.globalCompositeOperation = 'source-over';
     const art = { canvas: c, w: c.width, h: H };
-    this._trimWalls();
     this._wallCache[key] = art;
+    this._trimWalls();
     return art;
   }
   /* No more than a dozen wall canvases at a time: past that the oldest keys are dropped. Each
@@ -5249,7 +5256,7 @@ class GroundManager {
      session. Insertion order is enough — a width that is no longer being drawn is the oldest. */
   _trimWalls() {
     const keys = Object.keys(this._wallCache);
-    for (let i = 0; i < keys.length - 11; i++) delete this._wallCache[keys[i]];
+    for (let i = 0; i < keys.length - 12; i++) delete this._wallCache[keys[i]];
   }
   _capArt(side) {
     const C = GroundManager.CAP;
@@ -9376,6 +9383,7 @@ function createGame(canvas, hooks = {}) {
     /** The voice's state, for the tests and the live check: is the take loaded, is a line
         playing, how long the last question was, and how many lines the table holds. */
     _voice: () => ({ ready: !!(audio.vo || audio.voEl), saying: !!audio.saying, dur: G.voDur || 0,
+                     ctx: audio.ctx ? audio.ctx.state : 'none', said: (audio.saidLog || []).slice(),
                      lines: Object.keys((CFG.vo && CFG.vo.lines) || {}).length }),
     /* For the responsiveness spec: is the voice ready, is a line playing, and how big have the
        pools and caches grown. Read-only. */
