@@ -1066,8 +1066,14 @@ while a tutorial line has the game frozen — so a spoken beat lasts exactly as 
 | beat | what is on stage | length |
 |---|---|---|
 | 0 | the hole alone (the tutorial's "Oh no! The path is broken." owns it) | `T.gapBeat` 900 ms |
-| 1 | the instruction sign slides in over the hole | `T.signBeat` 700 ms |
-| 2 | the options come down left to right, `T.dropStagger` 220 ms apart, a pop each | `shapeDrop` + stagger |
+| 1 | the ice comes down left to right, `T.dropStagger` 220 ms apart, a pop each | `shapeDrop` + stagger |
+| 2 | the plank asks the question, and the voice says it | `T.signBeat` 700 ms |
+
+THE QUESTION COMES LAST, on the owner's call. The sign used to arrive before the pieces, which
+asked a child which shape to cut while the row was still empty sky and made them hold the answer
+in mind through three drops. Asking once every piece is hanging means the question is about what
+is already on screen. The HUD holds the sign back until beat 2 and the spoken question waits with
+it; a tap still skips the reading, now straight to the ice coming down.
 
 The sign is held back by the HUD until beat 1 (its text is never blanked — `replayInstruction`
 reads it — only its visibility is gated). Each option carries its place in the row as `order`, and

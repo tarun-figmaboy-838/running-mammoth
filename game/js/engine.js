@@ -4882,7 +4882,7 @@ export function createGame(canvas, hooks = {}) {
        and the line still had the plank then. Measured over a whole playthrough, fifteen of the
        sixteen recorded lines were spoken and "Cut the TRIANGLE." was the one that was not.
        Checked every frame while a question is up, and said once per phase (G.saidQuestion). */
-    if (!G.signSay && G.stageBeat >= 1 &&
+    if (!G.signSay && G.stageBeat >= 2 &&
         ['PHASE_INTRO', 'PHASE_ACTIVE', 'PHASE_WRONG', 'PHASE_SUCCESS'].includes(G.state)) sayPhaseQuestion();
   }
 
@@ -4944,7 +4944,7 @@ export function createGame(canvas, hooks = {}) {
          blanked — replayInstruction reads it — only its visibility is gated, as everywhere else. */
       instruction: G.signSay || (((G.instrHold > 0 || (G.l1 && G.l1.unfilled && G.l1.unfilled.length > 0 &&
                     ['PHASE_INTRO', 'PHASE_ACTIVE', 'PHASE_WRONG', 'PHASE_SUCCESS'].includes(G.state)))
-                    && !(G.state === 'PHASE_INTRO' && G.stageBeat < 1)) ? G.instruction : ''),
+                    && !(G.state === 'PHASE_INTRO' && G.stageBeat < 2)) ? G.instruction : ''),
       /* A tutorial line is a SENTENCE, not a question: it is too long for the plank's left band,
          so the HUD widens and centres the plank for it (see .instruction.banner). */
       signBanner: !!G.signSay,
@@ -6524,8 +6524,8 @@ export function createGame(canvas, hooks = {}) {
       G.st = T.breakSkid - 1;         // one step short, so the final frame still runs
       return true;
     }
-    if (G.state === 'PHASE_INTRO' && !G.dropReady && G.introT < T.gapBeat + T.signBeat) {
-      G.introT = T.gapBeat + T.signBeat;      // straight to the options coming down
+    if (G.state === 'PHASE_INTRO' && !G.dropReady && G.introT < T.gapBeat) {
+      G.introT = T.gapBeat;                   // straight to the ice coming down
       return true;
     }
     return false;
@@ -6989,21 +6989,37 @@ export function createGame(canvas, hooks = {}) {
            sentence cannot vanish before introRead is up — the two used to be set
            independently and a short instructionHold blanked the panel while the stage
            was still supposed to be its own. */
-        /* BEAT 0 — THE HOLE, ALONE. The clock does not run while the tremble is still playing
-           (the performance first), and a frozen tutorial line stops it too, so "Oh no! The path
-           is broken." owns this beat for exactly as long as it is read.
-           BEAT 1 — THE SIGN, alone over the hole.
-           BEAT 2 — THE OPTIONS come down, one after another (dropStagger), each with its pop. */
+        /* THE ORDER OF THE CROSSING, and it is the owner's:
+         *
+         *   BEAT 0 — THE HOLE, ALONE. The clock does not run while the tremble is still playing
+         *            (the performance first), and a frozen tutorial line stops it too, so "Oh no!
+         *            The path is broken." owns this beat for exactly as long as it is read.
+         *   BEAT 1 — THE ICE ARRIVES, one piece at a time (dropStagger), each with its own pop.
+         *   BEAT 2 — THE QUESTION, once every piece is hanging: the plank slides in with "Cut the
+         *            HEXAGON." and the voice says it.
+         *
+         * The sign used to come BEFORE the pieces, which asked a question about things that were
+         * not on screen yet — a child was told which shape to cut while the row was still empty
+         * sky, and then had to hold that in mind through three drops. Asking last means the
+         * question is about what is already hanging there. */
         if (mammoth.state !== 'SHAKE') G.introT += dt * 1000;
-        if (G.stageBeat < 1 && G.introT > T.gapBeat) { G.stageBeat = 1; audio.pop(); }
+        if (!G.dropReady && G.introT > T.gapBeat) {
+          G.stageBeat = 1;
+          G.dropReady = true;
+          audio.pop();
+        }
         /* THE QUESTION IS SPOKEN WHEN IT IS SHOWN, not when the plank arrives. In the tutorial the
            plank carries the teaching line first (api.saySign), so the question — and its voice —
            wait for that line to finish. Everywhere else G.signSay is empty and this fires on the
            plank's own beat. */
 
-        if (!G.dropReady && G.introT > T.gapBeat + T.signBeat) {
+        /* WHEN THE LAST PIECE HAS LANDED, THE QUESTION COMES. The wait grows with the row: each
+           piece starts dropStagger behind the one before it, so the beat is the drop plus the
+           whole stagger. */
+        const nOpt = (G.l1 && G.l1.shapes && G.l1.shapes.length) || 3;
+        const allDown = T.gapBeat + T.shapeDrop + (nOpt - 1) * T.dropStagger;
+        if (G.stageBeat < 2 && G.introT > allDown) {
           G.stageBeat = 2;
-          G.dropReady = true;
           /* Send the BANNER away, not the instruction. The panel's visibility is
              gated on instrHold, and replayInstruction() reads G.instruction — so
              clearing the text made the hint button silently do nothing for the whole
@@ -7011,13 +7027,8 @@ export function createGame(canvas, hooks = {}) {
              panel safe. */
           G.instrHold = 0;
         }
-        /* The last option has to have landed, so the wait grows with the row: each one starts
-           dropStagger behind the one before it. */
-        if (G.dropReady) {
-          const nOpt = (G.l1 && G.l1.shapes && G.l1.shapes.length) || 3;
-          const allDown = T.gapBeat + T.signBeat + T.shapeDrop + (nOpt - 1) * T.dropStagger + 160;
-          if (G.introT > allDown) setState('PHASE_ACTIVE');
-        }
+        // and the phase is playable a beat after the question is up
+        if (G.stageBeat >= 2 && G.introT > allDown + T.signBeat) setState('PHASE_ACTIVE');
         break;
 
       case 'PHASE_WRONG': {

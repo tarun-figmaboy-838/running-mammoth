@@ -28,6 +28,8 @@ test.describe('the staged intro, the sign and the script', () => {
       }
       return seen;
     });
+    /* THE PIECES COME DOWN BEFORE THE QUESTION (the owner's order): the hole alone, then the ice
+       arriving one piece at a time, and only then the plank asking which to cut. */
     // beat 0: no sign, nothing on a rope — the hole has the stage
     const beat0 = trail.filter(s => s.beat === 0);
     expect(beat0.length, 'the hole owns a beat of its own').toBeGreaterThan(0);
@@ -35,15 +37,17 @@ test.describe('the staged intro, the sign and the script', () => {
     expect(beat0.every(s => s.ys.every(y => y < 0)), 'no option has started down yet').toBe(true);
     // the clock does not run while the tremble is still playing
     expect(trail.filter(s => s.anim === 'SHAKE').every(s => s.introT === 0), 'the beats wait for the tremble').toBe(true);
-    // beat 1: the sign, still nothing dropping
+    // beat 1: they come down ONE AT A TIME — at some frame the first is well below the last
     const beat1 = trail.filter(s => s.beat === 1);
-    expect(beat1.length, 'the sign gets a beat of its own').toBeGreaterThan(0);
-    expect(beat1.some(s => s.sign), 'the sign is up on its beat').toBe(true);
-    expect(beat1.every(s => s.ys.every(y => y < 0)), 'the options still wait').toBe(true);
-    // beat 2: they come down ONE AT A TIME — at some frame the first is well below the last
-    const staggered = trail.some(s => s.beat === 2 && s.ys.length >= 2 &&
-                                      s.ys[0] - s.ys[s.ys.length - 1] > 120);
+    expect(beat1.length, 'the drop gets a beat of its own').toBeGreaterThan(0);
+    const staggered = beat1.some(s => s.ys.length >= 2 && s.ys[0] - s.ys[s.ys.length - 1] > 120);
     expect(staggered, 'the row arrives one after another, not as a block').toBe(true);
+    expect(beat1.every(s => !s.sign), 'and no question is asked while they are still falling').toBe(true);
+    // beat 2: every piece is hanging, and NOW the question
+    const beat2 = trail.filter(s => s.beat === 2);
+    expect(beat2.length, 'the question gets a beat of its own').toBeGreaterThan(0);
+    expect(beat2.some(s => s.sign), 'the question is up on its beat').toBe(true);
+    expect(beat2[0].ys.every(y => y > 300), 'and it waited for the last piece to land').toBe(true);
     expect(trail[trail.length - 1].state).toBe('PHASE_ACTIVE');
   });
 
