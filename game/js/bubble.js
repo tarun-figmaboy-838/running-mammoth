@@ -52,11 +52,14 @@ export function bubblePath(w, h, tail) {
           `V${f(y1 - r)} A${f(r)} ${f(r)} 0 0 1 ${f(x1 - r)} ${f(y1)} `;
   let tailLen = 0;
   if (tail) {
-    const bw = Math.min(BUBBLE.tailBaseMax, w * BUBBLE.tailBase);
-    const lean = tail.lean < 0 ? -1 : 1;
-    const cx = lim((tail.at === undefined ? 0.5 : tail.at) * w, r + bw / 2 + 6, w - r - bw / 2 - 6);
     const L = tail.len || lim(h * BUBBLE.tailLen, BUBBLE.tailLenMin, BUBBLE.tailLenMax);
     tailLen = L;
+    /* NEVER WIDER THAN IT IS LONG. The base is a share of the BODY's width, and a wide box on a
+       short stage (a one-line sentence on a phone) took the 150px cap — a 150-wide, 155-long
+       wedge, which reads as a shard of ice broken off the bubble rather than as a tail. */
+    const bw = Math.min(BUBBLE.tailBaseMax, w * BUBBLE.tailBase, L * 0.8);
+    const lean = tail.lean < 0 ? -1 : 1;
+    const cx = lim((tail.at === undefined ? 0.5 : tail.at) * w, r + bw / 2 + 6, w - r - bw / 2 - 6);
     const b0 = cx - bw / 2, b1 = cx + bw / 2;          // where the tail leaves the body
     const tipX = cx + lean * bw * 0.62, tipY = y1 + L;   // the tip, off to the leaning side
     /* Two curves, as in the asset: the outer edge sweeps from the far base corner down to

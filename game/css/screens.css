@@ -499,6 +499,10 @@
      piece to fix the path." on one line, short enough to sit above the rope with only sky
      behind it. hugWords still shrinks the box to its words, so shorter lines do not grow. */
   max-width: min(66%, 1120px);
+  /* A PHONE HAS NO SKY ABOVE THE ROPES — the box goes below the pieces there (see ropeBox's
+     belowY) — and a one-line box that wide would span most of the stage with a tail to match.
+     Narrower on a phone, so it wraps to two lines and sits neatly under the row. */
+  @media (max-width: 1200px) { max-width: 48%; }
   padding: clamp(15px, 1.6vw, 30px) clamp(21px, 2.2vw, 41px);
   text-align: center;
   rotate: -1.1deg;

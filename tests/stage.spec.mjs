@@ -89,15 +89,19 @@ test.describe('the staged intro, the sign and the script', () => {
       const w = document.querySelector('#tut-text .w');
       const pow = document.querySelector('#tut-text .pow');
       return { fill: cs.fill, stroke: cs.stroke, ink: tx.color, BUBBLE: { fill: m.BUBBLE.fill, ink: m.BUBBLE.ink },
-               wordAnim: w ? getComputedStyle(w).animationName : null, powColor: pow ? getComputedStyle(pow).color : null };
+               wordAnim: w ? getComputedStyle(w).animationName : null,
+               powColor: pow ? getComputedStyle(pow).color : null,
+               powBg: pow ? getComputedStyle(pow).backgroundImage : null };
     });
-    // the frost body and the deep-ice keyline of the game's own palette, not the old yolk yellow
-    expect(HEX(r.BUBBLE.fill)).toBe('#eaf9ff');
-    expect(HEX(r.BUBBLE.ink)).toBe('#14507a');
-    expect(r.fill, 'the drawn shape matches BUBBLE').toBe('rgb(234, 249, 255)');
-    expect(r.stroke).toBe('rgb(20, 80, 122)');
+    // white inside with a bright icy-blue keyline, the owner's call after frost-and-navy
+    expect(HEX(r.BUBBLE.fill)).toBe('#ffffff');
+    expect(HEX(r.BUBBLE.ink)).toBe('#3fb3e8');
+    expect(r.fill, 'the drawn shape matches BUBBLE').toBe('rgb(255, 255, 255)');
+    expect(r.stroke).toBe('rgb(63, 179, 232)');
     expect(r.ink, 'navy ink').toBe('rgb(12, 51, 82)');
-    expect(r.powColor, "the key word is Momo's amber").toBe('rgb(196, 99, 27)');
+    // the key word is picked out by colour alone: icy blue, no highlighter card behind it
+    expect(r.powColor, 'the key word is icy blue').toBe('rgb(27, 144, 212)');
+    expect(r.powBg, 'no card behind the key word').toBe('none');
     expect(r.wordAnim, 'the words ease in').toBe('tutWordIn');
   });
 

@@ -127,7 +127,10 @@ test.describe('ui', () => {
     await boot(page);
     await force(page, 'GLACIER_BREAK_1');
     await waitState(page, ['PHASE_INTRO', 'PHASE_ACTIVE'], 30_000);
-    await expect(page.locator('#instruction')).toBeVisible();
+    /* THE SIGN ARRIVES ON ITS BEAT, not with the state. PHASE_INTRO shows the hole first and
+       holds its clock while the tremble plays, so the sentence comes a beat later (see the
+       staged intro in engine.js) — several seconds of wall time on a loaded runner. */
+    await expect(page.locator('#instruction')).toBeVisible({ timeout: 30_000 });
 
     // the sentence is the phase's own, in full
     const want = await page.evaluate(async () => {
@@ -164,7 +167,10 @@ test.describe('ui', () => {
     await boot(page, { fast: 2 });
     await force(page, 'GLACIER_BREAK_1');
     await waitState(page, ['PHASE_INTRO', 'PHASE_ACTIVE'], 30_000);
-    await expect(page.locator('#instruction')).toBeVisible();
+    /* THE SIGN ARRIVES ON ITS BEAT, not with the state. PHASE_INTRO shows the hole first and
+       holds its clock while the tremble plays, so the sentence comes a beat later (see the
+       staged intro in engine.js) — several seconds of wall time on a loaded runner. */
+    await expect(page.locator('#instruction')).toBeVisible({ timeout: 30_000 });
     expect(await page.evaluate(() => window.iceAgeGame.debug().instruction)).not.toBe('');
     await waitState(page, 'PHASE_ACTIVE', 30_000);
     await page.waitForFunction(() => {
