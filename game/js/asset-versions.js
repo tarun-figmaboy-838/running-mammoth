@@ -17,6 +17,7 @@ export const ASSET_V = {
   "assets/audio/themediaguy-earthquake-rumble-amp-cracking-379298.mp3": "cdff169c",
   "assets/audio/universfield-ground-impact-352053.mp3": "ab5b58dc",
   "assets/audio/universfield-sad-trumpet-278822.mp3": "318bbc84",
+  "assets/audio/vo-lines.mp3": "5339eef9",
   "assets/char/bear.webp": "ac7771ee",
   "assets/char/duo-celebrate.webp": "78df9a33",
   "assets/char/hd/bear.webp": "d257b5b8",

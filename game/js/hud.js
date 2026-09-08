@@ -133,12 +133,17 @@ export class Hud {
     const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
     el.textContent = '';
     let n = 0;
+    /* IN STEP WITH THE VOICE, like the dialogue: when the question is spoken the reveal is
+       spread across the clip. The engine hands the seconds over in the HUD state. */
+    const words = (message || '').trim().split(/\s+/).filter(Boolean).length || 1;
+    const step = this._voDur > 0 ? Math.min(0.26, Math.max(0.07, (this._voDur * 0.8) / words)) : 0.07;
     const word = (text, cls, space) => {
       if (!text) return;
       if (space && el.childNodes.length) el.appendChild(document.createTextNode(' '));
       const s = document.createElement('span');
       s.className = cls;
       s.style.setProperty('--i', n++);
+      s.style.setProperty('--wd', step.toFixed(3) + 's');
       s.textContent = text;
       el.appendChild(s);
     };
@@ -288,6 +293,9 @@ export class Hud {
      * The entrance animation is still only restarted for a genuinely NEW line, so a
      * re-assert does not make the pill flash. */
     const el = this.el.instruction;
+    this._voDur = h.voDur || 0;          // paces the word reveal, see setInstruction
+    // a tutorial sentence is a wide banner; a question sits in its left band (see the CSS)
+    if (el) el.classList.toggle('banner', !!h.signBanner);
     const outOfSync = message && (el.hidden || el.classList.contains('leaving'));
     if (message !== this.lastMessage || outOfSync) {
       const isNewLine = message !== this.lastMessage;

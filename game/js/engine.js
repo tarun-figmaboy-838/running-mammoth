@@ -772,6 +772,36 @@ export const CFG = {
      `bow` is the bend's amplitude in stage px, per rope, swaying at swayHz. */
   rope: { src: 'assets/env/rope-tied.webp', artW: 96, cordW: 35, cord: [96, 1216], seg: 280,
           knot: [1222, 1303], fray: [1262, 1303], bow: 7, swayHz: 0.35 },
+  /* THE VOICE-OVER. The owner recorded every line the learner is shown as ONE take (39 s), in
+     the order of docs/VO-SCRIPT.md. One file is one download and one decode, so instead of
+     sixteen files this names a WINDOW per line: [start, length] in seconds, measured off the
+     recording's own energy envelope (the gaps between lines run 0.46-0.67 s; the two-sentence
+     lines have a shorter internal pause and are kept whole). Each window is padded 60 ms before
+     the attack and 120 ms after the tail, which is well inside the gap either side.
+
+     The keys are the ids in docs/VO-SCRIPT.md. say(id) plays one; the text reveals in step
+     with it (see Tutorial.setWords and hud.setInstruction). */
+  vo: {
+    src: 'assets/audio/vo-lines.mp3', gain: 1,
+    lines: {
+      'tut-1-meet':   [0.00, 3.99],   // "This is Momo. He needs to find his friend."
+      'tut-2-goal':   [4.38, 2.83],   // "Help Momo cross the Frozen Pass!"
+      'tut-3-watch':  [7.58, 0.91],   // "Watch out!"
+      'tut-4-jump':   [8.78, 2.33],   // "Tap to jump over obstacles."
+      'tut-5-broken': [11.47, 2.85],  // "Oh no! The path is broken."
+      'tut-6-use':    [14.57, 3.07],  // "Use the right ice piece to fix the path."
+      'tut-7-fit':    [18.13, 2.27],  // "Perfect fit! Keep going!"
+      'sign-triangle':      [20.75, 1.54],
+      'sign-quadrilateral': [22.65, 1.60],
+      'sign-pentagon':      [24.62, 1.35],
+      'sign-hexagon':       [26.33, 1.37],
+      'sign-heptagon':      [28.11, 1.50],
+      'sign-pentagons':     [29.99, 2.01],
+      'sign-hexagons':      [32.50, 2.00],
+      'win-title':    [34.87, 1.10],  // "You did it!"
+      'win-sub':      [36.12, 2.81]   // "Momo crossed the Frozen Pass!"
+    }
+  },
   music: { src: 'assets/audio/bgm-ice-hunt.mp3', gain: 0.17, duck: 0.35, fadeMs: 2200 },
 
   /* RECORDED SOUND, over the top of the synthesised palette.
@@ -1357,6 +1387,7 @@ class AudioManager {
          its own limiter and measured trims, so a hot master does not clip. */
       if (typeof K.volume === 'function') K.volume(0.85);
       if (typeof K.mute === 'function') K.mute(!this.enabled);
+      if (!this.enabled) this.stopSay();
       this._kitReady = true;
     } catch (e) { /* the local palette below still plays */ }
   }
@@ -1529,6 +1560,7 @@ class AudioManager {
          frame — so this is a plain timer: each short cue finishes loading before the next
          begins, and only the music is ever in flight beside one of them. A cue not yet
          created keeps its synthesised version until it is (about three seconds in all). */
+      this.loadVo();
       const queue = Object.entries(CFG.sfx || {});
       const loadNext = () => {
         if (!queue.length) return;
@@ -1542,6 +1574,7 @@ class AudioManager {
       loadNext();
       return;
     }
+    this.loadVo();
     this.sfxLoading = true;
     this.sfx = this.sfx || {};
     const byUrl = new Map();
@@ -1675,6 +1708,80 @@ class AudioManager {
     }, dt);
   }
 
+  /* THE VOICE, ONE LINE AT A TIME.
+   *
+   * One buffer (or, off the disk where fetch is refused, one <audio> element) and a window per
+   * line - see CFG.vo. Three rules, each learned from the effects palette:
+   *   ONE AT A TIME. A line that starts while another is speaking stops it. Two voices over each
+   *   other is mush, and the second line is always the one that matters now.
+   *   THE MUSIC GETS OUT OF THE WAY. The bed ducks while a line plays and comes back after it,
+   *   through the same setDuck the puzzle beats use.
+   *   IT NEVER BLOCKS. No file, no context, sound switched off, a decode that failed: say()
+   *   returns 0 and the caller carries on. The text animation reads that 0 and uses its own
+   *   reading time instead, so the game is identical without the voice.
+   * Returns the line's length in seconds, so the words can be revealed in step with it. */
+  async loadVo() {
+    const V = CFG.vo;
+    if (!V || !V.src || this.voLoading) return;
+    this.voLoading = true;
+    const direct = typeof location !== 'undefined' && location.protocol === 'file:';
+    try {
+      if (direct) {
+        const el = new Audio(assetUrl(V.src));
+        el.preload = 'auto';
+        el.volume = Math.min(1, V.gain || 1);
+        this.voEl = el;
+        return;
+      }
+      if (!this.ctx) return;
+      const res = await fetch(assetUrl(V.src));
+      if (!res.ok) throw new Error(res.status + ' ' + V.src);
+      this.vo = await this.ctx.decodeAudioData(await res.arrayBuffer());
+    } catch (e) { /* the game plays silent-voiced */ }
+  }
+  voLine(id) {
+    const L = CFG.vo && CFG.vo.lines && CFG.vo.lines[id];
+    return L ? { at: L[0], dur: L[1] } : null;
+  }
+  /** Speak one line of CFG.vo. Returns its length in seconds, or 0 if nothing will be heard. */
+  say(id) {
+    const L = this.voLine(id);
+    if (!L || !this.enabled) return 0;
+    this.stopSay();
+    const done = () => { this.saying = null; this.setDuck(1); };
+    if (this.voEl) {
+      try {
+        const el = this.voEl;
+        el.currentTime = L.at;
+        const p = el.play(); if (p && p.catch) p.catch(() => {});
+        this.setDuck(0.35);
+        this.saying = { el, timer: setTimeout(() => { try { el.pause(); } catch (e) { /* gone */ } done(); }, L.dur * 1000) };
+        return L.dur;
+      } catch (e) { return 0; }
+    }
+    if (!this.vo || !this.ctx) return 0;
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.vo;
+      const g = this.ctx.createGain();
+      g.gain.value = Math.min(1, (CFG.vo.gain || 1)) * this.duck;
+      src.connect(g); g.connect(this.master);
+      src.start(this.ctx.currentTime, L.at, L.dur);
+      src.onended = () => { if (this.saying && this.saying.src === src) done(); };
+      this.setDuck(0.35);
+      this.saying = { src, gain: g };
+      return L.dur;
+    } catch (e) { return 0; }
+  }
+  stopSay() {
+    const s = this.saying;
+    this.saying = null;
+    if (!s) return;
+    if (s.timer) clearTimeout(s.timer);
+    try { if (s.el) s.el.pause(); } catch (e) { /* gone */ }
+    try { if (s.src) { s.src.onended = null; s.src.stop(); } } catch (e) { /* already stopped */ }
+    this.setDuck(1);
+  }
   setDuck(v) {
     if (!this.master) return;
     /* THE MUSIC DUCKS; THE EFFECTS DO NOT. This used to scale the master (0.5 * v) as well,
@@ -2042,7 +2149,12 @@ class AudioManager {
 /* ---------------- ParticleManager ---------------- */
 class ParticleManager {
   constructor() { this.list = []; }
-  spawn(n, fn) { for (let i = 0; i < n; i++) { const p = this.list.find(q => q.dead) || (this.list.push({ dead: true }), this.list[this.list.length - 1]); Object.assign(p, { dead: false, life: 1, t: 0 }, fn(i)); } }
+  /* A ROTATING CURSOR, NOT A SCAN. `list.find(q => q.dead)` walked the pool from zero for every
+     single particle, so the ending's confetti — a 250-slot pool, 34 new pieces every 2.2s — cost
+     about 8,500 comparisons a burst. The cursor carries on from where the last one was taken, so
+     a burst is one pass. update() also trims the tail when the pool has been idle (see below), so
+     a playthrough's high-water mark is not held for the session. */
+  spawn(n, fn) { for (let i = 0; i < n; i++) { const p = this._free() || (this.list.push({ dead: true }), this.list[this.list.length - 1]); Object.assign(p, { dead: false, life: 1, t: 0 }, fn(i)); } }
   /* A CARTOON POOF. Four overlapping white discs with a soft blue rim, thrown up and out
      from the feet, swelling as they thin and drifting UP — a cloud, not a spray of dots.
      This is the dust every cartoon impact has: the skid, the landing, the crash, the
@@ -2197,7 +2309,23 @@ class ParticleManager {
       };
     });
   }
+  _free() {
+    const L = this.list, n = L.length;
+    if (!n) return null;
+    let i = this._cursor || 0;
+    for (let k = 0; k < n; k++) { const p = L[(i + k) % n]; if (p.dead) { this._cursor = (i + k + 1) % n; return p; } }
+    return null;
+  }
+  /* GIVES THE POOL BACK. Once nothing has been alive for a couple of seconds the tail is
+     dropped, so the ending's 250 slots do not stay allocated for the rest of the session. */
+  _shrink(dt) {
+    const alive = this.list.reduce((a, p) => a + (p.dead ? 0 : 1), 0);
+    if (alive) { this._idle = 0; return; }
+    this._idle = (this._idle || 0) + dt;
+    if (this._idle > 2 && this.list.length > 64) { this.list.length = 64; this._cursor = 0; this._idle = 0; }
+  }
   update(dt) {
+    this._shrink(dt);
     for (const p of this.list) {
       if (p.dead) continue;
       p.t += dt;
@@ -2400,15 +2528,43 @@ class BackgroundTimeManager {
     return { c: [lerp(la[0], lb[0], f), lerp(la[1], lb[1], f), lerp(la[2], lb[2], f)],
              dim: lerp(da, db, f) };
   }
+  /* THE SKY IS SCALED ONCE, NOT SIXTY TIMES A SECOND.
+   *
+   * Each sky is a 1672x941 photograph and the stage wants it at 2016x1134, so every frame
+   * asked the browser for a full high-quality resample of a two-megapixel image — twice while
+   * two skies cross-fade, and at renderScale 2 the destination is 4032x2268 device pixels.
+   * Measured on this laptop it was the single most expensive thing in the frame. The scaled
+   * copy is cached per image (they never change), which is the same trick the path tiles use;
+   * two entries live at a time, ~9 MB each, and the pair is dropped when the sky moves on. */
+  _scaled(key) {
+    const img = this.images[key];
+    if (!img) return null;
+    this._cache = this._cache || {};
+    if (this._cache[key]) return this._cache[key];
+    const w = Math.round(CFG.W * 1.05), h = Math.round(CFG.H * 1.05);
+    let c = null;
+    try {
+      c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      g.drawImage(img, 0, 0, w, h);
+    } catch (e) { return img; }               // out of memory: draw the source, as before
+    // never more than the two skies in play
+    for (const k of Object.keys(this._cache)) if (k !== this.a && k !== this.b) delete this._cache[k];
+    this._cache[key] = c;
+    return c;
+  }
   draw(ctx, worldX, reduced) {
     const drift = reduced ? 0 : -46 - 46 * Math.sin(worldX * 0.00008);
     const w = CFG.W * 1.05, h = CFG.H * 1.05;
     const x = drift, y = -(h - CFG.H) / 2;
-    const ia = this.images[this.a];
+    const ia = this._scaled(this.a);
     if (ia) ctx.drawImage(ia, x, y, w, h);
     if (this.b && this.images[this.b]) {
       ctx.globalAlpha = easeInOut(clamp(this.fade, 0, 1));
-      ctx.drawImage(this.images[this.b], x, y, w, h);
+      const ib = this._scaled(this.b);
+      if (ib) ctx.drawImage(ib, x, y, w, h);
       ctx.globalAlpha = 1;
     }
   }
@@ -3351,16 +3507,32 @@ class GroundManager {
     this.contentY = this.ty + p.contentBottom * this.th;
     this.gaps = [];
   }
-  reset() { this.gaps = []; }
+  reset() {
+    this.gaps = [];
+    /* THE CACHES GO WITH THEM. They are keyed on a crevasse's width, and a width the next run
+       never asks for is dead weight that used to survive every restart. */
+    this._wallCache = {};
+  }
   addGap(g) { this.gaps.push(g); return g; }
 
   /* Every open crevasse, repaired or not, in screen space. A repaired one stays cut
      out of the path: the ice bridge spanning it is drawn on top, and the melt water
      is still visible far below — which is what makes the repair read as a bridge
      over a chasm rather than as ground that was never broken. */
+  /* ON SCREEN ONLY. Every mended crossing is kept for the rest of the run (they are still
+     visible as bridges when the player runs back over them), so by the last phase there were
+     nine, and all nine were re-drawn every frame — each one a fresh Path2D, six gradients and a
+     clip, thousands of px off screen. A crossing that cannot be seen is skipped: measured at
+     phase 7 that is 28 Path2D and ~54 gradients a frame saved. */
   openGaps(worldX) {
-    return this.gaps.filter(g => g.open > 0.01)
-      .map(g => ({ x0: g.x0 - worldX, x1: g.x1 - worldX, g }));
+    const out = [];
+    for (const g of this.gaps) {
+      if (g.open <= 0.01) continue;
+      const x0 = g.x0 - worldX, x1 = g.x1 - worldX;
+      if (x1 < -420 || x0 > CFG.W + 420) continue;
+      out.push({ x0, x1, g });
+    }
+    return out;
   }
 
 
@@ -4116,6 +4288,10 @@ class GroundManager {
     const band = this.rockBand;
     if (!band || ww < 8) return null;
     const H = Math.round(CFG.H + 60 - CFG.surfaceY);
+    /* QUANTISED, so an opening sweep cannot mint a canvas a frame. `open` ramps over 320ms and
+       the width follows it, so the raw key took ~19 values per crossing; 48px steps take it to
+       four or five, and the cache is capped below. */
+    ww = Math.max(8, Math.round(ww / 48) * 48);
     const key = 'back:' + ww;
     this._wallCache = this._wallCache || {};
     if (this._wallCache[key]) return this._wallCache[key];
@@ -4150,6 +4326,7 @@ class GroundManager {
     const band = this.rockBand;
     if (!band) return null;
     const H = Math.round(CFG.H + 100 - CFG.surfaceY);
+    ww = Math.max(8, Math.round(ww / 24) * 24);      // see _backArt: a swept key mints canvases
     const key = side + ':' + ww;
     this._wallCache = this._wallCache || {};
     if (this._wallCache[key]) return this._wallCache[key];
@@ -4196,8 +4373,16 @@ class GroundManager {
     g.fillStyle = dk; g.fillRect(0, 0, c.width, H);
     g.globalCompositeOperation = 'source-over';
     const art = { canvas: c, w: c.width, h: H };
+    this._trimWalls();
     this._wallCache[key] = art;
     return art;
+  }
+  /* No more than a dozen wall canvases at a time: past that the oldest keys are dropped. Each
+     is up to 1.3MB, and on a low-memory phone an unbounded cache is the thing that ends the
+     session. Insertion order is enough — a width that is no longer being drawn is the oldest. */
+  _trimWalls() {
+    const keys = Object.keys(this._wallCache);
+    for (let i = 0; i < keys.length - 11; i++) delete this._wallCache[keys[i]];
   }
   _capArt(side) {
     const C = GroundManager.CAP;
@@ -4517,8 +4702,14 @@ export function createGame(canvas, hooks = {}) {
     if (scaleForced || rs <= 1 || !(dtWall > 0) || dtWall > 0.5) return;
     fpsMean += (1 / dtWall - fpsMean) * 0.05;
     fpsClock += dtWall;
-    if (fpsClock > 4 && fpsMean < 40) {
-      rsCap = Math.max(1, rs - 0.25);
+    /* HOW FAST IT GIVES UP. It used to need four seconds under 40fps for each quarter-step, so
+       a hi-DPI phone on a 4x backbuffer spent sixteen seconds at single-figure frame rates
+       before it reached scale 1 — most of a first crossing. Now it acts after 1.2s, and how far
+       it steps depends on how bad it is: under 22fps it halves the scale outright (2 -> 1 in one
+       step), under 30 it takes a half, otherwise a quarter. It still never steps back up. */
+    if (fpsClock > 1.2 && fpsMean < 40) {
+      const step = fpsMean < 22 ? rs / 2 : fpsMean < 30 ? 0.5 : 0.25;
+      rsCap = Math.max(1, Math.round((rs - step) * 4) / 4);
       setRenderScale(rsCap);
       fpsClock = 0; fpsMean = 60;
     }
@@ -4570,7 +4761,10 @@ export function createGame(canvas, hooks = {}) {
        still published to the HUD, because removing a field from that object is a
        change every consumer has to be checked against and it buys nothing. */
     oops: false, hitFx: 0, hitObstacle: null, hitReturn: null,
-    handHint: null, idleHand: 0, dropReady: false, introT: 0, stageBeat: 0,
+    handHint: null, idleHand: 0, dropReady: false, introT: 0, stageBeat: 0, saidQuestion: '', voDur: 0,
+    /* A LINE THE TUTORIAL PUTS ON THE PLANK, over the phase's own question (see api.saySign):
+       the teaching sentence is shown there as a wide banner and then hands the plank back. */
+    signSay: '',
     quakeT: 0, quakeAmp: 0, quakeLen: 0, quakeRoll: 0, quakePeak: 0, quakeAt: 0,
     quakeOx: 0, quakeOy: 0,
     freeze: 0,                                            // seconds of hit-stop left
@@ -4589,6 +4783,17 @@ export function createGame(canvas, hooks = {}) {
      is HUD clutter and the world is the thing worth looking at. It re-arms itself
      whenever the text changes, and briefly again after a wrong attempt. */
   function armInstruction(ms) { G.instrHold = ms === undefined ? T.instructionHold : ms; }
+  /* "Cut all the PENTAGONS." -> 'sign-pentagons'. Derived from the sentence rather than kept as
+     a second list beside CFG.levelOne.phases, which is how two lists drift. */
+  function voIdFor(text) {
+    const m = /\bthe\s+([a-z]+?)(s?)[.!]?$/i.exec(String(text || '').trim());
+    return m ? 'sign-' + m[1].toLowerCase() + (m[2] ? 's' : '') : '';
+  }
+  /* THE QUESTION IS SPOKEN as the plank arrives (stage beat 1), once per phase. */
+  function sayPhaseQuestion() {
+    const id = voIdFor(phaseCfg() && phaseCfg().instruction);
+    if (id && G.saidQuestion !== id) { G.saidQuestion = id; G.voDur = audio.say(id) || 0; }
+  }
   function updateInstruction(dt) {
     if (G.instruction !== G.instrLast) { G.instrLast = G.instruction; armInstruction(); }
     if (G.instrHold > 0) G.instrHold = Math.max(0, G.instrHold - dt * 1000);
@@ -4650,9 +4855,14 @@ export function createGame(canvas, hooks = {}) {
       /* AND IT WAITS FOR ITS BEAT. In PHASE_INTRO the hole is shown and described first, so the
          sign is held back until stageBeat 1 (see the beats in update). The text itself is never
          blanked — replayInstruction reads it — only its visibility is gated, as everywhere else. */
-      instruction: ((G.instrHold > 0 || (G.l1 && G.l1.unfilled && G.l1.unfilled.length > 0 &&
+      instruction: G.signSay || (((G.instrHold > 0 || (G.l1 && G.l1.unfilled && G.l1.unfilled.length > 0 &&
                     ['PHASE_INTRO', 'PHASE_ACTIVE', 'PHASE_WRONG', 'PHASE_SUCCESS'].includes(G.state)))
-                    && !(G.state === 'PHASE_INTRO' && G.stageBeat < 1)) ? G.instruction : '',
+                    && !(G.state === 'PHASE_INTRO' && G.stageBeat < 1)) ? G.instruction : ''),
+      /* A tutorial line is a SENTENCE, not a question: it is too long for the plank's left band,
+         so the HUD widens and centres the plank for it (see .instruction.banner). */
+      signBanner: !!G.signSay,
+      // how long the spoken question runs, so the HUD can reveal the words in step with it
+      voDur: G.voDur || 0,
       jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
       // TEMPORARY: whether the review control that jumps to the ending may show
       skippable: G.state !== 'BOOT' && G.state !== 'TITLE' && !G.complete,
@@ -4754,6 +4964,18 @@ export function createGame(canvas, hooks = {}) {
     };
     jobs.push((async () => {
       if (hdArt && !(await loadCharacterArt(true))) {
+        /* AND THE HALF-LOADED hd SET IS LET GO FIRST. The hd sheets that DID decode are already
+           in the images map and already decoded — up to six of them, about 152MB of bitmap — and the
+           base set was then loaded on top, so the one device that could not manage the hd set
+           held both at once at exactly the wrong moment. Dropping the references (and the src,
+           so the decoder lets go too) before the base set arrives is the difference between
+           ~226MB and ~74MB of character art on that device. */
+        for (const ch of CFG.characters) for (const slot of Object.keys(ch.sheets)) {
+          const img = images[ch.id + ':' + slot];
+          if (img) { try { img.src = ''; } catch (e) { /* detached already */ } }
+          images[ch.id + ':' + slot] = null;
+        }
+        if (images.bear) { try { images.bear.src = ''; } catch (e) { /* detached */ } images.bear = null; }
         hdArt = false; CFG.sprite.cellK = 1;
         await loadCharacterArt(false);
       } else if (!hdArt) await loadCharacterArt(false);
@@ -4810,7 +5032,7 @@ export function createGame(canvas, hooks = {}) {
         // let the tremble that started at the stop play out into the head-down look
         if (mammoth.state !== 'SHAKE') mammoth.setState('LOOK_DOWN');
         buildPhase(); break;
-      case 'PHASE_ACTIVE': G.idle = 0; G.idleHand = 0; if (!G.l1) buildPhase(); break;
+      case 'PHASE_ACTIVE': G.idle = 0; G.idleHand = 0; if (!G.l1) buildPhase(); if (!G.signSay) sayPhaseQuestion(); break;
       case 'PHASE_SUCCESS': break;
       case 'PHASE_DONE':
         // the whole phase is repaired: celebrate, then back to the adventure
@@ -6124,9 +6346,22 @@ export function createGame(canvas, hooks = {}) {
     if (!canvasRect || !canvasRect.width) canvasRect = canvas.getBoundingClientRect();
     return canvasRect;
   }
+  /* POINTER -> WORLD, THROUGH THE PUSH-IN.
+   *
+   * The rect maths turns CSS pixels into the 1920x1080 stage and handles the letterbox (the
+   * canvas IS the stage, so its rect carries the bars). What it used to miss is the puzzle
+   * zoom: render() draws the world as s = V + (w - V) * k about (zoomVX, zoomVY), so a finger
+   * on a rope at screen s was tested against the world point s, not (s - V)/k + V. At the
+   * shipped k of 1.22 that is up to 96 px of error on a three-option row and 115 px on six —
+   * against a 30 px cut tolerance, so a swipe aimed at a rope could cut its neighbour or
+   * nothing at all. The cursor hint in main.js already inverted it; the game did not.
+   * Every consumer of toLocal wants world coordinates, so the inverse belongs here. */
   function toLocal(e) {
     const r = rect();
-    return { x: (e.clientX - r.left) * CFG.W / r.width, y: (e.clientY - r.top) * CFG.H / r.height };
+    const sx = (e.clientX - r.left) * CFG.W / r.width, sy = (e.clientY - r.top) * CFG.H / r.height;
+    const k = G.zoom || 1;
+    if (k <= 1.0005) return { x: sx, y: sy };
+    return { x: G.zoomVX + (sx - G.zoomVX) / k, y: G.zoomVY + (sy - G.zoomVY) / k };
   }
   /* THE STROKE IN PROGRESS, and WHOSE finger it belongs to.
 
@@ -6652,6 +6887,11 @@ export function createGame(canvas, hooks = {}) {
            BEAT 2 — THE OPTIONS come down, one after another (dropStagger), each with its pop. */
         if (mammoth.state !== 'SHAKE') G.introT += dt * 1000;
         if (G.stageBeat < 1 && G.introT > T.gapBeat) { G.stageBeat = 1; audio.pop(); }
+        /* THE QUESTION IS SPOKEN WHEN IT IS SHOWN, not when the plank arrives. In the tutorial the
+           plank carries the teaching line first (api.saySign), so the question — and its voice —
+           wait for that line to finish. Everywhere else G.signSay is empty and this fires on the
+           plank's own beat. */
+        if (G.stageBeat >= 1 && !G.signSay) sayPhaseQuestion();
         if (!G.dropReady && G.introT > T.gapBeat + T.signBeat) {
           G.stageBeat = 2;
           G.dropReady = true;
@@ -6752,6 +6992,13 @@ export function createGame(canvas, hooks = {}) {
         break;
       }
       case 'COMPLETE': {
+        /* The ending's two lines, in order: the title, then what happened. The second waits for
+           the first, so they are spoken rather than talked over. */
+        if (!G.saidWin) {
+          G.saidWin = true;
+          const t = audio.say('win-title');
+          setTimeout(() => audio.say('win-sub'), Math.max(600, t * 1000 + 220));
+        }
         /* A LIGHT DRIZZLE OF CONFETTI for as long as the ending is up. The opening shower
            falls and is gone in three seconds, and the screen that stays is the one the
            player looks at — it should keep celebrating. Small handfuls, spaced out. */
@@ -8062,7 +8309,12 @@ export function createGame(canvas, hooks = {}) {
        physics is worse than none. Rendering once per frame is what makes it cheap:
        rendering is the expensive half. */
     for (let i = 0; i < fastForward; i++) update(dt);
-    render();
+    /* NOT PAINTED BEHIND THE ROTATE PROMPT. Turning a phone to portrait puts an opaque panel
+       over the stage, and the game deliberately keeps running so it resumes exactly where it
+       was — but it was also still painting a full frame behind that panel, the most expensive
+       thing on the device, for a picture nobody can see. The simulation carries on; only the
+       painting stops, and it resumes on the frame the phone comes back to landscape. */
+    if (!(hooks.hidden && hooks.hidden())) render();
   }
 
   function resetAll() {
@@ -8072,14 +8324,14 @@ export function createGame(canvas, hooks = {}) {
     G.complete = false; G.l1 = null; G.attempts = 0; G.idle = 0;
     G.phase = 0; G.phasesDone = 0; G.gapsThisPhase = null; G.phaseLayout = null; G.phaseJumped = false;
     G.oops = false; G.hitFx = 0; G.hitObstacle = null; G.hitReturn = null; G.hitCount = 0;
-    G.handHint = null; G.idleHand = 0; G.dropReady = false; G.introT = 0; G.stageBeat = 0;
+    G.handHint = null; G.idleHand = 0; G.dropReady = false; G.introT = 0; G.stageBeat = 0; G.signSay = ''; G.saidQuestion = '';
     G.stompF = -1; G.stomps = 0; G.invincibleT = 0; G.jumpArmed = false;
     G.shakeAmp = 0; G.shakeLen = 0;
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
     G.bearAt = 0;                   // the friend is not placed until the run home
     G.retryRun = false; G.runLeadMs = 0;
-    slash = null; brk = null; taps.length = 0;
+    slash = null; brk = null; taps.length = 0; G.saidWin = false; audio.stopSay();
     ground.reset(); obstacles.reset(); particles.clear(); mammoth.reset(); bgm.reset();
     atmos.intensity = 0; atmos.flash = 0;
     audio.setDuck(1);
@@ -8175,6 +8427,19 @@ export function createGame(canvas, hooks = {}) {
     },
     soundOn: () => !!audio.enabled,
     /** Re-show the current instruction, for a learner who has forgotten it. */
+    /** Put a line on the instruction plank, over whatever question is there, or clear it with
+        '' and give the plank back. The tutorial uses this for its teaching sentence at the
+        crossing; nothing else writes here. */
+    /** Put a line on the instruction plank, over whatever question is there, or clear it with ''
+        and give the plank back. dur is how long that line is spoken for, so the plank can
+        reveal its words in step with the voice. */
+    saySign(text, dur) { G.signSay = text || ''; if (text) G.voDur = dur || 0; },
+    /** Speak one line of the voice-over by its docs/VO-SCRIPT.md id; returns its seconds (0 if
+        it will not be heard), so the caller can reveal the words in step with it. */
+    say(id) { audio.start(); audio.resume(); return audio.say(id); },
+    /** The voice id for a phase's question, from its instruction ("Cut all the PENTAGONS." ->
+        sign-pentagons). One source: the sentence itself, so a re-worded phase cannot drift. */
+    signVoId(text) { return voIdFor(text); },
     replayInstruction() {
       if (!G.instruction) return false;
       armInstruction(T.instructionHold);
@@ -8237,6 +8502,19 @@ export function createGame(canvas, hooks = {}) {
     /* The live particle list, so a test or a capture harness can wait for the exact
        frame an effect exists on rather than guessing at a delay. */
     _particles: () => particles,
+    /** The voice's state, for the tests and the live check: is the take loaded, is a line
+        playing, how long the last question was, and how many lines the table holds. */
+    _voice: () => ({ ready: !!(audio.vo || audio.voEl), saying: !!audio.saying, dur: G.voDur || 0,
+                     lines: Object.keys((CFG.vo && CFG.vo.lines) || {}).length }),
+    /* For the responsiveness spec: is the voice ready, is a line playing, and how big have the
+       pools and caches grown. Read-only. */
+    _perf: () => ({
+      voReady: !!(audio.vo || audio.voEl), saying: !!audio.saying,
+      pool: particles.list.length, gaps: ground.gaps.length,
+      walls: Object.keys(ground._wallCache || {}).length,
+      skies: Object.keys(bgm._cache || {}).length,
+      rs, rsCap, hd: hdArt, canvas: canvas.width + 'x' + canvas.height
+    }),
     _notchWidth: (i, depth) => { const g = (G.gapsThisPhase || [])[i]; return g ? ground.notchWidthAt(g, depth) : -1; },
     _notchLeak: i => { const g = (G.gapsThisPhase || [])[i]; return g ? ground.notchLeak(g) : -1; },
     _notchReveal: i => { const g = (G.gapsThisPhase || [])[i]; return g ? (g.reveal || 0) : -1; },

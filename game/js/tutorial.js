@@ -51,6 +51,13 @@ const clampN = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
 
 import { fitBubble, BUBBLE } from './bubble.js';
 
+/* WHICH RECORDED LINE BELONGS TO WHICH STEP (docs/VO-SCRIPT.md, CFG.vo.lines). */
+const VO = {
+  meet: 'tut-1-meet', goal: 'tut-2-goal', rock: 'tut-3-watch', jump: 'tut-4-jump',
+  gap: 'tut-5-broken', use: 'tut-6-use', fit: 'tut-7-fit'
+  // 'cut' is the hand alone and says nothing: the plank's question is spoken by the engine
+};
+
 export class Tutorial {
   /**
    * @param {Document} root
@@ -77,6 +84,7 @@ export class Tutorial {
     this.follow = null;
     this._built = false;
     this._wasPaused = false;
+    this.spoke = false; this.voDur = 0; this._wordStep = 0.055;
   }
 
   /* ---- the script ----
@@ -192,10 +200,31 @@ export class Tutorial {
         /* THE ASK. The sweep hand is on the rope of the answer (ropeBox), the engine's demo
            stroke crosses the same rope, and the bubble sits beneath the blocks so it never
            hides the piece it means. */
+        /* THE SENTENCE IS ON THE PLANK, not in a bubble (asked for). It is shown there as a wide
+           banner with the options and their ropes lit; when it has been read the plank goes back
+           to the phase's own question ("Cut the TRIANGLE.") and the hand sweeps the answer's
+           rope. So the learner is told WHAT to do, then asked WHICH — in that order. */
+        /* IT GOES FIRST, AND IT FINISHES FIRST. The sentence takes the plank the moment the
+           plank arrives — while the pieces are still coming down, with them and their ropes lit
+           — and holds it for the whole step. Only when it is done does the plank show the phase's
+           own question ("Cut the TRIANGLE."), and only then does the hand sweep. Told WHAT to do,
+           then asked WHICH (the owner's order; the question used to arrive first because it came
+           on the plank's own beat). */
+        id: 'use',
+        at: g => ['PHASE_INTRO', 'PHASE_ACTIVE'].includes(g.state),
+        spot: () => null,
+        text: 'Use the right ice piece to fix the path.',
+        sign: 99, focus: 'blocks',
+        advance: 0, pause: false
+      },
+      {
+        /* THE ASK: no words of its own — the plank is doing the asking — just the sweep hand on
+           the rope of the answer, waiting for the cut. */
         id: 'cut',
         at: g => !!g.l1 && g.state === 'PHASE_ACTIVE' && this.ropeBox(g) !== null,
         spot: g => this.ropeBox(g),
-        text: 'Use the right ice piece to fix the path.',
+        text: '',
+        handOnly: true,
         advance: 'cut', pause: false, hand: 'sweep'
       },
       {
@@ -344,7 +373,11 @@ export class Tutorial {
      is a comfortable read for a child rather than a glance for an adult. Clamped at
      both ends so no line can rush past or outstay its welcome. */
   readTime(text) {
-    return clampN(1.5 + (text || '').length * 0.055, 2.6, 5.2);
+    /* THE VOICE DECIDES, when there is one: a describing step holds for the line plus a beat, so
+       the sentence is never cut off mid-word. Without the voice it is the reading estimate the
+       script was written to. */
+    const read = clampN(1.5 + (text || '').length * 0.055, 2.6, 5.2);
+    return this.voDur > 0 ? Math.max(read, this.voDur + 0.45) : read;
   }
 
   /* NO TAP-TO-ADVANCE. A describing step moves on by itself and a tap does nothing.
@@ -364,12 +397,16 @@ export class Tutorial {
   }
 
   next() {
+    if (this.game.saySign) this.game.saySign('');      // the plank goes back to its question
     this.step++;
     this.t = 0;
+    this.spoke = false;                                // the new step has not been read aloud yet
+    this.voDur = 0;
     if (this.step >= this.steps.length) this.finish();
   }
 
   finish() {
+    if (this.game.saySign) this.game.saySign('');
     if (this.done) return;
     this.done = true;
     this.resume();
@@ -460,8 +497,12 @@ export class Tutorial {
        a rock coming into range, the blocks arriving — and while it waits the game runs
        and the layer shows nothing. */
     if (!s.at(g)) { this.resume(); this.show(null); return; }
-    const box = s.spot(g);
-    if (!box) { this.resume(); this.show(null); return; }
+    /* A SIGN STEP HAS NO TARGET. Its words are on the plank, so it points at nothing — and the
+       missing box used to skip it silently, which left the tutorial stuck on the line before it
+       and let the question reach the plank first. */
+    const onSignStep = typeof s.sign === 'number';
+    const box = onSignStep ? null : s.spot(g);
+    if (!onSignStep && !box) { this.resume(); this.show(null); return; }
 
     this.t += dt;
     /* A NUMBER freezes the game for that many seconds of the step, then lets it run: an ask
@@ -475,6 +516,13 @@ export class Tutorial {
        frozen copy belong to describing steps; the hand belongs to asking ones. */
     const describing = typeof s.advance === 'number';
     const text = this.follow || (typeof s.text === 'function' ? s.text(g) : s.text);
+    /* THE LINE IS SPOKEN AS IT APPEARS, once per step, and the words are revealed in step with
+       it (see setWords). The voice's length also sets how long a describing step holds, so a
+       line is never taken off the screen mid-sentence. */
+    if (!this.spoke && text) {
+      this.spoke = true;
+      this.voDur = (this.game.say && this.game.say(VO[s.id] || '')) || 0;
+    }
 
     /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
 
@@ -495,6 +543,23 @@ export class Tutorial {
        box was measured as present and never seen to leave. Short lines on asking steps
        and a 2.4s cap: long enough to read four words, short enough to get out of the
        way before anyone is ready to act. */
+    /* A SIGN STEP has no bubble at all: its words are on the plank (see api.saySign below), and
+       a box saying the same thing twice is noise. The hand and the lit row stay. */
+    /* A HAND-ONLY STEP shows the gesture and nothing else: the plank is carrying the words. */
+    if (s.handOnly) {
+      if (this.el.bubble) this.el.bubble.hidden = true;
+      this.hideFocus();
+      this.show(this.toView(box, g), '', false, s.hand || null, false, null, true);
+      return;
+    }
+    const onSign = typeof s.sign === 'number';
+    if (onSign) {
+      this.game.saySign(this.t < s.sign ? text : '', this.voDur);
+      if (this.el.bubble) this.el.bubble.hidden = true;
+      this.showFocus(s.focus || null);            // the row stays lit for as long as the step does
+      this.show(null, '', false, s.hand || null, false, null, true);
+      return;
+    }
     const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
     this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null, s.pause === false);
 
@@ -541,6 +606,11 @@ export class Tutorial {
   setWords(text) {
     const el = this.el.text;
     if (!el) return;
+    /* IN STEP WITH THE VOICE. The words rise one after another; when the line is spoken, the
+       whole reveal is spread across the clip (a beat per word, never faster than 55 ms or slower
+       than 210 ms) so the text keeps pace with what is being said. Silent, it is the old 55 ms. */
+    const words = (text || '').trim().split(/\s+/).filter(Boolean).length || 1;
+    this._wordStep = this.voDur > 0 ? clampN((this.voDur * 0.8) / words, 0.055, 0.21) : 0.055;
     const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
     const parts = (text || '').split(/(\s+)/);
     let i = 0, powed = false;
@@ -553,6 +623,7 @@ export class Tutorial {
       w.className = loud ? 'w pow' : 'w';
       if (loud) powed = true;
       w.style.setProperty('--i', i++);
+      if (this._wordStep) w.style.setProperty('--wd', this._wordStep.toFixed(3) + 's');
       w.textContent = p;
       el.appendChild(w);
     }

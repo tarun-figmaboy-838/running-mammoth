@@ -109,6 +109,9 @@ const wantHd = () => {
 
 const game = createGame(canvas, {
   renderScale: wantScale(),
+  /* True while the stage cannot be seen: the rotate prompt covers it in portrait. The engine
+     skips PAINTING while this holds; the simulation keeps running (see the frame loop). */
+  hidden: () => { const el = document.getElementById('rotate'); return !!(el && !el.hidden); },
   hdArt: wantHd(),
   // a tap on the stage jumped: flash the button, so the tap and the button read as one control
   onJumpInput: () => hud.flashJump(),

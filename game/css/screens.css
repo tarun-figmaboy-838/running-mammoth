@@ -44,7 +44,7 @@
   bottom: 2.2%;
   transform: translateX(-50%);
   margin: 0;
-  font: 700 clamp(12px, 1.3vw, 22px)/1 "Baloo 2", system-ui, sans-serif;
+  font: 700 clamp(12px, calc(1.3 * var(--u)), 44px)/1 "Baloo 2", system-ui, sans-serif;
   color: rgba(234, 249, 255, 0.92);
   letter-spacing: 0.04em;
   text-shadow: 0 2px 6px rgba(6, 32, 60, 0.6);
@@ -173,12 +173,12 @@
   position: relative;
   z-index: 1;
   font-weight: 800;
-  font-size: clamp(21px, 2.3vw, 44px);
+  font-size: clamp(21px, calc(2.3 * var(--u)), 88px);
   letter-spacing: .02em;
   color: #FFFFFF;
-  -webkit-text-stroke: clamp(2px, 0.24vw, 5px) var(--ink);
+  -webkit-text-stroke: clamp(2px, calc(0.24 * var(--u)), 10px) var(--ink);
   paint-order: stroke fill;
-  text-shadow: 0 clamp(2px, 0.21vw, 4px) 0 rgba(0, 0, 0, 0.3);
+  text-shadow: 0 clamp(2px, calc(0.21 * var(--u)), 8px) 0 rgba(0, 0, 0, 0.3);
 }
 .btn-chunky:hover .btn-chunky-face { filter: brightness(1.1) saturate(1.06); }
 /* the halo swelling is most of what makes the set feel alive under a pointer */
@@ -390,11 +390,11 @@
    that means "your finger goes here". */
 .tut-hand {
   position: absolute;
-  width: clamp(54px, 5.6vw, 108px);
+  width: clamp(54px, calc(5.6 * var(--u)), 216px);
   aspect-ratio: 300 / 360;
   translate: -50% -50%;
   background: url("../assets/ui/icons/touch.png?v=d05ff66d") center / contain no-repeat;
-  filter: drop-shadow(0 clamp(3px, 0.31vw, 6px) clamp(6px, 0.63vw, 12px) rgba(4, 20, 44, 0.6));
+  filter: drop-shadow(0 clamp(3px, calc(0.31 * var(--u)), 12px) clamp(6px, calc(0.63 * var(--u)), 24px) rgba(4, 20, 44, 0.6));
   pointer-events: none;
 }
 .tut-hand[hidden] { display: none; }
@@ -556,7 +556,7 @@
      in the game; the size is up a step and the lines airier, and the box's max-width
      keeps a line to about 30 characters, which is what a new reader can hold. The comedy
      is in the shape, the pop and the wobble — not in the letters. */
-  font: 800 clamp(22px, 2.35vw, 44px)/1.32 "Baloo 2", system-ui, sans-serif;
+  font: 800 clamp(22px, calc(2.35 * var(--u)), 88px)/1.32 "Baloo 2", system-ui, sans-serif;
   color: #0C3352;                       /* the navy the ice is inked with: about 11:1 on frost */
   text-wrap: balance;
   letter-spacing: .004em;
@@ -571,7 +571,8 @@
   display: inline-block;
   /* eased, with no overshoot (asked for): the words settle rather than snap */
   animation: tutWordIn 460ms cubic-bezier(.33, .1, .25, 1) both;
-  animation-delay: calc(var(--i, 0) * 55ms);
+  /* --wd is set per word when the line is spoken, so the reveal keeps pace with the voice. */
+  animation-delay: calc(var(--i, 0) * var(--wd, 55ms));
 }
 .tut-text .pow {
   font-weight: 900;
@@ -692,7 +693,7 @@
   bottom: 3.5%;
   translate: -50% 0;
   pointer-events: auto;
-  min-width: clamp(200px, 22vw, 380px);
+  min-width: clamp(200px, calc(22 * var(--u)), 760px);
   /* A ONE-SHOT ARRIVAL, NOT A PERPETUAL BOB, and this was a real bug rather than a
      taste call.
 
@@ -730,7 +731,7 @@
      and leaves the middle of the screen to the two of them. */
   left: 50%;
   top: 1.5%;
-  width: min(42vw, 720px);
+  width: min(calc(42 * var(--u)), 1440px);
   translate: -50% 0;
   rotate: 0deg;
   pointer-events: none;
@@ -760,12 +761,12 @@
 /* THE TITLE bounces one letter at a time — a wave runs along the word, then it rests. */
 .win-title {
   margin: 0;
-  font: 800 clamp(40px, 4.4vw, 84px)/1 "Baloo 2", system-ui, sans-serif;
+  font: 800 clamp(40px, calc(4.4 * var(--u)), 168px)/1 "Baloo 2", system-ui, sans-serif;
   /* INK ON WHITE, not white with a navy outline: on the white banner the old fill was
      invisible and only its stroke showed, so the letters read as hollow. */
   color: #0C3352;
   letter-spacing: .01em;
-  text-shadow: 0 clamp(3px, 0.3vw, 6px) 0 rgba(63, 179, 232, 0.55);
+  text-shadow: 0 clamp(3px, calc(0.3 * var(--u)), 12px) 0 rgba(63, 179, 232, 0.55);
 }
 .win-title span { display: inline-block; animation: winLetter 2.2s cubic-bezier(.4, 0, .3, 1) infinite; animation-delay: calc(var(--i) * 70ms); }
 .win-title .sp { width: .28em; }
@@ -777,15 +778,15 @@
 /* WHAT HAPPENED, in the friend's words — it answers the tutorial's "Help Momo cross the
    Frozen Pass!", so the story closes where it opened. The place is amber: Momo's own colour. */
 .win-sub {
-  margin: clamp(4px, 0.5vw, 10px) 0 0;
-  font: 800 clamp(19px, 2vw, 38px)/1.25 "Baloo 2", system-ui, sans-serif;
+  margin: clamp(4px, calc(0.5 * var(--u)), 20px) 0 0;
+  font: 800 clamp(19px, calc(2 * var(--u)), 76px)/1.25 "Baloo 2", system-ui, sans-serif;
   color: #0C3352;
 }
 .win-sub b { color: #B4530F; }
 .win-spark {
   position: absolute;
   color: #FFE58A;
-  font-size: clamp(22px, 2.4vw, 46px);
+  font-size: clamp(22px, calc(2.4 * var(--u)), 92px);
   -webkit-text-stroke: 2px #0C3352;
   paint-order: stroke fill;
   pointer-events: none;
@@ -934,7 +935,7 @@
      looks for a start button. */
   bottom: 3%;
   transform: translateX(-50%);
-  width: clamp(190px, 22vw, 430px);
+  width: clamp(190px, calc(22 * var(--u)), 860px);
   /* the common box the two takes were built onto */
   aspect-ratio: 1880 / 711;
   background-image: url("../assets/ui/btn-play.webp?v=722ee46e");
@@ -943,7 +944,7 @@
      click one at all ("element is not stable"), which is why no test caught it. It
      arrives with a pop and then holds still to be pressed. */
   animation: cardPop 460ms cubic-bezier(.2, 1.5, .4, 1) both;
-  filter: drop-shadow(0 clamp(5px, 0.52vw, 10px) clamp(10px, 1vw, 20px) rgba(46, 12, 4, 0.5));
+  filter: drop-shadow(0 clamp(5px, calc(0.52 * var(--u)), 20px) clamp(10px, calc(1 * var(--u)), 40px) rgba(46, 12, 4, 0.5));
   z-index: 3;
 }
 /* the amber cap's own box, measured off the normal take */
@@ -1172,15 +1173,15 @@
    look skewed together, and sat on a hard drop rather than a soft blur, which is what
    makes painted lettering read as painted. */
 .card-fun h1 {
-  font-size: clamp(40px, 4.6vw, 88px) !important;
+  font-size: clamp(40px, calc(4.6 * var(--u)), 176px) !important;
   line-height: 0.92;
-  margin: clamp(2px, 0.3vw, 6px) 0 clamp(10px, 1.1vw, 20px) !important;
+  margin: clamp(2px, calc(0.3 * var(--u)), 12px) 0 clamp(10px, calc(1.1 * var(--u)), 40px) !important;
   color: #FFFFFF !important;
-  -webkit-text-stroke: clamp(4px, 0.42vw, 8px) #14496F;
+  -webkit-text-stroke: clamp(4px, calc(0.42 * var(--u)), 16px) #14496F;
   paint-order: stroke fill;
   text-shadow:
-    0 clamp(4px, 0.42vw, 8px) 0 #14496F,
-    0 clamp(9px, 0.95vw, 18px) clamp(10px, 1vw, 20px) rgba(20, 73, 111, 0.35);
+    0 clamp(4px, calc(0.42 * var(--u)), 16px) 0 #14496F,
+    0 clamp(9px, calc(0.95 * var(--u)), 36px) clamp(10px, calc(1 * var(--u)), 40px) rgba(20, 73, 111, 0.35);
   letter-spacing: .015em;
   rotate: 1.2deg;
 }
