@@ -2306,6 +2306,8 @@ class AudioManager {
        (master 0.85) so far that a footfall or the whoosh barely registered next to a boing.
        The compressor below is what keeps a hot master from clipping. */
     this.master = this.ctx.createGain(); this.master.gain.value = 0.7;
+    // the bytes are already here (fetchVo, during preload): decode them now the context exists
+    setTimeout(() => this.loadVo(), 0);
 
     // A gentle limiter on the bus. Several ice chips plus a splash plus a reward
     // arpeggio can land in the same 200ms, and without this they add up and clip.
@@ -2587,6 +2589,28 @@ class AudioManager {
    *   returns 0 and the caller carries on. The text animation reads that 0 and uses its own
    *   reading time instead, so the game is identical without the voice.
    * Returns the line's length in seconds, so the words can be revealed in step with it. */
+  /** THE BYTES, FETCHED WITH THE ART. Decoding needs an AudioContext and a context needs a
+      gesture, but the DOWNLOAD does not — and the first line is spoken about a second after the
+      run starts, which on a slow connection is not enough time to fetch 600 kB. So the file is
+      pulled during preload and only decoded when the context opens, which takes a moment and no
+      network. Nothing here can fail loudly: no bytes means the game plays silent-voiced. */
+  fetchVo() {
+    const V = CFG.vo;
+    if (!V || !V.src || this.voBytes) return Promise.resolve();
+    if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve();
+    /* THE PROMISE IS SHARED, not a flag. A second caller used to see a "fetching" flag and return
+       at once, so the decode ran before the bytes had landed and gave up with nothing — measured:
+       the take was in hand a moment later but the voice stayed silent for the whole session. */
+    if (this._voFetch) return this._voFetch;
+    this._voFetch = (async () => {
+      try {
+        const res = await fetch(assetUrl(V.src));
+        if (!res.ok) throw new Error(res.status + ' ' + V.src);
+        this.voBytes = await res.arrayBuffer();
+      } catch (e) { this.voErr = 'fetch: ' + String((e && e.message) || e); }
+    })();
+    return this._voFetch;
+  }
   async loadVo() {
     const V = CFG.vo;
     if (!V || !V.src || this.voLoading) return;
@@ -2598,13 +2622,28 @@ class AudioManager {
         el.preload = 'auto';
         el.volume = Math.min(1, V.gain || 1);
         this.voEl = el;
+        this._sayPending();
         return;
       }
-      if (!this.ctx) return;
-      const res = await fetch(assetUrl(V.src));
-      if (!res.ok) throw new Error(res.status + ' ' + V.src);
-      this.vo = await this.ctx.decodeAudioData(await res.arrayBuffer());
-    } catch (e) { /* the game plays silent-voiced */ }
+      if (!this.ctx) { this.voLoading = false; return; }     // try again when the context opens
+      if (!this.voBytes) await this.fetchVo();
+      if (!this.voBytes) throw new Error('no voice bytes');
+      this.vo = await this.ctx.decodeAudioData(this.voBytes.slice(0));
+      this._sayPending();
+    } catch (e) {
+      // let a later attempt try again: a decode that failed once is not fatal
+      this.voLoading = false;
+      this.voErr = String((e && e.message) || e);
+    }
+  }
+  /** A line asked for before the take was ready is spoken as soon as it is — but only if its
+      moment has not passed: a sentence arriving four seconds late is worse than silence. */
+  _sayPending() {
+    const p = this.pending;
+    this.pending = null;
+    if (!p) return;
+    if (Date.now() - p.at > 4000) { (this.saidLog = this.saidLog || []).push(p.id + ':too-late'); return; }
+    this.say(p.id);
   }
   voLine(id) {
     const L = CFG.vo && CFG.vo.lines && CFG.vo.lines[id];
@@ -2618,7 +2657,15 @@ class AudioManager {
     this.saidLog = this.saidLog || [];
     if (!L) { this.saidLog.push(id + ':no-window'); return 0; }
     if (!this.enabled) { this.saidLog.push(id + ':muted'); return 0; }
-    if (!this.vo && !this.voEl) { this.saidLog.push(id + ':not-loaded'); return 0; }
+    if (!this.vo && !this.voEl) {
+      /* NOT LOST, JUST EARLY. The take is still arriving (or the context has not opened yet), so
+         the line is held and spoken the moment it can be — see _sayPending. The window's length
+         is still returned, so the words reveal at the right pace either way. */
+      this.pending = { id, at: Date.now() };
+      this.saidLog.push(id + ':queued');
+      this.loadVo();
+      return L.dur;
+    }
     this.saidLog.push(id + (this.ctx && this.ctx.state !== 'running' ? ':ctx-' + this.ctx.state : ''));
     this.stopSay();
     const done = () => { this.saying = null; this.setDuck(1); };
@@ -5808,6 +5855,9 @@ function createGame(canvas, hooks = {}) {
       jobs.push(loadImg('assets/env/obs-' + k + '.webp').then(i => { images['obs:' + k] = i; }));
     }
     jobs.push(loadImg(CFG.rope.src).then(i => { images.rope = i; }));
+    /* THE VOICE COMES DOWN WITH THE ART. It is not waited on — PLAY must not be held for it —
+       but starting the fetch here means the take is in hand before the first line is spoken. */
+    audio.fetchVo();
     // the carved ends of a platform, cut from the supplied pathui.png — see GroundManager.drawCap
     jobs.push(loadImg('assets/env/cap-l.webp').then(i => { images.capL = i; }));
     jobs.push(loadImg('assets/env/cap-r.webp').then(i => { images.capR = i; }));
@@ -9390,6 +9440,8 @@ function createGame(canvas, hooks = {}) {
     _particles: () => particles,
     /** The voice's state, for the tests and the live check: is the take loaded, is a line
         playing, how long the last question was, and how many lines the table holds. */
+    _voBytes: () => !!audio.voBytes,
+    _voErr: () => audio.voErr || '',
     _voice: () => ({ ready: !!(audio.vo || audio.voEl), saying: !!audio.saying, dur: G.voDur || 0,
                      ctx: audio.ctx ? audio.ctx.state : 'none', said: (audio.saidLog || []).slice(),
                      lines: Object.keys((CFG.vo && CFG.vo.lines) || {}).length }),

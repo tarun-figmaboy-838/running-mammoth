@@ -1184,6 +1184,39 @@ piece. Measured at 1.22: his back 56 units from the left edge, the row's right e
 1920, the ditch lip at screen 881. The idle he waits on plays ONE pass and holds its last pose, so
 the eye goes to the puzzle rather than to a looping character.
 
+### The voice
+
+The owner recorded every line the learner is shown as ONE take (39 s, `assets/audio/vo-lines.mp3`),
+in the order of docs/VO-SCRIPT.md. One file is one download and one decode, so `CFG.vo.lines` names
+a WINDOW per line — [start, length] in seconds, measured off the recording's own energy envelope
+(the gaps between lines run 0.46-0.67 s; a two-sentence line has a shorter internal pause and is
+kept whole), each padded 60 ms before the attack and 120 ms after the tail. `audio.say(id)` plays
+one and returns its length; one line at a time (a new line stops the one before it), the music
+ducks while it speaks, and nothing blocks: no file, no context or sound off and it returns 0 and
+the game is exactly as it was.
+
+WHO SAYS WHAT. The seven tutorial lines are spoken by their steps (`VO` in tutorial.js). The seven
+questions are spoken by the engine, with the id derived from the sentence itself
+(`api.signVoId`: "Cut all the PENTAGONS." -> sign-pentagons), so a re-worded phase cannot drift
+from the recording. The ending speaks its two lines in order.
+
+THE WORDS KEEP PACE. Each line's reveal is spread across 82% of its clip — the step is measured on
+the LAST word's delay, not the word count — so the sentence finishes arriving as the voice finishes
+saying it (measured: 3.73 s of a 3.99 s clip, 2.78 of 2.83, 2.37 of 2.33). Divided by the count and
+capped at 0.21 s, as it was first written, every word was up by the middle of the line.
+
+TWO FAULTS WORTH REMEMBERING, both found by walking a whole playthrough and logging what was said
+(`_voice().said`, which records the reason a line made no sound):
+- the first question was never spoken. The only call was on entering PHASE_ACTIVE, and in the
+  tutorial the teaching line still had the plank at that moment. It is now checked every frame
+  while a question is up, once per phase (`G.saidQuestion`).
+- the take never decoded. The bytes are fetched with the art (a gesture is needed for the context,
+  not for the download) and decoded when the context opens — but a second caller saw a "fetching"
+  flag and returned at once, so the decode ran before the bytes landed and gave up. The fetch
+  promise is shared now, and a line asked for too early is held and spoken as soon as it can be
+  (dropped only if its moment has passed by more than four seconds).
+Tests: voice.spec.mjs.
+
 ### The bubbles point at the thing (tutorial)
 
 Asked for: the ditch line must point at the ditch and the option line at the right option, not at
