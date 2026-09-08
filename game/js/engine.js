@@ -4804,6 +4804,14 @@ export function createGame(canvas, hooks = {}) {
   function updateInstruction(dt) {
     if (G.instruction !== G.instrLast) { G.instrLast = G.instruction; armInstruction(); }
     if (G.instrHold > 0) G.instrHold = Math.max(0, G.instrHold - dt * 1000);
+    /* THE QUESTION IS SPOKEN THE MOMENT THE PLANK IS SHOWING IT — which is not the moment the
+       plank arrives. In the tutorial a teaching line borrows the plank first (api.saySign), so
+       the first question used to be skipped entirely: the only call was on entering PHASE_ACTIVE,
+       and the line still had the plank then. Measured over a whole playthrough, fifteen of the
+       sixteen recorded lines were spoken and "Cut the TRIANGLE." was the one that was not.
+       Checked every frame while a question is up, and said once per phase (G.saidQuestion). */
+    if (!G.signSay && G.stageBeat >= 1 &&
+        ['PHASE_INTRO', 'PHASE_ACTIVE', 'PHASE_WRONG', 'PHASE_SUCCESS'].includes(G.state)) sayPhaseQuestion();
   }
 
   let lastHud = '';
@@ -5039,7 +5047,7 @@ export function createGame(canvas, hooks = {}) {
         // let the tremble that started at the stop play out into the head-down look
         if (mammoth.state !== 'SHAKE') mammoth.setState('LOOK_DOWN');
         buildPhase(); break;
-      case 'PHASE_ACTIVE': G.idle = 0; G.idleHand = 0; if (!G.l1) buildPhase(); if (!G.signSay) sayPhaseQuestion(); break;
+      case 'PHASE_ACTIVE': G.idle = 0; G.idleHand = 0; if (!G.l1) buildPhase(); break;
       case 'PHASE_SUCCESS': break;
       case 'PHASE_DONE':
         // the whole phase is repaired: celebrate, then back to the adventure
@@ -6902,7 +6910,7 @@ export function createGame(canvas, hooks = {}) {
            plank carries the teaching line first (api.saySign), so the question — and its voice —
            wait for that line to finish. Everywhere else G.signSay is empty and this fires on the
            plank's own beat. */
-        if (G.stageBeat >= 1 && !G.signSay) sayPhaseQuestion();
+
         if (!G.dropReady && G.introT > T.gapBeat + T.signBeat) {
           G.stageBeat = 2;
           G.dropReady = true;

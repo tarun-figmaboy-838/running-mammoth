@@ -70,6 +70,26 @@ test.describe('the voice and the crossing order', () => {
     expect(said).toBe('sign-triangle');
   });
 
+  test('every question is actually spoken, first and last included', async ({ page }) => {
+    /* THE FIRST ONE WAS NOT. The only call was on entering PHASE_ACTIVE, and in the tutorial the
+       teaching line still had the plank at that moment, so "Cut the TRIANGLE." — the first
+       question in the game — was never said. Measured over a playthrough: fifteen of sixteen. */
+    await boot(page, { sound: true, fast: 2 });
+    await page.evaluate(() => window.iceAgeGame.sfx('ui'));
+    await page.waitForFunction(() => window.iceAgeGame._voice().ready, null, { timeout: 60_000 });
+    const seen = [];
+    for (const phase of [0, 3, 6]) {
+      await page.evaluate(p => { const g = window.iceAgeGame, G = g.debug(); G.phase = p; G.saidQuestion = ''; g._force('GLACIER_BREAK_1'); }, phase);
+      await waitState(page, 'PHASE_ACTIVE', 120_000);
+      await page.waitForFunction(() => !!window.iceAgeGame.debug().saidQuestion, null, { timeout: 30_000 });
+      seen.push(await page.evaluate(() => ({ id: window.iceAgeGame.debug().saidQuestion,
+                                             heard: window.iceAgeGame._voice().said.slice(-1)[0] })));
+    }
+    expect(seen.map(s => s.id)).toEqual(['sign-triangle', 'sign-hexagon', 'sign-hexagons']);
+    // and nothing was skipped for want of a window, a mute or an unloaded take
+    for (const s of seen) expect(s.heard, `${s.id} was not heard: ${s.heard}`).toBe(s.id);
+  });
+
   test('the crossing runs in order: the hole, the line on the plank, then the question, then the hand', async ({ page }) => {
     await boot(page, { tutorial: true, skipScreens: true, fast: 1 });
     const plank = () => page.evaluate(() => {
