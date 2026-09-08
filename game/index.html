@@ -171,17 +171,18 @@
              either: the real character is on the canvas behind, celebrating, and a
              second still picture of him on the panel was competing with that. -->
         <div class="overlay overlay-ending" id="complete" hidden>
-          <!-- THE FRIEND SPEAKS. The ending used to be a card parked in the sky with no
-               relationship to the two characters under it. It is a speech bubble now, in
-               the same cartoon construction as the tutorial box, with its tail on the
-               bear: he says it. Inside: the title, letter by letter, a count that climbs
-               as seven stamps land (one per crossing, each stamped with the shape that
-               mended it), and sparks. Built by hud.js from the engine's mendedKinds. -->
+          <!-- THE END OF THE STORY, IN WORDS. It used to end on a row of gold coins, one per
+               crossing, each embossed with the polygon that mended it — a scoreboard of shapes
+               at the moment the story pays off. The shapes are gone on request: the banner now
+               says what happened ("Momo crossed the Frozen Pass!", answering the tutorial's
+               "Help Momo cross the Frozen Pass!"), the title waves a letter at a time, and the
+               two of them dance under it with the confetti. Same white-and-icy-blue speech as
+               the dialogue box, drawn by hud.js through fitBubble. -->
           <div class="win-bubble" id="win-bubble" role="status" aria-live="polite">
             <svg class="win-shape" id="win-shape" aria-hidden="true"><path class="win-face" d=""/></svg>
             <div class="win-body">
               <h1 class="win-title" aria-label="You did it!"><span style="--i:0">Y</span><span style="--i:1">o</span><span style="--i:2">u</span><span class="sp" style="--i:3">&nbsp;</span><span style="--i:4">d</span><span style="--i:5">i</span><span style="--i:6">d</span><span class="sp" style="--i:7">&nbsp;</span><span style="--i:8">i</span><span style="--i:9">t</span><span style="--i:10">!</span></h1>
-              <div class="win-stamps" id="win-stamps" aria-hidden="true"></div>
+              <p class="win-sub" id="win-sub">Momo crossed the <b>Frozen Pass!</b></p>
             </div>
             <span class="win-spark s1" aria-hidden="true">✦</span>
             <span class="win-spark s2" aria-hidden="true">✦</span>

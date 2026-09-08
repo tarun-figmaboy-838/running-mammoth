@@ -231,7 +231,6 @@ hud.bind({
   onJump: () => game.jump(),
   onPause: paused => game.setPaused(paused),
   onReplay: () => game.restart(),
-  onStamp: () => game.sfx('stamp'),
   // TEMPORARY review control: end the tutorial if it is up, then jump to the ending
   onSkipEnd: () => { if (tut) { tut.finish(); tut = null; } game.skipToEnd(); },
   onRetry: () => game.retryObstacle(),

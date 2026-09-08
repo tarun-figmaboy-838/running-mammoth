@@ -21,8 +21,8 @@ export const BUBBLE = {
      (CFG.colors.frost) with the deep ice edge the chunks are outlined in — the bubble now reads
      as part of the Frozen Pass rather than a sticker on it. The keyline is the same colour the
      hanging ice is drawn with, so the speech and the world are edged alike. */
-  fill: '#EAF9FF',        // frost
-  ink: '#14507A',         // deep ice edge, between CFG.colors.edge and deepEdge
+  fill: '#FFFFFF',        // white inside, on request
+  ink: '#3FB3E8',         // a bright icy blue keyline, between CFG.colors.cyanIce and edge
   stroke: 7,              // px, at stage size
   radius: 26,             // px
   tailBase: 0.2,          // fraction of the body width

@@ -524,7 +524,22 @@ export const CFG = {
      * zoomMs is slow on the way in — the world settling towards the puzzle reads as
      * the camera taking an interest — and quicker on the way out, because by then the
      * player wants to be running again. */
-    zoomK: 1.08, zoomInMs: 900, zoomOutMs: 520,
+    /* 1.16, not 1.08 (asked for: push in further when the pieces are hanging, until Momo is
+       against the left frame edge, so the eye is on the puzzle). viewFocus solves the focus
+       point from what must stay in shot, so the limit is geometric: the visible width has to
+       cover the character's back (mammothX - charBack) to the option row's right edge. At 1.16
+       his back sits about 25px from the edge and the rightmost block's halo still lands inside
+       the frame; past ~1.20 one of the two has to be cut. */
+    zoomK: 1.22, zoomInMs: 900, zoomOutMs: 520,
+    /* How much of the character is behind mammothX, and how far the option row's glow reaches.
+       Both are what viewFocus keeps in shot, and they are the two numbers that set how far the
+       puzzle may push in — measured off the drawn frame, not guessed. */
+    charBack: 150, rowRight: 1830,
+    /* HOW MUCH SKY MAY BE CUT. The framing used to hold world y 60 in shot, which pinned the
+       view high and pushed the crossing towards the bottom edge; above 200 there is nothing but
+       sky (the instruction sign is a DOM overlay and does not zoom), so letting it go is what
+       lets the view sit lower — and the ditch is what the learner has to see. */
+    skyTop: 200,
     /* The most rocks one stretch may hold. Four at pairScale sits inside the run-up
        the stretch allows; beyond that they arrive faster than the jump recovers and it
        stops being a curve and becomes a wall. */
@@ -3098,7 +3113,11 @@ class PlayerController {
            the settle flows into the delivered idle: 36 frames of breathing on planted feet
            (measured: the foot band does not move between frames). If the idle is missing
            the tremble's last frame is held and the procedural breath keeps it alive. */
-        if (this.idleSheet && F.idle) { sheet = this.idleSheet; f = Math.floor(this.t * SP.idleFps) % F.idle; }
+        /* ONE PASS, THEN STILL (asked for: the idle should play once and stop, so the learner
+           looks at the puzzle rather than at a looping character). The procedural breath keeps
+           the held pose alive, so he settles rather than freezing. IDLE_LOOK and CELEBRATE
+           still loop — there the character IS what the player is watching. */
+        if (this.idleSheet && F.idle) { sheet = this.idleSheet; f = Math.min(F.idle - 1, Math.floor(this.t * SP.idleFps)); }
         else if (this.trembleSheet && F.tremble) { sheet = this.trembleSheet; f = F.tremble - 1; }
         else if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = F.shake - 1; }
         else f = J.idle;
@@ -3181,7 +3200,8 @@ class PlayerController {
     /* THE IDLE CROSSFADE (see CFG.sprite.idleBlend): the next pose is drawn over the current one
        at the fraction of the step already spent, so twelve poses read as continuous motion.
        Same cell, same anchor, same scale — only a second blit with a second alpha. */
-    if (SP.idleBlend && sheet === this.idleSheet && F.idle > 1) {
+    if (SP.idleBlend && sheet === this.idleSheet && F.idle > 1 &&
+        !(this.state === 'LOOK_DOWN' && Math.floor(this.t * SP.idleFps) >= F.idle - 1)) {
       const p = this.t * SP.idleFps, frac = p - Math.floor(p);
       /* Hold the pose for 60% of the step, then dissolve into the next over the last 40%
          (~57 ms): a full-step dissolve left a doubled tusk on screen most of the time. */
@@ -4622,9 +4642,7 @@ export function createGame(canvas, hooks = {}) {
       jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
       // TEMPORARY: whether the review control that jumps to the ending may show
       skippable: G.state !== 'BOOT' && G.state !== 'TITLE' && !G.complete,
-      // the shape that mended each crossing, for the ending's stamps — a string, so the
-      // HUD's change detection sees one value rather than a fresh array every frame
-      mendedKinds: G.complete ? L1.phases.map(p => p.targets[0]).join(',') : '',
+
       oops: G.oops,
       // the hint control asks for attention once the learner has been stuck a while
       hintNudge: G.state === 'PHASE_ACTIVE' && (G.idle > CFG.hint.slotMs / 1000 || (G.l1 && G.l1.wrong >= 1)),
@@ -5879,10 +5897,13 @@ export function createGame(canvas, hooks = {}) {
    * nobody tested. */
   function viewFocus(k) {
     const M = 8;                                  // px of slack at each edge
-    const rightMost = CFG.W - 60;                 // the option row reaches here
-    const leftMost = CFG.mammothX - 120;          // the character stays in shot
-    const bottomMost = CFG.surfaceY + CFG.levelOne.waterDepth;
-    const topMost = 60;                           // the instruction pill sits below this
+    const rightMost = CFG.levelOne.rowRight || (CFG.W - 60);          // the option row's glow reaches here
+    const leftMost = CFG.mammothX - (CFG.levelOne.charBack || 120);   // his back stays in shot, at the edge
+    /* THE BAND THAT MATTERS, not the whole water. The open water at the foot of the shelf was
+       held in shot, which capped the push-in vertically; during a puzzle the eye is on the
+       hanging pieces and the hole, so keeping the lip and a little of the chasm is enough. */
+    const bottomMost = CFG.surfaceY + 120;
+    const topMost = CFG.levelOne.skyTop || 60;    // only sky above this, so it may leave the frame
     // f + (p - f) k <= limit   =>   f (1 - k) <= limit - p k   =>   f >= (limit - p k)/(1 - k)
     const fx = {
       min: (CFG.W - M - rightMost * k) / (1 - k),

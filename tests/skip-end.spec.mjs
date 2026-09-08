@@ -26,8 +26,17 @@ test.describe('skip to ending (temporary)', () => {
     await expect(btn).toBeHidden();                 // gone once the ending is up
 
     await expect(page.locator('#complete')).toBeVisible();
-    // seven crossings counted as mended, so seven stamps
-    await expect(page.locator('#win-stamps .win-stamp')).toHaveCount(7, { timeout: 15_000 });
+    /* THE WORDS ARE THE REWARD. The row of seven polygon coins was removed on request — a
+       scoreboard of shapes at the story's payoff — so what has to be there is the title and the
+       line saying what happened, in the game's own white-and-icy-blue speech. */
+    await expect(page.locator('#win-stamps')).toHaveCount(0);
+    await expect(page.locator('#win-sub')).toBeVisible();
+    await expect(page.locator('#win-sub')).toContainText('Frozen Pass');
+    await expect(page.locator('.win-title')).toBeVisible();
+    const face = await page.evaluate(() => { const p = document.querySelector('.win-face'); const cs = getComputedStyle(p); return { fill: cs.fill, stroke: cs.stroke, d: (p.getAttribute('d') || '').length }; });
+    expect(face.fill, 'white inside').toBe('rgb(255, 255, 255)');
+    expect(face.stroke, 'a bright icy-blue keyline').toBe('rgb(63, 179, 232)');
+    expect(face.d, 'the speech shape was drawn for the words').toBeGreaterThan(40);
     const g = await page.evaluate(() => ({ complete: window.iceAgeGame.debug().complete, phases: window.iceAgeGame.debug().phasesDone }));
     expect(g.complete).toBe(true);
     expect(g.phases).toBe(7);

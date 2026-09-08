@@ -493,7 +493,12 @@
   width: max-content;
   /* 600, not 500: at desktop size "Oh no! The path is broken." needs ~720px with its padding on one line; capped at
      500 it wrapped and left "broken." alone on a second line under a box twice its width. */
-  max-width: min(46%, 760px);
+  /* WIDE ENOUGH TO STAY SHORT. The box is placed above the thing it points at when there is
+     room, and a two- or three-line box is too tall to fit above the rope's cut line — so it
+     went below, over the very piece the sentence names. A wider cap keeps "Use the right ice
+     piece to fix the path." on one line, short enough to sit above the rope with only sky
+     behind it. hugWords still shrinks the box to its words, so shorter lines do not grow. */
+  max-width: min(66%, 1120px);
   padding: clamp(15px, 1.6vw, 30px) clamp(21px, 2.2vw, 41px);
   text-align: center;
   rotate: -1.1deg;
@@ -519,14 +524,16 @@
   overflow: visible;
   pointer-events: none;
   /* a cool shadow, now the bubble is ice rather than yolk */
-  filter: drop-shadow(clamp(4px, 0.42vw, 8px) clamp(6px, 0.63vw, 12px) 0 rgba(12, 51, 82, 0.30));
+  /* a cool shadow with a hint of the keyline's blue, so a white bubble still lifts off snow */
+  filter: drop-shadow(clamp(4px, 0.42vw, 8px) clamp(6px, 0.63vw, 12px) 0 rgba(24, 88, 130, 0.28));
 }
 .tut-face {
-  /* THE GAME'S PALETTE (asked for: the yellow was not the game's). Frost body and the deep ice
-     edge the hanging chunks are outlined in, so the speech is edged like the world it is in.
-     Kept in step with BUBBLE in js/bubble.js, which draws the same shape. */
-  fill: #EAF9FF;
-  stroke: #14507A;
+  /* WHITE INSIDE, A BRIGHT ICY-BLUE KEYLINE (asked for; frost-and-navy was the step before).
+     White is the cleanest ground for the words, and the bright blue line is the game's own ice —
+     between CFG.colors.cyanIce and edge, so it stays visible against both the pale sky and the
+     snow. Kept in step with BUBBLE in js/bubble.js, which draws the same shape. */
+  fill: #FFFFFF;
+  stroke: #3FB3E8;
   stroke-width: 7;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -564,9 +571,11 @@
 }
 .tut-text .pow {
   font-weight: 900;
-  /* Momo's own amber, deepened until it reads on frost: the key word is the character's colour,
-     and the one warm note on an ice-coloured bubble. */
-  color: #C4631B;
+  /* ICY BLUE, AND NOTHING ELSE (asked for: the amber highlighter wash behind the word read as a
+     card stuck on the sentence — no card, just the colour). A bright ice blue that still holds
+     3:1 on white at this size and weight, so the key word is picked out by hue alone, the way
+     the sign's noun is. The tilt and the small shadow it always had stay. */
+  color: #1B90D4;
   rotate: -3deg;
   scale: 1.08;
   margin: 0 .16em;                     /* the 8% scale eats the word space; give it back */
@@ -734,9 +743,10 @@
   top: 0;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(60, 30, 8, 0.34));
+  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(24, 88, 130, 0.30));
 }
-.win-face { fill: #F9D201; stroke: #5A2E0A; stroke-width: 8; stroke-linejoin: round; }
+/* The same speech as the dialogue box: white inside, a bright icy-blue keyline. */
+.win-face { fill: #FFFFFF; stroke: #3FB3E8; stroke-width: 8; stroke-linejoin: round; }
 .win-body {
   position: relative;
   z-index: 1;
@@ -747,11 +757,11 @@
 .win-title {
   margin: 0;
   font: 800 clamp(40px, 4.4vw, 84px)/1 "Baloo 2", system-ui, sans-serif;
-  color: #FFFFFF;
-  -webkit-text-stroke: clamp(2px, 0.28vw, 5px) #0C3352;
-  paint-order: stroke fill;
+  /* INK ON WHITE, not white with a navy outline: on the white banner the old fill was
+     invisible and only its stroke showed, so the letters read as hollow. */
+  color: #0C3352;
   letter-spacing: .01em;
-  text-shadow: 0 clamp(3px, 0.3vw, 6px) 0 #0C3352;
+  text-shadow: 0 clamp(3px, 0.3vw, 6px) 0 rgba(63, 179, 232, 0.55);
 }
 .win-title span { display: inline-block; animation: winLetter 2.2s cubic-bezier(.4, 0, .3, 1) infinite; animation-delay: calc(var(--i) * 70ms); }
 .win-title .sp { width: .28em; }
@@ -760,50 +770,14 @@
   10%           { translate: 0 -0.16em; rotate: -5deg; }
   20%           { translate: 0 0.02em; rotate: 2deg; }
 }
+/* WHAT HAPPENED, in the friend's words — it answers the tutorial's "Help Momo cross the
+   Frozen Pass!", so the story closes where it opened. The place is amber: Momo's own colour. */
 .win-sub {
-  margin: clamp(6px, 0.6vw, 12px) 0 clamp(12px, 1.3vw, 24px);
-  font: 800 clamp(20px, 2.1vw, 40px)/1.2 "Baloo 2", system-ui, sans-serif;
-  color: #111111;
+  margin: clamp(4px, 0.5vw, 10px) 0 0;
+  font: 800 clamp(19px, 2vw, 38px)/1.25 "Baloo 2", system-ui, sans-serif;
+  color: #0C3352;
 }
-.win-count {
-  margin: 0 0 clamp(10px, 1.1vw, 20px);
-  font: 800 clamp(17px, 1.7vw, 32px)/1.2 "Baloo 2", system-ui, sans-serif;
-  color: #3A2A00;
-}
-.win-count b {
-  display: inline-block;
-  min-width: 1.2em;
-  font-size: 1.35em;
-  color: #B05A00;
-  -webkit-text-stroke: clamp(1px, 0.14vw, 2.5px) #3A2A00;
-  paint-order: stroke fill;
-}
-/* SEVEN STAMPS — gold coins, each embossed with the shape that mended its crossing, landing
-   one after another with a coin sound. A collection, which is what "seven crossings"
-   should feel like. */
-.win-stamps { display: flex; justify-content: center; gap: clamp(6px, 0.7vw, 14px); flex-wrap: wrap; }
-.win-stamp {
-  width: clamp(34px, 3.4vw, 64px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #FFE58A, #F2A93B 62%, #C77A14 100%);
-  box-shadow: inset 0 0 0 clamp(2px, 0.2vw, 4px) #7A4A0A, 0 clamp(3px, 0.3vw, 6px) 0 #7A4A0A;
-  display: grid;
-  place-items: center;
-  pointer-events: auto;                 /* a stamp answers a tap: it pops and rings its coin */
-  cursor: pointer;
-  opacity: 0;
-  scale: .2;
-  animation: stampIn 460ms cubic-bezier(.2, 1.7, .4, 1) forwards;
-  animation-delay: calc(var(--i) * 170ms + 520ms);
-}
-.win-stamp svg { width: 66%; height: 66%; overflow: visible; }
-.win-stamp polygon { fill: #BFEBFF; stroke: #0C3352; stroke-width: 7; stroke-linejoin: round; paint-order: stroke fill; }
-@keyframes stampIn {
-  0%   { opacity: 0; scale: .2;  rotate: -30deg; }
-  70%  { opacity: 1; scale: 1.15; rotate: 6deg; }
-  100% { opacity: 1; scale: 1;   rotate: 0deg; }
-}
+.win-sub b { color: #B4530F; }
 .win-spark {
   position: absolute;
   color: #FFE58A;
@@ -821,8 +795,7 @@
   50%      { opacity: 1;   scale: 1.1; rotate: 25deg; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .win-bubble, .win-title span, .win-stamp, .win-spark, .btn-replay, .tut-bubble { animation: none; }
-  .win-stamp { opacity: 1; scale: 1; }
+  .win-bubble, .win-title span, .win-spark, .btn-replay, .tut-bubble { animation: none; }
 }
 @media (prefers-reduced-motion: reduce) { .btn-replay { animation: none; translate: -50% 0; } }
 

@@ -32,7 +32,6 @@ export class Hud {
       pill: root.getElementById('instruction-pill'),
       text: root.getElementById('instruction-text'),
       complete: root.getElementById('complete'),
-      stamps: root.getElementById('win-stamps'),
       winBubble: root.getElementById('win-bubble'),
       winShape: root.getElementById('win-shape'),
       winCount: root.getElementById('win-count'),
@@ -102,48 +101,9 @@ export class Hud {
     if (el.hidden) el.hidden = false;
   }
 
-  /* THE ENDING'S STAMPS AND COUNT. One gold coin per crossing, embossed with the shape
-     that mended it (the engine publishes the kinds as mendedKinds), landing one after
-     another while the count climbs and a coin sounds through the handlers. The polygon is
-     the shape's own verified ring (shapeRing), normalised into the coin — so the stamp is
-     the geometry the learner actually counted, not a decorative glyph. */
+  /* THE ENDING'S BANNER. The coins are gone (see index.html): the words are the reward, so all
+     this does is fit the speech shape to the box they need. */
   showWin(h) {
-    const row = this.el.stamps, count = this.el.winCount, total = this.el.winTotal;
-    if (!row) return;
-    const kinds = (h.mendedKinds || '').split(',').filter(Boolean);
-    row.innerHTML = '';
-    if (total) total.textContent = String(kinds.length || 7);
-    if (count) count.textContent = '0';
-    kinds.forEach((kind, i) => {
-      const el = document.createElement('span');
-      el.className = 'win-stamp';
-      el.style.setProperty('--i', i);
-      const pts = shapeRing(kind);
-      if (pts && pts.length) {
-        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-        for (const p of pts) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
-        const s = 80 / Math.max(x1 - x0, y1 - y0, 1e-6), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-        const d = pts.map(p => ((p.x - cx) * s + 50).toFixed(1) + ',' + ((p.y - cy) * s + 50).toFixed(1)).join(' ');
-        el.innerHTML = '<svg viewBox="0 0 100 100" aria-hidden="true"><polygon points="' + d + '"/></svg>';
-      }
-      el.addEventListener('pointerdown', ev => {
-        ev.preventDefault();
-        if (window.Juice) { try { Juice.pop(el, { power: 1.2 }); } catch (e) { /* no juice */ } }
-        if (this.handlers && this.handlers.onStamp) this.handlers.onStamp();
-      });
-      row.appendChild(el);
-    });
-    clearTimeout(this._winTimer);
-    let i = 0;
-    const tick = () => {
-      i++;
-      if (count) count.textContent = String(i);
-      const st = row.children[i - 1];
-      if (st && window.Juice) { try { Juice.pop(st, { power: 1.1 }); } catch (e) { /* no juice */ } }
-      if (this.handlers && this.handlers.onStamp) this.handlers.onStamp();
-      if (i < kinds.length) this._winTimer = setTimeout(tick, 170);
-    };
-    if (kinds.length) this._winTimer = setTimeout(tick, 820);   // as the first stamp lands
     /* The banner's shape is drawn for the box the words need — the same bubble as the
        tutorial's, without a tail (nobody in particular is saying it). Once now, and again
        after the pop-in has settled, because the box measures differently mid-bounce. */

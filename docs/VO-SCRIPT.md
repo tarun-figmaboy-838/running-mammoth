@@ -39,7 +39,14 @@ coloured; say it with the same emphasis.
 | sign-6-pentagons | Cut all the pentagons. | 6 (two answers) |
 | sign-7-hexagons | Cut all the hexagons. | 7 (two answers) |
 
-## 3. Interface and screens
+## 3. The ending (the friend speaks)
+
+| id | line | moment |
+|---|---|---|
+| win-title | You did it! | The banner, a letter at a time, as the two of them dance |
+| win-sub | Momo crossed the Frozen Pass! | Under the title; it answers the tutorial's second line |
+
+## 4. Interface and screens
 
 Short, functional lines. Record only if the interface is to be voiced; the game does not
 require them.
@@ -57,7 +64,7 @@ require them.
 | ui-play-again | Play again | The ending |
 | ui-skip-ending | Skip to ending | A review control, not for players |
 
-## 4. If the lines are ever re-recorded or re-written
+## 5. If the lines are ever re-recorded or re-written
 
 The tutorial script is fixed by the owner and is quoted verbatim in `game/js/tutorial.js`; the
 instruction sentences live in `CFG.levelOne.phases[].instruction` in `game/js/engine.js` and

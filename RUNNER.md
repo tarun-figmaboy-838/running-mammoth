@@ -1102,6 +1102,40 @@ seven instruction sentences, and the interface strings — with an id per line f
 and a note on delivery. A test reads the config and the tutorial and fails if a line is missing
 from the script, so the two cannot drift.
 
+### The ending: the words are the reward
+
+Asked for: remove the shapes and make the card fit the moment. The row of seven gold coins, each
+embossed with the polygon that mended its crossing, is gone — it was a scoreboard of shapes at the
+moment the story pays off. The banner is now the same white-and-icy-blue speech as the dialogue,
+the title reads as navy ink (it was a white fill with a navy outline: invisible on a white card, so
+only the outline showed and the letters looked hollow), and under it one line says what happened —
+"Momo crossed the Frozen Pass!", answering the tutorial's "Help Momo cross the Frozen Pass!" — with
+the place name in amber. `mendedKinds`, the stamp builder, the coin styles and the tap-a-coin
+handler went with the coins, and the dead `.win-count` rules went too. Test: skip-end.spec.
+
+### The dialogue box sits up on the rope
+
+Asked for: the ask box should be on the rope, not parked under the pieces. The cut step's subject
+is now the rope's own cut stretch (where the hand sweeps), so the words sit just above it with the
+tail down on the piece — sentence and gesture in one place. Two things keep that honest: the box is
+wide enough to hold the sentence on ONE line (a two-line box is too tall to fit above the rope, and
+fell back over the answer), and it is pushed right until it clears the instruction plank in the
+top-left band. Where there is no sky above the ropes at all — a phone-landscape stage — it falls
+back BELOW the pieces (`belowY`) instead of half over them, tail still on the answer. The key word
+is icy blue: an amber highlighter wash was tried and taken out on request ("no card, just the
+colour").
+
+### The puzzle framing pushes in
+
+`zoomK` is 1.22 (was 1.08, then 1.16): the view pushes in until Momo's back is at the left frame
+edge, and it sits lower — `skyTop` lets the empty sky above y 200 leave the frame, which is what
+frees the view to drop, and the bottom bound is the lip plus 120 rather than the whole water. The
+limit is geometric, not a preference: `viewFocus` solves the focus point from what must stay in
+shot (his back, `charBack`, and the option row's glow, `rowRight`), so the framing cannot clip a
+piece. Measured at 1.22: his back 56 units from the left edge, the row's right edge at 1918 of
+1920, the ditch lip at screen 881. The idle he waits on plays ONE pass and holds its last pose, so
+the eye goes to the puzzle rather than to a looping character.
+
 ### The bubbles point at the thing (tutorial)
 
 Asked for: the ditch line must point at the ditch and the option line at the right option, not at

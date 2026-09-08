@@ -252,11 +252,19 @@ export class Tutorial {
        blocks, so the bubble lands beneath them, over open ice; the hand still aims at the
        rope itself (handY), which is where the swipe has to happen. */
     const bottom = mid.y + (mid.h || 200) / 2 + 12;
-    /* aimX is the BLOCK's centre: the zone keeps the bubble off the ropes and blocks, the
-       tail points at the piece the sentence means (asked: it must point at the right option,
-       not at the air beside it). */
-    return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y: (60 + bottom) / 2, rx: 150, ry: (bottom - 60) / 2,
-             aimX: mid.x, handY: ropeY, world: true };
+    /* UP ON THE ROPE (asked for: the box sat under the blocks, over open ice, and read as
+       unrelated to what it was talking about). The subject is now the rope's own cut stretch —
+       a compact box at handY, where the hand sweeps — so the placement puts the words just
+       above that line with the tail down on it: the sentence and the gesture are in the same
+       place. The blocks below stay clear because the box no longer reaches them. */
+    /* belowY IS THE FALLBACK. There is only so much sky above a rope: on a desktop stage the
+       one-line box fits there, and on a phone-landscape stage it does not — the box would have
+       to be clamped onto the top edge with its tail pointing at nothing. So when above does not
+       fit, the box goes UNDER THE PIECES (the row's bottom edge) rather than half over them,
+       and the tail lands on the piece it names. Either way it never covers the answer. */
+    return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y: ropeY, rx: 120, ry: 34,
+             aimX: mid.anchorX !== undefined ? mid.anchorX : mid.x, belowY: bottom,
+             handY: ropeY, world: true };
   }
 
   /** A box around every hanging block, in stage coordinates. */
@@ -516,6 +524,7 @@ export class Tutorial {
     // both axes scale, or an oval stops matching the row it hugs
     if (box.r !== undefined) out.r = box.r * k;
     if (box.aimX !== undefined) out.aimX = fx + (box.aimX - fx) * k;
+    if (box.belowY !== undefined) out.belowY = fy + (box.belowY - fy) * k;
     if (box.rx !== undefined) out.rx = box.rx * k;
     if (box.ry !== undefined) out.ry = box.ry * k;
     return out;
@@ -801,7 +810,8 @@ export class Tutorial {
       const tailCss = clampN((b.offsetHeight || 120) * BUBBLE.tailLen, BUBBLE.tailLenMin, BUBBLE.tailLenMax);
       const GAP = tailCss * stageK + 6;
       const upY = box.y - ry - GAP - HALF;      // bottom edge clears the subject top
-      const dnY = box.y + ry + GAP + HALF;      // top edge clears the subject bottom
+      // below: from the subject's own bottom, or from a box-supplied fallback edge (see ropeBox)
+      const dnY = (box.belowY !== undefined ? box.belowY : box.y + ry) + GAP + HALF;
       const upFits = upY - HALF > 0;
       const dnFits = dnY + HALF < H;
       let above, y;
@@ -830,7 +840,19 @@ export class Tutorial {
          sentence measured 1286 stage units and lost its first two words off the left of the
          screen. The tail is offset back onto the subject below, so a clamp costs nothing. */
       const halfW = Math.min((this._boxW || 420) / 2 + 12, W / 2);
-      const bx = clampN(box.x, halfW, W - halfW);
+      let bx = clampN(box.x, halfW, W - halfW);
+      /* AND CLEAR OF THE SIGN. The instruction plank lives in the top-left band, and a box
+         placed above the ropes shares that band — measured, it covered the last word of "Cut
+         the TRIANGLE." The box is pushed right until it clears the plank; the tail is offset
+         back onto its aim below, so the pointing does not suffer. */
+      const signEl = this.root.getElementById('instruction-pill');
+      const panel = this.root.getElementById('instruction');
+      if (signEl && panel && !panel.hidden && st) {
+        const sr = signEl.getBoundingClientRect(), sb = st.getBoundingClientRect();
+        const kx = W / (st.clientWidth || 1), ky = H / (st.clientHeight || 1);
+        const sRight = (sr.right - sb.left) * kx, sBottom = (sr.bottom - sb.top) * ky;
+        if (y - HALF < sBottom + 8) bx = Math.max(bx, Math.min(sRight + halfW + 10, W - halfW));
+      }
       b.style.left = pc(bx, W);
       b.style.top = pc(y, H);
       b.dataset.side = above ? 'above' : 'below';
