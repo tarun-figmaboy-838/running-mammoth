@@ -141,10 +141,12 @@ test.describe('the tremble, the stop and the crash', () => {
     expect(aim.tipY, 'the tip reaches the ice edge').toBeGreaterThan(aim.surfaceY - 40);
     expect(aim.tipY).toBeLessThan(aim.surfaceY + 40);
     expect(aim.cx, 'over the hole').toBeGreaterThan(aim.gx0); expect(aim.cx).toBeLessThan(aim.gx1);
-    await page.waitForFunction(() => /right ice piece/.test(document.getElementById('tut-text').textContent), null, { timeout: 150_000 });
+    /* THE TEACHING LINE IS ON THE PLANK, not in the bubble (moved there on request), so it is
+       the instruction panel that is waited for and measured here. */
+    await page.waitForFunction(() => /right ice piece/i.test(document.getElementById('instruction-text').textContent), null, { timeout: 150_000 });
     await page.waitForTimeout(900);
-    const box = await page.evaluate(() => { const st = document.getElementById('stage').getBoundingClientRect(), k = 1920 / st.width; const bb = document.getElementById('tut-bubble').getBoundingClientRect(); return { x0: (bb.left - st.left) * k, x1: (bb.right - st.left) * k }; });
-    expect(box.x0, 'the option line stays on the stage').toBeGreaterThanOrEqual(0);
+    const box = await page.evaluate(() => { const st = document.getElementById('stage').getBoundingClientRect(), k = 1920 / st.width; const bb = document.getElementById('instruction-pill').getBoundingClientRect(); return { x0: (bb.left - st.left) * k, x1: (bb.right - st.left) * k }; });
+    expect(box.x0, 'the teaching line, on the plank, stays on the stage').toBeGreaterThanOrEqual(0);
     expect(box.x1).toBeLessThanOrEqual(1920);
     await page.waitForFunction(() => { const L = window.iceAgeGame.debug().l1; return L && L.shapes.some(s => s.state === 'hang' && s.y > 400); }, null, { timeout: 20_000 });
     await page.evaluate(() => { const g = window.iceAgeGame; g._cut(g.debug().l1.unfilled[0]); });

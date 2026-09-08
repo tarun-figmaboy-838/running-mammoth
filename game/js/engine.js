@@ -238,6 +238,10 @@ export const CFG = {
        seconds. Asked for: the changes between the delivered animations read as cuts. Off for the
        run, the jump and the crash, whose cuts are the timing. */
     handover: 0.18,
+    /* The quick states — take-off, flight, touchdown, the skid into a stop — hand over in this
+       much: enough to take the snap off a pose change, short enough that the take-off is still
+       a take-off. */
+    handoverFast: 0.08,
     /* THE STARTLE PASSES. On a splash he recoils into the alert pose; after this many seconds he
        comes back down to the settle by a dissolve, instead of holding the alert face for the
        whole of the wrong-answer beat (measured: 3.6 s on one frame). */
@@ -249,7 +253,7 @@ export const CFG = {
        dissolve from the settle into the idle sheet at the ending. A mid-level celebration is
        0.7 s (T.celebrate) and so plays the crouch, one arc and the landing before the run
        resumes; the ending plays it all and then breathes. */
-    hop: { crouch: 0.12, arcs: [[0.48, 42], [0.42, 28]], land: 0.10, absorb: 0.24, toIdle: 0.22 },
+    hop: { crouch: 0.16, arcs: [[0.48, 42], [0.42, 28]], land: 0.10, absorb: 0.24, toIdle: 0.22 },
     /* THE TRAMPLE at the edge is authored at 70ms a frame: 14.3fps plays it as drawn. The
        stomp — his raised front comes down 30px in three frames — lands on frame 20, read
        off the built sheet (the body's top row: 70 at frames 14-16, 86 at 19, 100 at 21). */
@@ -3020,6 +3024,7 @@ class PlayerController {
     this.runDist = 0; this.lastStepFrame = -1;
     this.skidP = 0; this.sprayClock = 0; this.breath = 0;
     this.fromSheet = null; this.fromFrame = -1;     // the pose a hand-over dissolves from
+    this.hopBeat = '';
     /* THE CARTOON LAYER. One decaying amplitude (`scare`) drives a sideways knock, a
        nervous roll and a jelly squash; `lean` is the double take, `gulp` the swallow.
        All of it is applied in draw() and none of it is read by the collider. */
@@ -3035,6 +3040,8 @@ class PlayerController {
   setSkidProgress(p) { this.skidP = clamp(p, 0, 1); }
   setState(s) {
     if (this.state === s) return;
+    // a startle lifts him: a small stretch on entry that the squash lerp eases back
+    if (s === 'SURPRISED') this.squash = 1.07;
     // remember the pose being left, so the new state can dissolve from it (see draw)
     this.fromSheet = this.lastSheetRef || null; this.fromFrame = this.lastFrame;
     this.state = s; this.t = 0;
@@ -3044,16 +3051,24 @@ class PlayerController {
   hopPhase(t) {
     const H = CFG.sprite.hop;
     if (!H) return { seg: 'idle', hop: 0, since: t };
+    /* ONE ARC BETWEEN CROSSINGS, BOTH AT THE ENDING. A mid-level celebration lasts T.celebrate
+       (0.7 s = crouch + one arc + the landing) and the run resumes off the landing, so a second
+       arc would be cut off at its launch; hopShort (set by the engine) drops it, and the landing
+       then settles instead of gathering for a hop that will not come. */
+    const arcs = this.hopShort ? H.arcs.slice(0, 1) : H.arcs;
     let c = H.crouch;
     if (t < c) return { seg: 'crouch', hop: 0, u: t / c };
-    for (let k = 0; k < H.arcs.length; k++) {
-      const dur = H.arcs[k][0], height = H.arcs[k][1];
+    for (let k = 0; k < arcs.length; k++) {
+      const dur = arcs[k][0], height = arcs[k][1];
       if (t < c + dur) { const u = (t - c) / dur; return { seg: 'arc', k, u, hop: height * 4 * u * (1 - u) }; }
       c += dur;
       if (t < c + H.land) return { seg: 'land', k, hop: 0, u: (t - c) / H.land };
       c += H.land;
     }
     if (t < c + H.absorb) return { seg: 'absorb', hop: 0, u: (t - c) / H.absorb };
+    /* Between crossings the settle is HELD (breathing) until the run takes it up through a
+       dissolve — the idle sheet is not started for a third of a second only to be cut off. */
+    if (this.hopShort) return { seg: 'absorb', hop: 0, u: 1, held: true };
     return { seg: 'idle', hop: 0, since: t - c - H.absorb };
   }
 
@@ -3319,7 +3334,17 @@ class PlayerController {
       /* A REAL ARC, not a rectified sine. |sin(7t)| bounced him fourteen times a second at the
          start and never let a hop finish; CFG.sprite.hop is two parabolas with ground contact
          between them, read here for the height and in draw() for the frame. */
-      this.hop = this.hopPhase(this.t).hop;
+      const P = this.hopPhase(this.t);
+      this.hop = P.hop;
+      /* WEIGHT. The frame the ground is met on squashes him and the first frame off it
+         stretches him; both ease back through the usual squash lerp below. Edge-triggered on
+         the beat changing, so a slow frame cannot fire it twice. */
+      const beat = P.seg + (P.k === undefined ? '' : P.k);
+      if (beat !== this.hopBeat) {
+        if (P.seg === 'land' || P.seg === 'absorb') this.squash = 0.86;
+        if (P.seg === 'arc') this.squash = 1.08;
+        this.hopBeat = beat;
+      }
     } else if (this.state === 'SURPRISED') {
       this.hop = 0;
     } else {
@@ -3384,10 +3409,24 @@ class PlayerController {
         sheet = img;
         f = Math.floor((this.runDist / this.stride) * F.run) % F.run;
         break;
-      case 'JUMP_START': f = this.t < 0.045 ? J.crouch : J.launch; break;
-      case 'JUMP_AIR':
-        f = this.vy < -420 ? J.rise : this.vy < 160 ? J.apex : this.vy < 760 ? J.fall : J.preLand; break;
-      case 'LAND': f = this.t < 0.09 ? J.land : J.absorb; break;
+      case 'JUMP_START':
+        // crouch, launch: the launch dissolves in over the crouch's second half
+        f = this.t < 0.045 ? J.crouch : J.launch;
+        if (f === J.crouch && this.t > 0.022) { blendF = J.launch; blendU = (this.t - 0.022) / 0.023; }
+        break;
+      case 'JUMP_AIR': {
+        /* The pose follows the vertical speed; each hands over to the next by a dissolve across
+           the 180 units of speed before its threshold, so the four flight poses read as one arc
+           instead of four cuts. */
+        const TH = [[-420, J.rise, J.apex], [160, J.apex, J.fall], [760, J.fall, J.preLand]];
+        f = this.vy < -420 ? J.rise : this.vy < 160 ? J.apex : this.vy < 760 ? J.fall : J.preLand;
+        for (const [thr, from, to] of TH) if (f === from && this.vy > thr - 180 && this.vy < thr) { blendF = to; blendU = (this.vy - (thr - 180)) / 180; }
+        break;
+      }
+      case 'LAND':
+        f = this.t < 0.09 ? J.land : J.absorb;
+        if (this.t > 0.054 && this.t < 0.09) { blendF = J.absorb; blendU = (this.t - 0.054) / 0.036; }
+        break;
       case 'SKID_STOP':
         if (this.skidSheet) { sheet = this.skidSheet; f = Math.min(F.skid - 1, Math.floor(this.skidP * F.skid)); }
         else f = J.crouch;
@@ -3499,23 +3538,25 @@ class PlayerController {
            thresholds, which flipped poses fourteen times a second and then froze. */
         const P = this.hopPhase(this.t);
         if (P.seg === 'idle' && this.idleSheet && F.idle) {
-          sheet = this.idleSheet; idleT = P.since;
+          sheet = this.idleSheet; idleT = Math.max(0, P.since - (SP.hop ? SP.hop.toIdle : 0));
           f = Math.floor(idleT * SP.idleFps) % F.idle;
           if (SP.hop && P.since < SP.hop.toIdle && this.jumpSheet) {
             blendSheet = this.jumpSheet; blendF = J.absorb; blendU = 1 - P.since / SP.hop.toIdle;
           }
           break;
         }
-        if (P.seg === 'crouch') { f = J.crouch; break; }
-        if (P.seg === 'land') { f = J.land; break; }
-        if (P.seg === 'absorb') { f = J.absorb; break; }
+        // the ground beats each dissolve into what follows over their last 40%, like the arcs
+        const into = (frame, next, u) => { f = frame; if (u > 0.6 && next >= 0) { blendF = next; blendU = (u - 0.6) / 0.4; } };
+        if (P.seg === 'crouch') { into(J.crouch, J.launch, P.u); break; }
+        if (P.seg === 'land') { into(J.land, P.k < (this.hopShort ? 1 : SP.hop.arcs.length) - 1 ? J.launch : J.absorb, P.u); break; }
+        if (P.seg === 'absorb') { into(J.absorb, -1, P.u); break; }
         // an arc: the pose by how far through the flight he is
         const SEG = [[0.10, J.launch], [0.38, J.rise], [0.62, J.apex], [0.90, J.fall], [1.001, J.preLand]];
         let a = 0, i = 0;
         while (i < SEG.length - 1 && P.u >= SEG[i][0]) { a = SEG[i][0]; i++; }
         f = SEG[i][1];
         const frac = (P.u - a) / (SEG[i][0] - a);
-        if (i < SEG.length - 1 && frac > 0.6) { blendF = SEG[i + 1][1]; blendU = (frac - 0.6) / 0.4; }
+        if (frac > 0.6) { blendF = i < SEG.length - 1 ? SEG[i + 1][1] : J.land; blendU = (frac - 0.6) / 0.4; }
         break;
       }
     }
@@ -3537,12 +3578,21 @@ class PlayerController {
        crash keep their cuts — there the cut is the timing. Same cell geometry on every sheet,
        so the second blit lands on the same feet. Keyed off this.t, which setState zeroes. */
     let underSheet = null, underF = -1, underA = 0;
+    const FAST = this.state === 'JUMP_START' || this.state === 'JUMP_AIR' || this.state === 'LAND' ||
+                 this.state === 'SKID_STOP';
     const SOFT = this.state === 'LOOK_DOWN' || this.state === 'IDLE_LOOK' ||
-                 this.state === 'SHAKE' || this.state === 'SURPRISED';
+                 this.state === 'SHAKE' || this.state === 'SURPRISED' || FAST ||
+                 // the run taken up from any other sheet (a landing, the wait, the title) dissolves in
+                 (this.state === 'RUN' && this.fromSheet !== this.sheet) ||
+                 // and so does the celebration's crouch, briefly — the crouch is itself the anticipation
+                 this.state === 'CELEBRATE';
     if (SOFT && SP.handover && this.fromSheet && this.t < SP.handover &&
         (this.fromSheet !== sheet || this.fromFrame !== f)) {
       underSheet = this.fromSheet; underF = this.fromFrame;
-      underA = 1 - easeInOut(this.t / SP.handover);
+      // the crouch is short and has its own dissolve out, so the way in is quicker
+      const span = FAST ? (SP.handoverFast || 0.08)
+                 : this.state === 'CELEBRATE' && SP.hop ? Math.min(SP.handover, SP.hop.crouch * 0.55) : SP.handover;
+      underA = this.t < span ? 1 - easeInOut(this.t / span) : 0;
     }
     this.lastFrame = f; this.lastSheetRef = sheet;
     this.lastBlend = blendF >= 0 ? blendU : 0; this.lastUnder = underA;   // read by the tests
@@ -5234,7 +5284,7 @@ export function createGame(canvas, hooks = {}) {
            rest of the game. The phase ending takes it back, whatever the tutorial is doing. */
         G.signSay = '';
         G.phasesDone = Math.max(G.phasesDone, G.phase + 1);
-        mammoth.setState('CELEBRATE'); audio.success(G.phase); atmos.pulse();
+        mammoth.hopShort = true; mammoth.setState('CELEBRATE'); audio.success(G.phase); atmos.pulse();
         /* A crossing is mended and he can go on — the biggest beat in the loop, so it
            gets the biggest burst, thrown from over his head rather than off the hole.
            The fright is cleared at the same time: he is done being scared of this one. */
@@ -5254,7 +5304,7 @@ export function createGame(canvas, hooks = {}) {
         audio.setDuck(1); mammoth.setState('RUN'); break;
       case 'COMPLETE':
         G.moving = false; G.complete = true; G.jumpEnabled = false; G.instruction = ''; G.drizzleAt = 0; G.duoFrame = -1;
-        mammoth.setState('CELEBRATE'); particles.poof(CFG.mammothX, CFG.surfaceY, 6, 1.1);
+        mammoth.hopShort = false; mammoth.setState('CELEBRATE'); particles.poof(CFG.mammothX, CFG.surfaceY, 6, 1.1);
         /* CONFETTI, from above the whole stage rather than from the character. A burst
            thrown off one point reads as an impact; confetti has to fall on everything,
            which is what makes it a celebration rather than another particle effect. */
@@ -5892,7 +5942,14 @@ export function createGame(canvas, hooks = {}) {
        whistle falls, it hits the water. No cross, because a cross is a mark AGAINST
        the child, and everything else in this game is careful never to make one — the
        same rule that keeps the sad trombone out of the sound set. */
-    if (!sh.correct) { L.wrong++; audio.reject(); }
+    if (!sh.correct) {
+      L.wrong++; audio.reject();
+      /* AND HE REACTS NOW, at the cut. The startle used to wait for the splash, which is over a
+         second after the finger left the rope — so the answer to a wrong cut arrived late and
+         read as unconnected to it (the owner's note: "it takes time to show"). The startle is
+         the immediate answer; the splash below keeps the body jolt, not a second startle. */
+      mammoth.setState('SURPRISED');
+    }
     else if (!reduced) particles.confetti(CFG.W, 64);   // a shower across the stage, as asked
     sh.from = { x: sh.x, y: sh.y };
     sh.rest = { y: restOnPath(sh), wedge: restWedged(sh) };
@@ -6101,7 +6158,7 @@ export function createGame(canvas, hooks = {}) {
       mammoth.setState('LOOK_DOWN');
       if (L.slots.some(s => !s.filled)) L.slotPulse = 1;
     } else {
-      mammoth.setState('CELEBRATE');
+      mammoth.hopShort = true; mammoth.setState('CELEBRATE');
     }
   }
 
@@ -6173,7 +6230,7 @@ export function createGame(canvas, hooks = {}) {
           shake(reduced ? 0.9 : 2.6, 240);
           // the reaction belongs to the SPLASH now: it used to fire when a wrong chunk
           // thudded onto the path, which no longer happens
-          mammoth.setState('SURPRISED');
+          // the startle already happened at the cut (cutShape); the splash is the body's jolt
           mammoth.jolt(reduced ? 0.4 : 0.85);   // and recoils off the lip
           sh.sinkFrom = sh.y;
         }

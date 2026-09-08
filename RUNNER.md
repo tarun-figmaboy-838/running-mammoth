@@ -1443,6 +1443,33 @@ thresholds, then a freeze, then a cut to the idle.
 Tests: tremble.spec (the wait is `tremble:11`, held), hd.spec (the settle at both scales),
 polish.spec (hop reacts to a poke, unchanged path). Probes: `qa-report/hop-strip.png`.
 
+### The last review of the animations (owner: "make all gif smooth and perfect")
+
+Measured with a per-frame trace that flags a pose change with no dissolve on either side; the
+celebration, a wrong drop and a jump now report **no hard cuts**.
+
+- **The startle fires at the cut**, not at the splash 1.3 s later (`cutShape`); the splash keeps
+  the body jolt. It dissolves in over the wait, holds the alert pose for `CFG.sprite.startle`
+  (0.8 s) with a small stretch on entry, then dissolves back down to the settle — so the wait
+  re-enters on the same frame.
+- **Between crossings the celebration is one arc**: `mammoth.hopShort` drops the second arc and
+  HOLDS the landed settle (breathing) until the run takes it up by a dissolve; the idle sheet is
+  not started only to be cut off. Both arcs and the idle run only at the ending — where the sprite
+  fades into the duo picture within 300 ms anyway.
+- **Every ground contact dissolves**: crouch → launch, pre-land → land, land → launch/absorb,
+  LAND's land → absorb; the flight poses dissolve across the 180 units of speed before each
+  threshold; the take-off's crouch dissolves into the launch.
+- **Quick states hand over in 0.08 s** (`CFG.sprite.handoverFast`: JUMP_START, JUMP_AIR, LAND,
+  SKID_STOP); the run is taken up from any other sheet by a dissolve; the celebration's crouch
+  gets a short one (55% of the crouch). The idle's own clock waits for the settle→idle hand-over
+  to finish before it steps.
+- The ending's sprite fades into `duo-celebrate.webp` at `G.st/300`, so the visible ending
+  celebration is the pair dancing — the sprite hop there is 0.3 s of crouch and launch.
+
+Test note: tremble.spec "the last tutorial line" waited for "Use the right ice piece" in the
+speech bubble long after that line moved to the plank; it now waits on `#instruction-text` and
+measures the pill. Strips: `qa-report/startle-strip2.png`, `qa-report/hop-strip4.png`.
+
 ### The camera move is eased at both ends
 
 The push-in and the pull-out ran on an exponential approach — a fixed share of the remaining
