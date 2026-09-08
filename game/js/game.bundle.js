@@ -10335,6 +10335,23 @@ class Tutorial {
       }
       if (!ok) { b.style.width = wasWidth; break; }
     }
+    /* BALANCE A TWO-LINE SENTENCE. `text-wrap: balance` cannot see the words — they are
+       inline-block spans — so the wider 760 px cap broke "Use the right ice piece to fix the
+       path." into a long first line and "path." alone (seen live). With the line count fixed,
+       the box is narrowed in steps to the smallest width that still holds that many lines;
+       the widest line of that break is the balanced one, and the hug is applied to it. */
+    if (cur.n >= 2 && cur.widest > 0) {
+      const startW = parseFloat(b.style.width) || (cur.widest + padL + padR);
+      let bestW = startW, best = cur;
+      for (let w = startW * 0.94; w > startW * 0.5; w *= 0.94) {
+        b.style.width = Math.ceil(w) + 'px';
+        const now = lines();
+        if (now.n > cur.n) break;
+        bestW = w; best = now;
+      }
+      b.style.width = Math.ceil(best.widest + 4 + padL + padR) + 'px';
+      if (lines().n > cur.n) b.style.width = Math.ceil(bestW) + 'px';
+    }
     const trim = this.inkTrim(tx);
     if (trim > 0.5) b.style.paddingBottom = Math.max(0, padT - trim) + 'px';
   }
