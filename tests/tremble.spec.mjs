@@ -29,7 +29,7 @@ test.describe('the tremble, the stop and the crash', () => {
     expect(r.strong).toEqual([4, 5, 6, 5, 4, 5, 6, 5, 4, 5, 6, 5]);
   });
 
-  test('at the edge he trembles once, by the plan, then waits on the idle with his feet still', async ({ page }) => {
+  test('at the edge he trembles once, by the plan, then waits on one still pose', async ({ page }) => {
     await boot(page, { fast: 1 });
     await force(page, 'GLACIER_BREAK_1');
     await page.waitForFunction(() => window.iceAgeGame.mammothState() === 'SHAKE', null, { timeout: 20_000 });
@@ -52,8 +52,9 @@ test.describe('the tremble, the stop and the crash', () => {
     expect(r.shook, 'the secondary shake ran during the strong tremble').toBe(true);
     expect(r.fired, 'the sound fired').toBe(true);
     expect(r.after).toBe('LOOK_DOWN');
-    expect(r.sheet0, 'the wait is the idle loop, not a stamp').toBe('idle');
-    expect(r.sheet1).toBe('idle');
+    // the wait is the tremble's own settle, held: no second sheet, so no cut between the two
+    expect(r.sheet0, 'the wait is the settle the tremble ends on').toBe('tremble');
+    expect(r.sheet1, 'and it is still that, not an idle pass').toBe('tremble');
     expect(r.marks, 'the tremble marks were drawn on the strong beat').toBe(true);
     expect(r.wobAfter, 'and nothing shakes him while he waits').toBeLessThan(0.01);
   });
@@ -170,5 +171,56 @@ test.describe('the tremble, the stop and the crash', () => {
     });
     expect(r.cut).toBe(true);
     expect(r.stubs).toBe(1);
+  });
+
+  /* THE HAND-OVERS, on a hand-driven clock so a loaded runner cannot blur them. The owner's three
+     points: the wait is one still pose and a wrong drop replays nothing; changes between sheets
+     dissolve instead of cutting; the celebration is two real arcs and then the idle. */
+  test('the wait is one still pose, a wrong drop dissolves in and out of it, and nothing replays', async ({ page }) => {
+    await boot(page, { fast: 1 });
+    const r = await page.evaluate(() => {
+      const g = window.iceAgeGame, p = g._player(); g.setPaused(true);
+      const at = (state, t) => { p.setState(state); p.t = t; g._renderOnce(); return { frame: p.lastSheet + ':' + p.lastFrame, under: +(p.lastUnder || 0).toFixed(2), blend: +(p.lastBlend || 0).toFixed(2) }; };
+      p.setState('RUN'); p.t = 0; g._renderOnce();
+      const wait = [0.3, 1, 5, 30].map(t => at('LOOK_DOWN', t).frame);
+      // a wrong drop: the startle comes in over the wait, passes, and the wait comes back
+      const startIn = at('SURPRISED', 0.02), alert = at('SURPRISED', 0.5), recover = at('SURPRISED', 0.86), recovered = at('SURPRISED', 1.2);
+      p.setState('LOOK_DOWN'); p.t = 0.02; g._renderOnce();
+      const back = { frame: p.lastSheet + ':' + p.lastFrame, under: +(p.lastUnder || 0).toFixed(2) };
+      return { wait, startIn, alert, recover, recovered, back };
+    });
+    expect(new Set(r.wait).size, 'one pose for the whole wait: ' + r.wait.join(' ')).toBe(1);
+    expect(r.wait[0], 'and it is the settle the tremble ends on').toBe('tremble:11');
+    expect(r.startIn.under, 'the startle dissolves in over the wait').toBeGreaterThan(0.6);
+    expect(r.alert.frame, 'the alert pose').toBe('jump:9');
+    expect(r.recover.frame, 'then he comes back down to the settle').toBe('tremble:11');
+    expect(r.recover.blend, 'by a dissolve').toBeGreaterThan(0.3);
+    expect(r.recovered.blend, 'which finishes').toBe(0);
+    expect(r.back.frame, 'the wait re-enters on the same frame').toBe('tremble:11');
+    expect(r.back.under, 'so there is nothing to dissolve and nothing to replay').toBe(0);
+  });
+
+  test('the celebration is two arcs with the frames in flight order, a settle, then the idle by a dissolve', async ({ page }) => {
+    await boot(page, { fast: 1 });
+    const r = await page.evaluate(async () => {
+      const g = window.iceAgeGame, p = g._player(); const m = await import('/js/engine.js');
+      g.setPaused(true); g._force('COMPLETE'); p.setState('CELEBRATE');
+      const rows = [];
+      for (let t = 0; t <= 2.2; t += 1 / 60) { p.t = t; p.hop = p.hopPhase(t).hop; g._renderOnce(); rows.push({ t, hop: p.hop, seg: p.hopPhase(t).seg, sheet: p.lastSheet, f: p.lastFrame, blend: p.lastBlend || 0 }); }
+      return { rows, J: p.J, H: m.CFG.sprite.hop };
+    });
+    const peaks = r.rows.filter((x, i) => i > 0 && i < r.rows.length - 1 && x.hop > r.rows[i - 1].hop && x.hop >= r.rows[i + 1].hop && x.hop > 5);
+    expect(peaks.length, 'two hops').toBe(2);
+    expect(peaks[1].hop, 'the second smaller').toBeLessThan(peaks[0].hop);
+    const ORDER = [r.J.launch, r.J.rise, r.J.apex, r.J.fall, r.J.preLand];
+    let prev = -1, prevSeg = '', back = 0;
+    for (const x of r.rows) { if (x.seg === 'arc') { const o = ORDER.indexOf(x.f); expect(o, 'an in-flight frame').toBeGreaterThanOrEqual(0); if (prevSeg === 'arc' && o < prev) back++; prev = o; } else prev = -1; prevSeg = x.seg; }
+    expect(back, 'the frames never step back inside an arc').toBe(0);
+    const segs = r.rows.map(x => x.seg).filter((s, i, a) => i === 0 || a[i - 1] !== s);
+    expect(segs).toEqual(['crouch', 'arc', 'land', 'arc', 'land', 'absorb', 'idle']);
+    const idle = r.rows.filter(x => x.seg === 'idle');
+    expect(idle[0].sheet, 'the ending breathes on the idle sheet').toBe('idle');
+    expect(idle[0].blend, 'entered through a dissolve from the settle').toBeGreaterThan(0.85);
+    expect(idle.find(x => x.t > idle[0].t + r.H.toIdle + 0.02 && x.blend > 0.99), 'which has finished').toBeUndefined();
   });
 });

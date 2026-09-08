@@ -1414,6 +1414,35 @@ cut line"): the middle slice overlapped the caps by 1 px and a fractional device
 half-covered column. It now runs 12 px under each opaque cap. The letters carry a cream stroke
 (white around the blue polygon name) behind the fill, so the words lift off the wood grain.
 
+### The wait is one still pose, and the hand-overs dissolve
+
+Three complaints with one cause: the character CUT between sheets. (1) The wait at the ditch
+played the idle sheet once (twelve poses at 6 fps beside a zoom-in, which read as a stutter) and
+played it again every time LOOK_DOWN was re-entered after a wrong drop. (2) Tremble -> idle was a
+cut from one sheet to another. (3) The celebration hop was |sin(7t)| with frames flipping on
+thresholds, then a freeze, then a cut to the idle.
+
+- **LOOK_DOWN holds the tremble's own last frame** (the settle) with the procedural breath. So
+  tremble -> wait is the same sheet and frame — no hand-over — and there is nothing to restart
+  on a wrong drop. The idle sheet plays only where the character is the thing being watched:
+  the title (IDLE_LOOK) and the ending.
+- **`CFG.sprite.handover` (0.18 s)**: a held or standing state entered from a different pose
+  draws the pose it came from over the new one and fades it out (`fromSheet/fromFrame`, set by
+  setState; drawn in the same cell geometry). On for LOOK_DOWN, IDLE_LOOK, SHAKE and SURPRISED —
+  skid -> tremble, wait -> recoil -> wait. Off for the run, jump, landing and crash, whose cuts
+  are the timing.
+- **`CFG.sprite.hop`**: the celebration as a timeline — crouch 0.12 s, two parabolic arcs
+  (0.48 s/42 px, 0.42 s/28 px) with a landing frame between, the settle, then the idle sheet
+  entered through a 0.22 s dissolve from the settle. In flight the frame follows the arc
+  (launch, rise, apex, fall, pre-land) with a dissolve over the last 40% of each; measured:
+  two peaks, frames never step back, hand-over blend 0.98 -> 0. A mid-level celebration
+  (`T.celebrate` 0.7 s) plays crouch, one arc and the landing before the run resumes.
+- The idle crossfade holds half a step and dissolves the other half (was 60/40), off the idle's
+  own clock (`idleT`).
+
+Tests: tremble.spec (the wait is `tremble:11`, held), hd.spec (the settle at both scales),
+polish.spec (hop reacts to a poke, unchanged path). Probes: `qa-report/hop-strip.png`.
+
 ### The camera move is eased at both ends
 
 The push-in and the pull-out ran on an exponential approach — a fixed share of the remaining

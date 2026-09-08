@@ -82,7 +82,7 @@ test.describe('the hi-DPI path', () => {
     };
     const a = await measure('rs=1');
     const b = await measure('rs=2');
-    expect(a.frame, 'the pose is the idle he waits on').toContain('idle:');
+    expect(a.frame, 'the pose is the settle he waits on').toContain('tremble:');
     expect(a.frame).toBe(b.frame);
     /* 4%, not a pixel or two: the hd silhouette is resolved twice as finely, so its
        anti-aliased rim passes the colour test a pixel further out on each side (measured:

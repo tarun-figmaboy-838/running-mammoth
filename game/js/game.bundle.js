@@ -1100,6 +1100,23 @@ const CFG = {
        next pose drawn over the current at the step's fraction), so small motions — a blink, a
        trunk drift — glide instead of stepping. The procedural breath still rides on top. */
     idleFps: 6, idleBlend: true,
+    /* HAND-OVERS DISSOLVE. When a held or standing state is entered from a different sheet
+       or pose, the pose it came from is drawn over the new one and faded out across this many
+       seconds. Asked for: the changes between the delivered animations read as cuts. Off for the
+       run, the jump and the crash, whose cuts are the timing. */
+    handover: 0.18,
+    /* THE STARTLE PASSES. On a splash he recoils into the alert pose; after this many seconds he
+       comes back down to the settle by a dissolve, instead of holding the alert face for the
+       whole of the wrong-answer beat (measured: 3.6 s on one frame). */
+    startle: 0.8,
+    /* THE CELEBRATION HOP, as a timeline rather than a wave. crouch: the anticipation, one frame.
+       arcs: [seconds, height in stage px] per hop — each a true parabola, so he leaves the
+       ground and comes back the way a body does; the second is smaller, the way a second hop
+       is. land: the ground contact between and after them. absorb: the settle. toIdle: the
+       dissolve from the settle into the idle sheet at the ending. A mid-level celebration is
+       0.7 s (T.celebrate) and so plays the crouch, one arc and the landing before the run
+       resumes; the ending plays it all and then breathes. */
+    hop: { crouch: 0.12, arcs: [[0.48, 42], [0.42, 28]], land: 0.10, absorb: 0.24, toIdle: 0.22 },
     /* THE TRAMPLE at the edge is authored at 70ms a frame: 14.3fps plays it as drawn. The
        stomp — his raised front comes down 30px in three frames — lands on frame 20, read
        off the built sheet (the body's top row: 70 at frames 14-16, 86 at 19, 100 at 21). */
@@ -2686,9 +2703,22 @@ class AudioManager {
       this.loadVo();
       return L.dur;
     }
+    /* ONE VOICE, AND NOTHING IS CLIPPED. This used to stop whatever was speaking and start the
+       new line on top — so two lines landing within a second of each other cost the first one its
+       ending. At a crossing that is exactly what happens: the teaching sentence and the question
+       ("Cut the TRIANGLE.") arrive close together, and whichever was speaking lost its last
+       words. The new line WAITS instead: it is held in next and spoken the moment the current
+       one ends, so both are heard whole and neither overlaps. A newer request replaces the held
+       one — the latest line is always the one that matters — and a line that has waited more
+       than five seconds is dropped rather than spoken over a moment it no longer belongs to.
+       Only stopSay() (sound switched off, a restart) actually cuts a line short. */
+    if (this.saying) {
+      this.next = { id, at: Date.now() };
+      this.saidLog.push(id + ':after');
+      return L.dur;
+    }
     this.saidLog.push(id + (this.ctx && this.ctx.state !== 'running' ? ':ctx-' + this.ctx.state : ''));
-    this.stopSay();
-    const done = () => { this.saying = null; this.setDuck(1); };
+    const done = () => { this.saying = null; this.setDuck(1); this._drain(); };
     if (this.voEl) {
       try {
         const el = this.voEl;
@@ -2713,9 +2743,20 @@ class AudioManager {
       return L.dur;
     } catch (e) { return 0; }
   }
+  /** Speak whatever was held while the last line ran. Stale lines are dropped: a question spoken
+      five seconds after its moment is worse than one not spoken at all. */
+  _drain() {
+    const n = this.next;
+    this.next = null;
+    if (!n) return;
+    if (Date.now() - n.at > 5000) { (this.saidLog = this.saidLog || []).push(n.id + ':stale'); return; }
+    this.say(n.id);
+  }
   stopSay() {
     const s = this.saying;
     this.saying = null;
+    this.next = null;                  // an explicit stop means silence, not the next line
+
     if (!s) return;
     if (s.timer) clearTimeout(s.timer);
     try { if (s.el) s.el.pause(); } catch (e) { /* gone */ }
@@ -3844,7 +3885,8 @@ class PlayerController {
     this.airborne = false; this.lastGround = 0; this.bufferedJump = -1;
     this.squash = 1; this.tilt = 0; this.hop = 0;
     this.runDist = 0; this.lastStepFrame = -1;
-    this.skidP = 0; this.sprayClock = 0; this.breath = 0; this.hopRising = false;
+    this.skidP = 0; this.sprayClock = 0; this.breath = 0;
+    this.fromSheet = null; this.fromFrame = -1;     // the pose a hand-over dissolves from
     /* THE CARTOON LAYER. One decaying amplitude (`scare`) drives a sideways knock, a
        nervous roll and a jelly squash; `lean` is the double take, `gulp` the swallow.
        All of it is applied in draw() and none of it is read by the collider. */
@@ -3858,7 +3900,29 @@ class PlayerController {
   }
   /** 0..1 through the slide — drives which skid frame is showing. */
   setSkidProgress(p) { this.skidP = clamp(p, 0, 1); }
-  setState(s) { if (this.state !== s) { this.state = s; this.t = 0; } }
+  setState(s) {
+    if (this.state === s) return;
+    // remember the pose being left, so the new state can dissolve from it (see draw)
+    this.fromSheet = this.lastSheetRef || null; this.fromFrame = this.lastFrame;
+    this.state = s; this.t = 0;
+  }
+  /* WHERE THE CELEBRATION IS, from its clock: which beat, how far through it, and how high he is.
+     One reading for update() (the height) and draw() (the frame), so the two cannot disagree. */
+  hopPhase(t) {
+    const H = CFG.sprite.hop;
+    if (!H) return { seg: 'idle', hop: 0, since: t };
+    let c = H.crouch;
+    if (t < c) return { seg: 'crouch', hop: 0, u: t / c };
+    for (let k = 0; k < H.arcs.length; k++) {
+      const dur = H.arcs[k][0], height = H.arcs[k][1];
+      if (t < c + dur) { const u = (t - c) / dur; return { seg: 'arc', k, u, hop: height * 4 * u * (1 - u) }; }
+      c += dur;
+      if (t < c + H.land) return { seg: 'land', k, hop: 0, u: (t - c) / H.land };
+      c += H.land;
+    }
+    if (t < c + H.absorb) return { seg: 'absorb', hop: 0, u: (t - c) / H.absorb };
+    return { seg: 'idle', hop: 0, since: t - c - H.absorb };
+  }
 
   /** A SHUDDER, with no change of state. For the moment the ice cracks under him
       while he is still sliding, for a chunk hitting the water, and for a bump — the
@@ -4085,7 +4149,7 @@ class PlayerController {
        the delivered animation already recoils and settles, so sliding the sprite
        backwards then forwards on top of it moved the character against its own feet.
        SURPRISED keeps its recoil — that state has no art of its own. */
-    this.leanWant = this.state === 'SURPRISED' ? -CM.recoilPx * 0.7 : 0;
+    this.leanWant = (this.state === 'SURPRISED' && this.t < CFG.sprite.startle) ? -CM.recoilPx * 0.7 : 0;
     this.lean = lerp(this.lean, this.leanWant, clamp(dt * 4, 0, 1));
 
     /* A SWALLOW, on a slow clock, for as long as he is over the hole. The learner can
@@ -4119,10 +4183,10 @@ class PlayerController {
        The expressive beats they were reaching for are now real, and procedural: the
        hop below, and the shudder / double take / gulp in the block above. */
     if (this.state === 'CELEBRATE') {
-      const hopPrev = this.hop;
-      this.hop = Math.abs(Math.sin(this.t * 7)) * 26 * clamp(1.4 - this.t, 0, 1);
-      // hopRising IS read — it picks the rising or falling jump frame, see draw()
-      this.hopRising = this.hop >= hopPrev;
+      /* A REAL ARC, not a rectified sine. |sin(7t)| bounced him fourteen times a second at the
+         start and never let a hop finish; CFG.sprite.hop is two parabolas with ground contact
+         between them, read here for the height and in draw() for the frame. */
+      this.hop = this.hopPhase(this.t).hop;
     } else if (this.state === 'SURPRISED') {
       this.hop = 0;
     } else {
@@ -4180,6 +4244,8 @@ class PlayerController {
     const J = this.J, SP = CFG.sprite, F = this.F;
     let sheet = this.jumpSheet || img, f = J.idle;
     let blendF = -1, blendU = 0;                 // a second pose dissolved over the first (idle, slow tremble steps)
+    let blendSheet = null;                       // ...from another sheet, when a performance hands over
+    let idleT = -1;                              // the idle sheet's own clock, when it is the sheet playing
     switch (this.state) {
       case 'RUN':
         sheet = img;
@@ -4217,18 +4283,16 @@ class PlayerController {
         else f = J.alert;
         break;
       case 'LOOK_DOWN':
-        /* THE STOP IS A STOP. Asked for: once he has stopped, the feet stop too. This used
-           to loop the trample — a stamp every 2.5 s for as long as the learner thought,
-           which read as feet that could not keep still. The tremble ends on a settle, and
-           the settle flows into the delivered idle: 36 frames of breathing on planted feet
-           (measured: the foot band does not move between frames). If the idle is missing
-           the tremble's last frame is held and the procedural breath keeps it alive. */
-        /* ONE PASS, THEN STILL (asked for: the idle should play once and stop, so the learner
-           looks at the puzzle rather than at a looping character). The procedural breath keeps
-           the held pose alive, so he settles rather than freezing. IDLE_LOOK and CELEBRATE
-           still loop — there the character IS what the player is watching. */
-        if (this.idleSheet && F.idle) { sheet = this.idleSheet; f = Math.min(F.idle - 1, Math.floor(this.t * SP.idleFps)); }
-        else if (this.trembleSheet && F.tremble) { sheet = this.trembleSheet; f = F.tremble - 1; }
+        /* THE WAIT IS ONE STILL POSE — the tremble's own last frame, the settle it ends on,
+           kept alive by the procedural breath below. Asked for, in two parts: the idle sheet is
+           not played at the ditch (a twelve-pose pass at 6 fps beside a zoom-in read as a
+           stutter, and the puzzle is where the eye should be), and nothing restarts when the
+           state is re-entered after a wrong drop, because there is nothing running to restart.
+           Holding the tremble's settle also means tremble -> wait is not a hand-over at all:
+           same sheet, same frame, no cut. Earlier versions played the trample loop, then the
+           idle once; both are recorded here so they are not tried again. */
+        if (this.trembleSheet && F.tremble) { sheet = this.trembleSheet; f = F.tremble - 1; }
+        else if (this.idleSheet && F.idle) { sheet = this.idleSheet; f = 0; }
         else if (this.shakeSheet && F.shake) { sheet = this.shakeSheet; f = F.shake - 1; }
         else f = J.idle;
         break;
@@ -4268,7 +4332,17 @@ class PlayerController {
           f = F.shake - 1 - k;
         } else f = J.alert;
         break;
-      case 'SURPRISED': f = J.alert; break;
+      case 'SURPRISED':
+        /* Alert, then recovered: the startle is over in under a second and he is back on the
+           settle he waits on — through a dissolve, so the recoil reads as one movement, not a
+           held frame followed by a cut. LOOK_DOWN then re-enters on the same frame. */
+        if (this.trembleSheet && F.tremble && this.t > SP.startle) {
+          sheet = this.trembleSheet; f = F.tremble - 1;
+          if (this.t < SP.startle + SP.handover && this.jumpSheet) {
+            blendSheet = this.jumpSheet; blendF = J.alert; blendU = 1 - easeInOut((this.t - SP.startle) / SP.handover);
+          }
+        } else f = J.alert;
+        break;
       case 'IDLE_LOOK':
         /* THE DELIVERED IDLE ANIMATION, not a pose borrowed from the jump sheet.
 
@@ -4279,45 +4353,66 @@ class PlayerController {
            it reads as older, stiffer art. The idle sheet is loaded now (it was brought
            in for the finale), so this uses it and the character breathes. */
         if (this.idleSheet && F.idle) {
-          sheet = this.idleSheet;
-          f = Math.floor(this.t * SP.idleFps) % F.idle;
+          sheet = this.idleSheet; idleT = this.t;
+          f = Math.floor(idleT * SP.idleFps) % F.idle;
         } else f = J.idle;
         break;
       case 'CELEBRATE': {
-        /* A real hop, read off the hop arc. The old version picked between two
-           frames on `hop > 8`, and because hop is |sin(t*7)| that threshold is
-           crossed about fourteen times a second — the sprite flickered between two
-           poses instead of hopping. */
-        const up = clamp(this.hop / 26, 0, 1);
-        /* ONCE THE HOP IS SPENT, BREATHE. The hop decays to nothing at t = 1.4s, after
-           which `up` is 0 and this expression returns the same frame forever — so the
-           character froze mid-celebration and stayed frozen for as long as the ending
-           was on screen, which is precisely the moment he should look most alive.
-           The delivered idle sheet loops instead. */
-        if (this.t > 1.4 && this.idleSheet && F.idle) {
-          sheet = this.idleSheet;
-          f = Math.floor(this.t * SP.idleFps) % F.idle;
+        /* THE HOP, FROM THE TIMELINE (CFG.sprite.hop). Crouch, then each arc runs launch ->
+           rise -> apex -> fall -> pre-land against its own height, with a dissolve into the
+           next pose over the last 40% of each so five frames read as one movement; a landing
+           frame between arcs; the settle; then the idle sheet, entered through a dissolve from
+           the settle rather than a cut. The old version picked frames off |sin(7t)| crossing
+           thresholds, which flipped poses fourteen times a second and then froze. */
+        const P = this.hopPhase(this.t);
+        if (P.seg === 'idle' && this.idleSheet && F.idle) {
+          sheet = this.idleSheet; idleT = P.since;
+          f = Math.floor(idleT * SP.idleFps) % F.idle;
+          if (SP.hop && P.since < SP.hop.toIdle && this.jumpSheet) {
+            blendSheet = this.jumpSheet; blendF = J.absorb; blendU = 1 - P.since / SP.hop.toIdle;
+          }
           break;
         }
-        f = this.t < 0.09 ? J.crouch
-          : up > 0.72 ? J.apex
-          : up > 0.3 ? (this.hopRising ? J.rise : J.fall)
-          : (this.hopRising ? J.launch : J.land);
+        if (P.seg === 'crouch') { f = J.crouch; break; }
+        if (P.seg === 'land') { f = J.land; break; }
+        if (P.seg === 'absorb') { f = J.absorb; break; }
+        // an arc: the pose by how far through the flight he is
+        const SEG = [[0.10, J.launch], [0.38, J.rise], [0.62, J.apex], [0.90, J.fall], [1.001, J.preLand]];
+        let a = 0, i = 0;
+        while (i < SEG.length - 1 && P.u >= SEG[i][0]) { a = SEG[i][0]; i++; }
+        f = SEG[i][1];
+        const frac = (P.u - a) / (SEG[i][0] - a);
+        if (i < SEG.length - 1 && frac > 0.6) { blendF = SEG[i + 1][1]; blendU = (frac - 0.6) / 0.4; }
         break;
       }
     }
 
     /* THE IDLE CROSSFADE (see CFG.sprite.idleBlend): the next pose is drawn over the current one
        at the fraction of the step already spent, so twelve poses read as continuous motion.
-       Same cell, same anchor, same scale — only a second blit with a second alpha. */
-    if (SP.idleBlend && sheet === this.idleSheet && F.idle > 1 &&
-        !(this.state === 'LOOK_DOWN' && Math.floor(this.t * SP.idleFps) >= F.idle - 1)) {
-      const p = this.t * SP.idleFps, frac = p - Math.floor(p);
-      /* Hold the pose for 60% of the step, then dissolve into the next over the last 40%
-         (~57 ms): a full-step dissolve left a doubled tusk on screen most of the time. */
-      blendU = Math.max(0, (frac - 0.6) / 0.4); blendF = (f + 1) % F.idle;
+       Same cell, same anchor, same scale — only a second blit with a second alpha. It runs off
+       the idle's own clock (idleT), which the ending starts from zero after the settle. */
+    if (SP.idleBlend && idleT >= 0 && sheet === this.idleSheet && F.idle > 1 && blendF < 0) {
+      const p = idleT * SP.idleFps, frac = p - Math.floor(p);
+      /* Hold the pose for half the step, then dissolve into the next over the other half: a
+         full-step dissolve left a doubled tusk on screen most of the time, 40% stepped. */
+      blendU = Math.max(0, (frac - 0.5) / 0.5); blendF = (f + 1) % F.idle;
     }
-    this.lastFrame = f;
+    /* THE HAND-OVER (CFG.sprite.handover). A held or standing state entered from a different
+       pose draws the pose it came from over the new one and fades it out, so the change is a
+       dissolve rather than a cut: run -> the wait at a forced edge, skid -> the tremble's first
+       look, the wait -> the recoil on a splash and back. The run, the jump, the landing and the
+       crash keep their cuts — there the cut is the timing. Same cell geometry on every sheet,
+       so the second blit lands on the same feet. Keyed off this.t, which setState zeroes. */
+    let underSheet = null, underF = -1, underA = 0;
+    const SOFT = this.state === 'LOOK_DOWN' || this.state === 'IDLE_LOOK' ||
+                 this.state === 'SHAKE' || this.state === 'SURPRISED';
+    if (SOFT && SP.handover && this.fromSheet && this.t < SP.handover &&
+        (this.fromSheet !== sheet || this.fromFrame !== f)) {
+      underSheet = this.fromSheet; underF = this.fromFrame;
+      underA = 1 - easeInOut(this.t / SP.handover);
+    }
+    this.lastFrame = f; this.lastSheetRef = sheet;
+    this.lastBlend = blendF >= 0 ? blendU : 0; this.lastUnder = underA;   // read by the tests
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
       : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : sheet === this.trembleSheet ? 'tremble' : '?';
@@ -4366,7 +4461,14 @@ class PlayerController {
       if (blendF >= 0 && blendU > 0.01) {
         const base = ctx.globalAlpha;
         ctx.globalAlpha = base * blendU;
-        ctx.drawImage(sheet, (blendF % COLS) * CW, Math.floor(blendF / COLS) * CH, CW, CH,
+        ctx.drawImage(blendSheet || sheet, (blendF % COLS) * CW, Math.floor(blendF / COLS) * CH, CW, CH,
+                      -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
+        ctx.globalAlpha = base;
+      }
+      if (underSheet && underF >= 0 && underA > 0.01) {
+        const base = ctx.globalAlpha;
+        ctx.globalAlpha = base * underA;
+        ctx.drawImage(underSheet, (underF % COLS) * CW, Math.floor(underF / COLS) * CH, CW, CH,
                       -CW * S / 2, -CH * S + CFG.sprite.baseGap * kc * S + lift, CW * S, CH * S);
         ctx.globalAlpha = base;
       }

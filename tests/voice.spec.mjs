@@ -126,4 +126,32 @@ test.describe('the voice and the crossing order', () => {
     await page.waitForFunction(() => !window.iceAgeGame.debug().signSay, null, { timeout: 20_000 });
     expect((await page.evaluate(() => window.iceAgeGame.debug().signSay))).toBe('');
   });
+
+  test("two lines asked for close together are both heard whole, one after the other", async ({ page }) => {
+    /* The bug the owner heard: a line asked for while another was speaking STOPPED it, so at a
+       crossing the question ("Cut the TRIANGLE.") and the teaching sentence clipped each other.
+       Now the second waits. Measured: the voice is on for the sum of both windows, not the first
+       0.6 s of one plus the whole of the other. */
+    await boot(page, { sound: true });
+    await page.evaluate(() => window.iceAgeGame.sfx("ui"));
+    await page.waitForFunction(() => window.iceAgeGame._voice().ready, null, { timeout: 60_000 });
+    const r = await page.evaluate(async () => {
+      const g = window.iceAgeGame; const m = await import("/js/engine.js");
+      const marks = []; let was = false; const t0 = performance.now();
+      g.say("tut-6-use");
+      setTimeout(() => g.say("sign-triangle"), 600);
+      while (performance.now() - t0 < 9000) {
+        const s = g._voice().saying;
+        if (s !== was) { marks.push({ t: performance.now() - t0, on: s }); was = s; }
+        if (marks.length >= 2 && !s && performance.now() - t0 > 5500) break;
+        await new Promise(r => requestAnimationFrame(r));
+      }
+      const L = m.CFG.vo.lines;
+      return { marks, both: L["tut-6-use"][1] + L["sign-triangle"][1], log: g._voice().said.slice(-3).map(x => x.replace(/:ctx-w+$/, "")) };
+    });
+    const on = r.marks.filter(m => m.on).map((m, i, a) => (r.marks[r.marks.indexOf(m) + 1] || { t: 9000 }).t - m.t);
+    const voiced = on.reduce((a, b) => a + b, 0) / 1000;
+    expect(r.log, "the second line waited, then spoke").toEqual(["tut-6-use", "sign-triangle:after", "sign-triangle"]);
+    expect(voiced, "both lines heard whole: " + voiced.toFixed(2) + "s of " + r.both.toFixed(2)).toBeGreaterThan(r.both * 0.9);
+  });
 });
