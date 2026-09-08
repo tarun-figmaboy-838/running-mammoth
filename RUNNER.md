@@ -1076,13 +1076,22 @@ reads it — only its visibility is gated). Each option carries its place in the
 
 ### The puzzle framing, and the idle that stops
 
-Asked for: push in further when the pieces are hanging, until Momo is against the left frame edge,
-and let the ditch be visible. `zoomK` is 1.22 (was 1.08, then 1.16). `viewFocus` solves the focus
-point from what must stay in shot, so the limit is geometric, and two of its bounds moved: the
-character's back is `charBack` 150 px behind `mammothX` (measured, his rear now touches the edge —
-his left edge lands 56 of 1920 units in), and only sky above `skyTop` 200 has to stay in frame, so
-the view can sit low enough to hold the crossing. The rightmost block's glow still lands inside the
-frame (`rowRight` 1830); past about 1.23 one of the two has to be cut. The idle plays ONE pass and
+Asked for, over three rounds: push in further, keep the ditch visible, read the shot from the left,
+do not crop Momo, and get the pieces off the right corner. `zoomK` is 1.24 (from 1.08 → 1.16 →
+1.22 → 1.26 → 1.24). `viewFocus` solves the focus point from what must stay in shot, so the
+framing is geometric rather than chosen, and its bounds are all measured now: `charBack` 212 is
+his drawn rear (200 px behind `mammothX`, read off the frame) plus 12 px of margin, so he is whole
+with very little space behind him; `skyTop` 200 says only sky sits above that line (the sign is a
+DOM overlay and does not zoom), which is what lets the view sit low enough to hold the crossing;
+and `rowRight` 1680 follows the row in. The row itself moved: `clearOfPlayer` 300 starts it closer
+to him and `rowInset` 210 stops it short of the right edge, so the pieces are wider, sit in the
+middle band, and have about 175 stage units of sky beyond the last one.
+
+What is NOT possible, for the record: the row cannot be centred on the frame while Momo is whole.
+He occupies the left quarter of the shot, so the row's centre lands at about 63% of the width; the
+only ways to 50% are cropping him or hanging a piece over his head, both of which the owner ruled
+out. Measured at 1.24: his back at x 23, the row from 682 to 1744, the lip at 884, nothing above
+him. Test: stage.spec "the puzzle framing keeps Momo whole". The idle plays ONE pass and
 holds its last pose under the procedural breath while he waits (asked for: it should stop, so the
 eye goes to the puzzle) — `IDLE_LOOK` and `CELEBRATE` still loop, because there the character is
 what the player is watching.
@@ -1126,7 +1135,7 @@ and the box is capped narrower on a phone so it does not span the stage.
 
 Asked for: the yellow was not the game's. The bubble is frost (`#EAF9FF`, `CFG.colors.frost`) with
 the deep ice edge the hanging chunks are outlined in (`#14507A`), navy ink (`#0C3352`, about 11:1),
-and the key word in a bright icy blue (`#1B90D4`). The bubble went frost-and-navy first, then
+and the key word in bright orange (`#F26100`). The bubble went frost-and-navy first, then
 white with a bright icy-blue keyline (`#FFFFFF` / `#3FB3E8`) on review; the key word was tried as
 Momo's amber on an amber highlighter wash and the wash was removed on request — "no card, just the
 colour" — so the word is picked out by hue alone, as the sign's noun is. The shadow is cool to match. `BUBBLE` in `js/bubble.js` and `.tut-face` in

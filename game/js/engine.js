@@ -530,11 +530,20 @@ export const CFG = {
        cover the character's back (mammothX - charBack) to the option row's right edge. At 1.16
        his back sits about 25px from the edge and the rightmost block's halo still lands inside
        the frame; past ~1.20 one of the two has to be cut. */
-    zoomK: 1.22, zoomInMs: 900, zoomOutMs: 520,
+    /* 1.26. The push-in is bounded by what has to stay in shot, and both bounds moved with the
+       row: he keeps his whole body plus a hair of margin at the left (charBack), and the row now
+       ends 150px further in (rowRight), which buys the extra zoom. The framing that comes out
+       reads from the left — he is at the edge, the pieces sit in the middle of the picture with
+       sky beyond them, and the crossing is in frame below. Past about 1.28 he starts to crop. */
+    zoomK: 1.24, zoomInMs: 900, zoomOutMs: 520,
     /* How much of the character is behind mammothX, and how far the option row's glow reaches.
        Both are what viewFocus keeps in shot, and they are the two numbers that set how far the
        puzzle may push in — measured off the drawn frame, not guessed. */
-    charBack: 150, rowRight: 1830,
+    /* 212: HIS WHOLE BODY PLUS A HAIR (asked for: not cropped, with very minor space). Measured
+       off the drawn frame at zoom 1 on the pose he waits in — his rear reaches x 230 with
+       mammothX at 430, so 200 is the body and the extra 12 is the margin the owner asked for.
+       rowRight follows the row in (see rowInset), plus the glow around the last piece. */
+    charBack: 212, rowRight: 1680,
     /* HOW MUCH SKY MAY BE CUT. The framing used to hold world y 60 in shot, which pinned the
        view high and pushed the crossing towards the bottom edge; above 200 there is nothing but
        sky (the instruction sign is a DOM overlay and does not zoom), so letting it go is what
@@ -590,7 +599,12 @@ export const CFG = {
     clearance: 470,
     // no option may hang left of mammothX + this: a cut chunk falls toward the hole,
     // and one that hung over the character dropped ice on its head
-    clearOfPlayer: 340,
+    /* 300, not 340: the row starts a little closer to him, which moves the whole row left in the
+       shot. Its left edge still lands beyond his front (his art reaches about x 640), so no piece
+       ever hangs over his head — the thing the owner asked to avoid. */
+    clearOfPlayer: 300,
+    // and the row stops short of the right edge, so there is sky beyond the last piece
+    rowInset: 210,
     /* Deeper, because raising the walking line made room. The ice walls above the
        water now read 190px instead of 152, which is most of what makes the crevasse
        look like a crack rather than a notch. */
@@ -5258,7 +5272,11 @@ export function createGame(canvas, hooks = {}) {
      learner is being asked to do. */
   function optionBox(n, centreX) {
     const safeL = CFG.mammothX + L1.clearOfPlayer;
-    const safeR = CFG.W - 60;
+    /* rowInset PULLS THE ROW OFF THE RIGHT EDGE (asked for: the pieces read as shoved into the
+       corner rather than sitting in the picture). The row used to fill the safe area right up to
+       W - 60, so after the puzzle's push-in the last piece sat against the frame; leaving a band
+       of sky to its right is what makes the row read as centred in the shot. */
+    const safeR = CFG.W - 60 - (L1.rowInset || 0);
     const mid = centreX === undefined ? (safeL + safeR) / 2 : centreX;
     const half = Math.min(mid - safeL, safeR - mid);
     const step = (half * 2) / n;

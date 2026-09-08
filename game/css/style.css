@@ -649,8 +649,8 @@ a:hover { color: var(--ice-pale); }
   /* SIZED FROM THE STAGE, NOT THE VIEWPORT, now that the sign has to fit the left band. The
      stage is 16:9 and letterboxed, so on a phone its width is set by the HEIGHT (a 844x390
      window gives a 693px-wide stage) — a vw-based height therefore grew relative to the stage
-     on a short, wide phone and the plank ran back under the ropes. 17.4% of the stage's own
-     height keeps the longest sentence ("Cut the QUADRILATERAL.") inside 910 of the 1920 stage
-     units, clear of the leftmost rope at 952, on every phone shape. */
-  .instruction-pill { --sign-h: max(44px, calc(min(100vh, 100vw * 0.5625) * 0.174)); }
+     on a short, wide phone and the plank ran back under the ropes. 16% of the stage's own
+     height keeps the longest sentence ("Cut the QUADRILATERAL.") inside 840 of the 1920 stage
+     units, clear of the leftmost rope (883 once the row moved in), on every phone shape. */
+  .instruction-pill { --sign-h: max(44px, calc(min(100vh, 100vw * 0.5625) * 0.16)); }
 }

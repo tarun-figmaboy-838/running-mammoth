@@ -575,11 +575,11 @@
 }
 .tut-text .pow {
   font-weight: 900;
-  /* ICY BLUE, AND NOTHING ELSE (asked for: the amber highlighter wash behind the word read as a
-     card stuck on the sentence — no card, just the colour). A bright ice blue that still holds
-     3:1 on white at this size and weight, so the key word is picked out by hue alone, the way
-     the sign's noun is. The tilt and the small shadow it always had stay. */
-  color: #1B90D4;
+  /* BRIGHT ORANGE, AND NOTHING BEHIND IT (asked for, after icy blue read as too quiet and an
+     amber highlighter card read as a sticker). The one warm colour on an ice-blue stage, so the
+     key word is the thing the eye lands on; deep enough to hold about 4:1 on white at this
+     size and weight. The tilt and the small shadow it always had do the rest. */
+  color: #F26100;
   rotate: -3deg;
   scale: 1.08;
   margin: 0 .16em;                     /* the 8% scale eats the word space; give it back */

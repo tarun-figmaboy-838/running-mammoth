@@ -47,6 +47,28 @@ test.describe('the staged intro, the sign and the script', () => {
     expect(trail[trail.length - 1].state).toBe('PHASE_ACTIVE');
   });
 
+  test('the puzzle framing keeps Momo whole and the pieces off the corner', async ({ page }) => {
+    await boot(page, { fast: 1 });
+    await force(page, 'GLACIER_BREAK_1');
+    await waitState(page, 'PHASE_ACTIVE', 120_000);
+    await page.waitForFunction(() => Math.abs(window.iceAgeGame.debug().zoom - window.iceAgeGame.debug().zoomWant) < 0.002, null, { timeout: 20_000 });
+    const m = await page.evaluate(() => {
+      const G = window.iceAgeGame.debug(), z = G.zoom, fx = G.zoomVX, fy = G.zoomVY;
+      const sx = w => fx + (w - fx) * z, sy = w => fy + (w - fy) * z;
+      const L = G.l1, first = L.shapes[0], last = L.shapes[L.shapes.length - 1];
+      return { zoom: z, back: sx(230), front: sx(629),                 // his measured drawn extent
+               rowLeft: sx(first.anchorX - first.w / 2), rowRight: sx(last.anchorX + last.w / 2),
+               pieceTop: sy(first.y - first.h / 2), lip: sy(840) };
+    });
+    expect(m.zoom, 'a real push-in').toBeGreaterThan(1.15);
+    expect(m.back, 'his back is in frame, not cropped').toBeGreaterThan(0);
+    expect(m.back, 'with very little space behind him').toBeLessThan(90);
+    expect(m.rowLeft, 'no piece hangs over him').toBeGreaterThan(m.front);
+    expect(1920 - m.rowRight, 'sky beyond the last piece, so the row is not in the corner').toBeGreaterThan(90);
+    expect(m.lip, 'the crossing is in frame').toBeLessThan(1040);
+    expect(m.pieceTop, 'and so are the pieces').toBeGreaterThan(0);
+  });
+
   test('the sign sits in the empty left band, clear of every rope, for every question', async ({ page }) => {
     await boot(page);
     const r = await page.evaluate(async () => {
@@ -57,7 +79,7 @@ test.describe('the staged intro, the sign and the script', () => {
       const st = document.getElementById('stage').getBoundingClientRect(), k = 1920 / st.width;
       // the leftmost rope of a three-option row, from the engine's own layout
       const L1 = m.CFG.levelOne;
-      const safeL = m.CFG.mammothX + L1.clearOfPlayer, safeR = 1920 - 60;
+      const safeL = m.CFG.mammothX + L1.clearOfPlayer, safeR = 1920 - 60 - (L1.rowInset || 0);
       const mid = (safeL + safeR) / 2, half = Math.min(mid - safeL, safeR - mid);
       const leftRope = mid - half + (half * 2 / 3) / 2;
       let worst = { right: 0 };
@@ -99,8 +121,8 @@ test.describe('the staged intro, the sign and the script', () => {
     expect(r.fill, 'the drawn shape matches BUBBLE').toBe('rgb(255, 255, 255)');
     expect(r.stroke).toBe('rgb(63, 179, 232)');
     expect(r.ink, 'navy ink').toBe('rgb(12, 51, 82)');
-    // the key word is picked out by colour alone: icy blue, no highlighter card behind it
-    expect(r.powColor, 'the key word is icy blue').toBe('rgb(27, 144, 212)');
+    // the key word is picked out by colour alone: bright orange, no highlighter card behind it
+    expect(r.powColor, 'the key word is bright orange').toBe('rgb(242, 97, 0)');
     expect(r.powBg, 'no card behind the key word').toBe('none');
     expect(r.wordAnim, 'the words ease in').toBe('tutWordIn');
   });
