@@ -1074,6 +1074,19 @@ reads it — only its visibility is gated). Each option carries its place in the
 `updateL1` delays its drop by `order * dropStagger`. A tap still skips the reading, now by pushing
 `introT` to the end of beat 1. Tests: stage.spec "the hole comes first".
 
+### The puzzle framing, and the idle that stops
+
+Asked for: push in further when the pieces are hanging, until Momo is against the left frame edge,
+and let the ditch be visible. `zoomK` is 1.22 (was 1.08, then 1.16). `viewFocus` solves the focus
+point from what must stay in shot, so the limit is geometric, and two of its bounds moved: the
+character's back is `charBack` 150 px behind `mammothX` (measured, his rear now touches the edge —
+his left edge lands 56 of 1920 units in), and only sky above `skyTop` 200 has to stay in frame, so
+the view can sit low enough to hold the crossing. The rightmost block's glow still lands inside the
+frame (`rowRight` 1830); past about 1.23 one of the two has to be cut. The idle plays ONE pass and
+holds its last pose under the procedural breath while he waits (asked for: it should stop, so the
+eye goes to the puzzle) — `IDLE_LOOK` and `CELEBRATE` still loop, because there the character is
+what the player is watching.
+
 ### The instruction sign lives in the left band
 
 Asked for: the panel overlapped the hanging options. The option row is centred on the safe area
@@ -1085,12 +1098,38 @@ the stage on a short, wide phone and the plank ran back under the ropes. Measure
 sentence ("Cut the QUADRILATERAL."): 718 of 1920 on desktop, 908 on a phone, against a leftmost
 rope at 952. Test: stage.spec "the sign sits in the empty left band".
 
+### The ending is the friend's words, not a scoreboard
+
+Asked for: remove the shapes and make the card fit the moment. The row of seven gold coins, each
+embossed with the polygon that mended its crossing, is gone — a scoreboard of shapes at the point
+where the story pays off — and with it the count, the coin builder in `hud.js`, the `mendedKinds`
+field the engine published for it, the `onStamp` handler and about forty lines of dead CSS. What
+is there instead: "You did it!" waving a letter at a time, and under it **"Momo crossed the Frozen
+Pass!"**, which answers the tutorial's own "Help Momo cross the Frozen Pass!" — the story closes
+where it opened, in the same white-and-icy-blue speech as the dialogue. Design bugs fixed at the
+same time: the title was a WHITE fill with a navy stroke, so on the new white banner only its
+outline showed (it is navy ink now with an icy-blue drop), and the banner kept the old yolk yellow
+after the dialogue had moved on. Test: skip-end.spec.
+
+### The ask box sits up on the rope
+
+Asked for: the box appeared under the pieces, over open ice, and read as unrelated to what it was
+talking about. The ask's subject is now the rope's own cut stretch — the same line the hand sweeps
+— so on a desktop stage the words sit above it with the tail down on the piece, and all three
+pieces stay visible. A phone-landscape stage has no sky above the ropes (the box would have to be
+clamped to the top edge with its tail pointing at nothing), so there the box falls back to under
+the row (`belowY`) and the tail reaches up to the piece. Two shape bugs went with it: a tail is
+never wider than it is long (a wide one-line box on a phone took the 150 px cap and drew a shard),
+and the box is capped narrower on a phone so it does not span the stage.
+
 ### The dialogue box is in the game's palette
 
 Asked for: the yellow was not the game's. The bubble is frost (`#EAF9FF`, `CFG.colors.frost`) with
 the deep ice edge the hanging chunks are outlined in (`#14507A`), navy ink (`#0C3352`, about 11:1),
-and the key word in Momo's own amber deepened to read on frost (`#C4631B`) — the one warm note on
-an ice-coloured bubble. The shadow is cool to match. `BUBBLE` in `js/bubble.js` and `.tut-face` in
+and the key word in a bright icy blue (`#1B90D4`). The bubble went frost-and-navy first, then
+white with a bright icy-blue keyline (`#FFFFFF` / `#3FB3E8`) on review; the key word was tried as
+Momo's amber on an amber highlighter wash and the wash was removed on request — "no card, just the
+colour" — so the word is picked out by hue alone, as the sign's noun is. The shadow is cool to match. `BUBBLE` in `js/bubble.js` and `.tut-face` in
 `css/screens.css` draw the same shape and are kept in step; a test holds them together. The words
 still rise one at a time but with no overshoot, and the instruction sentence now eases in a word at
 a time too (`.instruction-text .iw`, 420 ms, 70 ms apart), both off under reduced motion.
