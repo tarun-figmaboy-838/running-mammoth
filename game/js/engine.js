@@ -232,7 +232,11 @@ export const CFG = {
        each blink holds a readable 143 ms, and consecutive frames are CROSSFADED in draw (the
        next pose drawn over the current at the step's fraction), so small motions — a blink, a
        trunk drift — glide instead of stepping. The procedural breath still rides on top. */
-    idleFps: 6, idleBlend: true,
+    /* 9, NOT 6. Twelve poses at 6 fps is a 167 ms hold each and a two-second loop — measured,
+       and the owner's note ("the gifs feel slow, the transitions lag"): with only twelve poses
+       the steps are visible however well they dissolve. At 9 the hold is 111 ms and the loop is
+       1.33 s, which is still a breath rather than a fidget, and the crossfade covers the rest. */
+    idleFps: 9, idleBlend: true,
     /* HAND-OVERS DISSOLVE. When a held or standing state is entered from a different sheet
        or pose, the pose it came from is drawn over the new one and faded out across this many
        seconds. Asked for: the changes between the delivered animations read as cuts. Off for the
@@ -245,7 +249,7 @@ export const CFG = {
     /* THE STARTLE PASSES. On a splash he recoils into the alert pose; after this many seconds he
        comes back down to the settle by a dissolve, instead of holding the alert face for the
        whole of the wrong-answer beat (measured: 3.6 s on one frame). */
-    startle: 0.8,
+    startle: 0.5,
     /* THE CELEBRATION HOP, as a timeline rather than a wave. crouch: the anticipation, one frame.
        arcs: [seconds, height in stage px] per hop — each a true parabola, so he leaves the
        ground and comes back the way a body does; the second is smaller, the way a second hop
@@ -3538,7 +3542,11 @@ class PlayerController {
            thresholds, which flipped poses fourteen times a second and then froze. */
         const P = this.hopPhase(this.t);
         if (P.seg === 'idle' && this.idleSheet && F.idle) {
-          sheet = this.idleSheet; idleT = Math.max(0, P.since - (SP.hop ? SP.hop.toIdle : 0));
+          /* The idle runs on its OWN clock from the moment it starts — delaying it until the
+             hand-over finished held the first pose for the dissolve plus a full step (measured
+             383 ms), which is exactly the stall the owner saw. The dissolve fades the settle out
+             OVER a moving idle instead. */
+          sheet = this.idleSheet; idleT = P.since;
           f = Math.floor(idleT * SP.idleFps) % F.idle;
           if (SP.hop && P.since < SP.hop.toIdle && this.jumpSheet) {
             blendSheet = this.jumpSheet; blendF = J.absorb; blendU = 1 - P.since / SP.hop.toIdle;

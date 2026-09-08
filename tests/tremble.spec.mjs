@@ -180,13 +180,16 @@ test.describe('the tremble, the stop and the crash', () => {
      dissolve instead of cutting; the celebration is two real arcs and then the idle. */
   test('the wait is one still pose, a wrong drop dissolves in and out of it, and nothing replays', async ({ page }) => {
     await boot(page, { fast: 1 });
-    const r = await page.evaluate(() => {
+    const r = await page.evaluate(async () => {
+      window.__SP = (await import('/js/engine.js')).CFG.sprite;
       const g = window.iceAgeGame, p = g._player(); g.setPaused(true);
       const at = (state, t) => { p.setState(state); p.t = t; g._renderOnce(); return { frame: p.lastSheet + ':' + p.lastFrame, under: +(p.lastUnder || 0).toFixed(2), blend: +(p.lastBlend || 0).toFixed(2) }; };
       p.setState('RUN'); p.t = 0; g._renderOnce();
       const wait = [0.3, 1, 5, 30].map(t => at('LOOK_DOWN', t).frame);
       // a wrong drop: the startle comes in over the wait, passes, and the wait comes back
-      const startIn = at('SURPRISED', 0.02), alert = at('SURPRISED', 0.5), recover = at('SURPRISED', 0.86), recovered = at('SURPRISED', 1.2);
+      const S = window.__SP.startle, H = window.__SP.handover;
+      const startIn = at('SURPRISED', 0.02), alert = at('SURPRISED', S * 0.5),
+            recover = at('SURPRISED', S + H * 0.4), recovered = at('SURPRISED', S + H + 0.1);
       p.setState('LOOK_DOWN'); p.t = 0.02; g._renderOnce();
       const back = { frame: p.lastSheet + ':' + p.lastFrame, under: +(p.lastUnder || 0).toFixed(2) };
       return { wait, startIn, alert, recover, recovered, back };
