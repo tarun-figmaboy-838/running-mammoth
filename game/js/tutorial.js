@@ -558,6 +558,11 @@ export class Tutorial {
       if (this.el.bubble) this.el.bubble.hidden = true;
       this.showFocus(s.focus || null);            // the row stays lit for as long as the step does
       this.show(null, '', false, s.hand || null, false, null, true);
+      /* AND IT STILL ENDS BY ITSELF. This branch returns before the self-advance at the foot of
+         update(), so without this line the plank kept the teaching sentence for the rest of the
+         phase: the question never arrived and the panel never left the screen. The sentence holds
+         for as long as it is spoken (readTime follows the voice), then next() hands the plank back. */
+      if (describing && this.t >= this.readTime(text)) this.next();
       return;
     }
     const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
@@ -610,7 +615,11 @@ export class Tutorial {
        whole reveal is spread across the clip (a beat per word, never faster than 55 ms or slower
        than 210 ms) so the text keeps pace with what is being said. Silent, it is the old 55 ms. */
     const words = (text || '').trim().split(/\s+/).filter(Boolean).length || 1;
-    this._wordStep = this.voDur > 0 ? clampN((this.voDur * 0.8) / words, 0.055, 0.21) : 0.055;
+    /* ACROSS THE WHOLE LINE. The step is measured against the LAST word's delay, not the word
+       count, and spread over 82% of the clip — so the sentence finishes arriving just as the
+       voice finishes saying it. Divided by the count and capped at 0.21 s it always hit the cap,
+       and every word was up by the middle of the line. */
+    this._wordStep = this.voDur > 0 ? clampN((this.voDur * 0.82) / Math.max(1, words - 1), 0.055, 0.55) : 0.055;
     const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
     const parts = (text || '').split(/(\s+)/);
     let i = 0, powed = false;

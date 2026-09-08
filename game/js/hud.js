@@ -130,13 +130,14 @@ export class Hud {
   setInstruction(message) {
     const el = this.el.text;
     if (!el) return;
-    const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
+    const m = this._plain ? null : /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
     el.textContent = '';
     let n = 0;
     /* IN STEP WITH THE VOICE, like the dialogue: when the question is spoken the reveal is
        spread across the clip. The engine hands the seconds over in the HUD state. */
     const words = (message || '').trim().split(/\s+/).filter(Boolean).length || 1;
-    const step = this._voDur > 0 ? Math.min(0.26, Math.max(0.07, (this._voDur * 0.8) / words)) : 0.07;
+    // spread across the whole spoken line, measured on the last word (see Tutorial.setWords)
+    const step = this._voDur > 0 ? Math.min(0.55, Math.max(0.07, (this._voDur * 0.82) / Math.max(1, words - 1))) : 0.07;
     const word = (text, cls, space) => {
       if (!text) return;
       if (space && el.childNodes.length) el.appendChild(document.createTextNode(' '));
@@ -294,6 +295,10 @@ export class Hud {
      * re-assert does not make the pill flash. */
     const el = this.el.instruction;
     this._voDur = h.voDur || 0;          // paces the word reveal, see setInstruction
+    /* A BANNER IS A SENTENCE, NOT A QUESTION. The key-word treatment takes the noun after "the"
+       and sets it in capitals and blue — right for "Cut the TRIANGLE.", wrong for the teaching
+       line, where it produced "Use the right ice piece to fix the PATH." */
+    this._plain = !!h.signBanner;
     // a tutorial sentence is a wide banner; a question sits in its left band (see the CSS)
     if (el) el.classList.toggle('banner', !!h.signBanner);
     const outOfSync = message && (el.hidden || el.classList.contains('leaving'));

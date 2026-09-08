@@ -5037,6 +5037,10 @@ export function createGame(canvas, hooks = {}) {
       case 'PHASE_DONE':
         // the whole phase is repaired: celebrate, then back to the adventure
         G.instruction = '';
+        /* AND THE PLANK IS GIVEN BACK. A tutorial line borrows it (api.saySign) and only the
+           tutorial handed it back, so a tutorial that stalled left its sentence on screen for the
+           rest of the game. The phase ending takes it back, whatever the tutorial is doing. */
+        G.signSay = '';
         G.phasesDone = Math.max(G.phasesDone, G.phase + 1);
         mammoth.setState('CELEBRATE'); audio.success(G.phase); atmos.pulse();
         /* A crossing is mended and he can go on — the biggest beat in the loop, so it

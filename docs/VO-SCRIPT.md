@@ -26,18 +26,21 @@ read; 4 and 6 wait for the player to act; 7 runs over the celebration.
 
 ## 2. The instruction sign (one per crossing, in play order)
 
+The ids are the ones the game derives from each sentence (`api.signVoId`), so the recording, the
+config and this table cannot drift: change a sentence and the id changes with it.
+
 The sign is on screen for the whole question. The polygon's name is shown in capitals and
 coloured; say it with the same emphasis.
 
 | id | line | crossing |
 |---|---|---|
-| sign-1-triangle | Cut the triangle. | 1 |
-| sign-2-quadrilateral | Cut the quadrilateral. | 2 |
-| sign-3-pentagon | Cut the pentagon. | 3 |
-| sign-4-hexagon | Cut the hexagon. | 4 |
-| sign-5-heptagon | Cut the heptagon. | 5 |
-| sign-6-pentagons | Cut all the pentagons. | 6 (two answers) |
-| sign-7-hexagons | Cut all the hexagons. | 7 (two answers) |
+| sign-triangle | Cut the triangle. | 1 |
+| sign-quadrilateral | Cut the quadrilateral. | 2 |
+| sign-pentagon | Cut the pentagon. | 3 |
+| sign-hexagon | Cut the hexagon. | 4 |
+| sign-heptagon | Cut the heptagon. | 5 |
+| sign-pentagons | Cut all the pentagons. | 6 (two answers) |
+| sign-hexagons | Cut all the hexagons. | 7 (two answers) |
 
 ## 3. The ending (the friend speaks)
 

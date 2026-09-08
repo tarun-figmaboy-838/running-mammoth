@@ -5904,6 +5904,10 @@ function createGame(canvas, hooks = {}) {
       case 'PHASE_DONE':
         // the whole phase is repaired: celebrate, then back to the adventure
         G.instruction = '';
+        /* AND THE PLANK IS GIVEN BACK. A tutorial line borrows it (api.saySign) and only the
+           tutorial handed it back, so a tutorial that stalled left its sentence on screen for the
+           rest of the game. The phase ending takes it back, whatever the tutorial is doing. */
+        G.signSay = '';
         G.phasesDone = Math.max(G.phasesDone, G.phase + 1);
         mammoth.setState('CELEBRATE'); audio.success(G.phase); atmos.pulse();
         /* A crossing is mended and he can go on — the biggest beat in the loop, so it
@@ -9683,13 +9687,14 @@ class Hud {
   setInstruction(message) {
     const el = this.el.text;
     if (!el) return;
-    const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
+    const m = this._plain ? null : /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
     el.textContent = '';
     let n = 0;
     /* IN STEP WITH THE VOICE, like the dialogue: when the question is spoken the reveal is
        spread across the clip. The engine hands the seconds over in the HUD state. */
     const words = (message || '').trim().split(/\s+/).filter(Boolean).length || 1;
-    const step = this._voDur > 0 ? Math.min(0.26, Math.max(0.07, (this._voDur * 0.8) / words)) : 0.07;
+    // spread across the whole spoken line, measured on the last word (see Tutorial.setWords)
+    const step = this._voDur > 0 ? Math.min(0.55, Math.max(0.07, (this._voDur * 0.82) / Math.max(1, words - 1))) : 0.07;
     const word = (text, cls, space) => {
       if (!text) return;
       if (space && el.childNodes.length) el.appendChild(document.createTextNode(' '));
@@ -9847,6 +9852,10 @@ class Hud {
      * re-assert does not make the pill flash. */
     const el = this.el.instruction;
     this._voDur = h.voDur || 0;          // paces the word reveal, see setInstruction
+    /* A BANNER IS A SENTENCE, NOT A QUESTION. The key-word treatment takes the noun after "the"
+       and sets it in capitals and blue — right for "Cut the TRIANGLE.", wrong for the teaching
+       line, where it produced "Use the right ice piece to fix the PATH." */
+    this._plain = !!h.signBanner;
     // a tutorial sentence is a wide banner; a question sits in its left band (see the CSS)
     if (el) el.classList.toggle('banner', !!h.signBanner);
     const outOfSync = message && (el.hidden || el.classList.contains('leaving'));
@@ -10616,6 +10625,11 @@ class Tutorial {
       if (this.el.bubble) this.el.bubble.hidden = true;
       this.showFocus(s.focus || null);            // the row stays lit for as long as the step does
       this.show(null, '', false, s.hand || null, false, null, true);
+      /* AND IT STILL ENDS BY ITSELF. This branch returns before the self-advance at the foot of
+         update(), so without this line the plank kept the teaching sentence for the rest of the
+         phase: the question never arrived and the panel never left the screen. The sentence holds
+         for as long as it is spoken (readTime follows the voice), then next() hands the plank back. */
+      if (describing && this.t >= this.readTime(text)) this.next();
       return;
     }
     const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
@@ -10668,7 +10682,11 @@ class Tutorial {
        whole reveal is spread across the clip (a beat per word, never faster than 55 ms or slower
        than 210 ms) so the text keeps pace with what is being said. Silent, it is the old 55 ms. */
     const words = (text || '').trim().split(/\s+/).filter(Boolean).length || 1;
-    this._wordStep = this.voDur > 0 ? clampN((this.voDur * 0.8) / words, 0.055, 0.21) : 0.055;
+    /* ACROSS THE WHOLE LINE. The step is measured against the LAST word's delay, not the word
+       count, and spread over 82% of the clip — so the sentence finishes arriving just as the
+       voice finishes saying it. Divided by the count and capped at 0.21 s it always hit the cap,
+       and every word was up by the middle of the line. */
+    this._wordStep = this.voDur > 0 ? clampN((this.voDur * 0.82) / Math.max(1, words - 1), 0.055, 0.55) : 0.055;
     const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
     const parts = (text || '').split(/(\s+)/);
     let i = 0, powed = false;
