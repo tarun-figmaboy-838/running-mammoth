@@ -496,7 +496,19 @@ export class Tutorial {
     /* NOT READY YET is a normal state, not an error. A step waits for its own moment —
        a rock coming into range, the blocks arriving — and while it waits the game runs
        and the layer shows nothing. */
-    if (!s.at(g)) { this.resume(); this.show(null); return; }
+    if (!s.at(g)) {
+      /* A STEP THAT HAS STARTED AND LOST ITS MOMENT IS OVER, not waiting. The game accepts a
+         cut about a second before the teaching line on the plank has finished; a quick learner
+         who cut the right rope in that second moved the game on to the success — and this
+         step's gate then stayed false for ever, so the tutorial sat on it, the ask that
+         followed never started, and "Perfect fit!" was never said. Measured in the tutorial
+         spec, which cuts the moment the pieces hang. So: a describing step that has begun and
+         whose moment has passed is finished; an ask whose action has already been recorded
+         (the cut is counted in G.attempts) is satisfied. A step that has not begun still waits. */
+      if (this.t > 0 && typeof s.advance === 'number') { this.next(); return; }
+      if (s.advance === 'cut' && (g.attempts || 0) > 0) { this.next(); return; }
+      this.resume(); this.show(null); return;
+    }
     /* A SIGN STEP HAS NO TARGET. Its words are on the plank, so it points at nothing — and the
        missing box used to skip it silently, which left the tutorial stuck on the line before it
        and let the question reach the plank first. */
