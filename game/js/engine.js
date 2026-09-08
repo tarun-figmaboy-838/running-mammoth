@@ -408,6 +408,14 @@ export const CFG = {
        character as it was — shortening this moves where he stops, not how much room he
        has. curriculum.spec asserts that clearance directly. */
     breakSkid: 1400, levelIntro: 420, shapeDrop: 560,
+    /* THE STAGE ARRIVES IN BEATS (asked for: the comedy elements came all at once; the hole
+       should be shown, then described, then the options should come down as they are talked
+       about). gapBeat is the hole alone; signBeat is the sentence alone after it; dropStagger
+       is the gap between one option starting down and the next, so they arrive one-two-three
+       with a pop each rather than as a row. The beats' clock stops while the tremble is still
+       playing and while a tutorial line has the game frozen, so a spoken beat lasts exactly as
+       long as it is read. */
+    gapBeat: 900, signBeat: 700, dropStagger: 220,
     focus: 500, split: 280, fly: 820,
     celebrate: 700, holdRepair: 500, crossfade: 4200,   // a sky change is a slow thing; 1500 read as a cut
     // the instruction holds the stage alone before the options come down
@@ -4528,7 +4536,7 @@ export function createGame(canvas, hooks = {}) {
        still published to the HUD, because removing a field from that object is a
        change every consumer has to be checked against and it buys nothing. */
     oops: false, hitFx: 0, hitObstacle: null, hitReturn: null,
-    handHint: null, idleHand: 0, dropReady: false,
+    handHint: null, idleHand: 0, dropReady: false, introT: 0, stageBeat: 0,
     quakeT: 0, quakeAmp: 0, quakeLen: 0, quakeRoll: 0, quakePeak: 0, quakeAt: 0,
     quakeOx: 0, quakeOy: 0,
     freeze: 0,                                            // seconds of hit-stop left
@@ -4605,8 +4613,12 @@ export function createGame(canvas, hooks = {}) {
          until the last wanted piece has fitted, through wrong answers, and leaves on
          completion — the HUD highlights the polygon's name in it. Outside a question the
          hold still times the run's lines ("Run for home!"). */
-      instruction: (G.instrHold > 0 || (G.l1 && G.l1.unfilled && G.l1.unfilled.length > 0 &&
-                    ['PHASE_INTRO', 'PHASE_ACTIVE', 'PHASE_WRONG', 'PHASE_SUCCESS'].includes(G.state))) ? G.instruction : '',
+      /* AND IT WAITS FOR ITS BEAT. In PHASE_INTRO the hole is shown and described first, so the
+         sign is held back until stageBeat 1 (see the beats in update). The text itself is never
+         blanked — replayInstruction reads it — only its visibility is gated, as everywhere else. */
+      instruction: ((G.instrHold > 0 || (G.l1 && G.l1.unfilled && G.l1.unfilled.length > 0 &&
+                    ['PHASE_INTRO', 'PHASE_ACTIVE', 'PHASE_WRONG', 'PHASE_SUCCESS'].includes(G.state)))
+                    && !(G.state === 'PHASE_INTRO' && G.stageBeat < 1)) ? G.instruction : '',
       jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
       // TEMPORARY: whether the review control that jumps to the ending may show
       skippable: G.state !== 'BOOT' && G.state !== 'TITLE' && !G.complete,
@@ -4761,6 +4773,7 @@ export function createGame(canvas, hooks = {}) {
         aimZoom();
         G.jumpEnabled = false;
         G.dropReady = false;                 // nothing moves until the panel leaves
+        G.introT = 0; G.stageBeat = 0;        // see the beats in update: hole, sign, options
         G.instruction = phaseCfg().instruction;
         // let the tremble that started at the stop play out into the head-down look
         if (mammoth.state !== 'SHAKE') mammoth.setState('LOOK_DOWN');
@@ -5177,6 +5190,8 @@ export function createGame(canvas, hooks = {}) {
           baseRot: rot * Math.PI / 180, w: b.w, h: b.h, pts, art: seated.art,
           slotX: x, anchorX: x, tail: 0,
           seed: seedBase + 7 * i + 3,
+          // its place in the row, which is also the order it comes down in (see updateL1)
+          order: i,
           dropT: 0, cut: false, state: 'hang', rot: rot * Math.PI / 180,
           alpha: 1, scale: 1, fallT: 0, vy: 0
         };
@@ -5740,7 +5755,9 @@ export function createGame(canvas, hooks = {}) {
         // held above the screen until the instruction has had the stage to itself
         if (!G.dropReady) continue;
         sh.dropT += dt;
-        const dp = clamp((sh.dropT - 0.06) / (T.shapeDrop / 1000), 0, 1);
+        // one after another, left to right: the row arrives as three moments, not one
+        const delay = 0.06 + (sh.order || 0) * (T.dropStagger / 1000);
+        const dp = clamp((sh.dropT - delay) / (T.shapeDrop / 1000), 0, 1);
         sh.y = lerp(-220, sh.targetY, easeBackOut(dp));
         if (!sh.arrived && dp >= 1) { sh.arrived = true; audio.pop(); }
         /* No arrival bounce and no jiggle. Both were motion applied to a hanging
@@ -6139,8 +6156,8 @@ export function createGame(canvas, hooks = {}) {
       G.st = T.breakSkid - 1;         // one step short, so the final frame still runs
       return true;
     }
-    if (G.state === 'PHASE_INTRO' && !G.dropReady && G.st < T.introRead) {
-      G.st = T.introRead;
+    if (G.state === 'PHASE_INTRO' && !G.dropReady && G.introT < T.gapBeat + T.signBeat) {
+      G.introT = T.gapBeat + T.signBeat;      // straight to the options coming down
       return true;
     }
     return false;
@@ -6589,7 +6606,15 @@ export function createGame(canvas, hooks = {}) {
            sentence cannot vanish before introRead is up — the two used to be set
            independently and a short instructionHold blanked the panel while the stage
            was still supposed to be its own. */
-        if (!G.dropReady && G.st > T.introRead) {
+        /* BEAT 0 — THE HOLE, ALONE. The clock does not run while the tremble is still playing
+           (the performance first), and a frozen tutorial line stops it too, so "Oh no! The path
+           is broken." owns this beat for exactly as long as it is read.
+           BEAT 1 — THE SIGN, alone over the hole.
+           BEAT 2 — THE OPTIONS come down, one after another (dropStagger), each with its pop. */
+        if (mammoth.state !== 'SHAKE') G.introT += dt * 1000;
+        if (G.stageBeat < 1 && G.introT > T.gapBeat) { G.stageBeat = 1; audio.pop(); }
+        if (!G.dropReady && G.introT > T.gapBeat + T.signBeat) {
+          G.stageBeat = 2;
           G.dropReady = true;
           /* Send the BANNER away, not the instruction. The panel's visibility is
              gated on instrHold, and replayInstruction() reads G.instruction — so
@@ -6597,9 +6622,14 @@ export function createGame(canvas, hooks = {}) {
              puzzle, which is the one thing that was supposed to make clearing the
              panel safe. */
           G.instrHold = 0;
-          audio.pop();
         }
-        if (G.dropReady && G.st > T.introRead + T.shapeDrop + 160) setState('PHASE_ACTIVE');
+        /* The last option has to have landed, so the wait grows with the row: each one starts
+           dropStagger behind the one before it. */
+        if (G.dropReady) {
+          const nOpt = (G.l1 && G.l1.shapes && G.l1.shapes.length) || 3;
+          const allDown = T.gapBeat + T.signBeat + T.shapeDrop + (nOpt - 1) * T.dropStagger + 160;
+          if (G.introT > allDown) setState('PHASE_ACTIVE');
+        }
         break;
 
       case 'PHASE_WRONG': {
@@ -8003,7 +8033,7 @@ export function createGame(canvas, hooks = {}) {
     G.complete = false; G.l1 = null; G.attempts = 0; G.idle = 0;
     G.phase = 0; G.phasesDone = 0; G.gapsThisPhase = null; G.phaseLayout = null; G.phaseJumped = false;
     G.oops = false; G.hitFx = 0; G.hitObstacle = null; G.hitReturn = null; G.hitCount = 0;
-    G.handHint = null; G.idleHand = 0; G.dropReady = false;
+    G.handHint = null; G.idleHand = 0; G.dropReady = false; G.introT = 0; G.stageBeat = 0;
     G.stompF = -1; G.stomps = 0; G.invincibleT = 0; G.jumpArmed = false;
     G.shakeAmp = 0; G.shakeLen = 0;
     G.quakeT = 0; G.quakeAmp = 0; G.quakeLen = 0; G.quakePeak = 0; G.quakeAt = 0;

@@ -17,8 +17,12 @@
  * tail and a long one does not get a comically wide one. */
 
 export const BUBBLE = {
-  fill: '#F9D201',        // the asset's yellow
-  ink: '#5A2E0A',         // a cocoa keyline instead of the asset's black, on request; the amber buttons are edged in the same brown
+  /* THE GAME'S OWN PALETTE (asked for: the egg-yolk yellow was not the game's). Frost white
+     (CFG.colors.frost) with the deep ice edge the chunks are outlined in — the bubble now reads
+     as part of the Frozen Pass rather than a sticker on it. The keyline is the same colour the
+     hanging ice is drawn with, so the speech and the world are edged alike. */
+  fill: '#EAF9FF',        // frost
+  ink: '#14507A',         // deep ice edge, between CFG.colors.edge and deepEdge
   stroke: 7,              // px, at stage size
   radius: 26,             // px
   tailBase: 0.2,          // fraction of the body width

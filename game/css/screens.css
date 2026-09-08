@@ -518,11 +518,15 @@
   top: 0;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(clamp(4px, 0.42vw, 8px) clamp(6px, 0.63vw, 12px) 0 rgba(60, 30, 8, 0.32));
+  /* a cool shadow, now the bubble is ice rather than yolk */
+  filter: drop-shadow(clamp(4px, 0.42vw, 8px) clamp(6px, 0.63vw, 12px) 0 rgba(12, 51, 82, 0.30));
 }
 .tut-face {
-  fill: #F9D201;
-  stroke: #5A2E0A;                       /* cocoa, not black: the brown the amber buttons are edged with */
+  /* THE GAME'S PALETTE (asked for: the yellow was not the game's). Frost body and the deep ice
+     edge the hanging chunks are outlined in, so the speech is edged like the world it is in.
+     Kept in step with BUBBLE in js/bubble.js, which draws the same shape. */
+  fill: #EAF9FF;
+  stroke: #14507A;
   stroke-width: 7;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -542,7 +546,7 @@
      keeps a line to about 30 characters, which is what a new reader can hold. The comedy
      is in the shape, the pop and the wobble — not in the letters. */
   font: 800 clamp(22px, 2.35vw, 44px)/1.32 "Baloo 2", system-ui, sans-serif;
-  color: #2A1606;                       /* near-black cocoa: reads as ink on the yellow, matches the keyline */
+  color: #0C3352;                       /* the navy the ice is inked with: about 11:1 on frost */
   text-wrap: balance;
   letter-spacing: .004em;
   /* One white line under each glyph, which lifts the letters off the ice without an
@@ -554,20 +558,22 @@
    and tilted: a single comic accent that also tells a child which word matters. */
 .tut-text .w {
   display: inline-block;
-  animation: tutWordIn 460ms cubic-bezier(.2, 1.6, .4, 1) both;
+  /* eased, with no overshoot (asked for): the words settle rather than snap */
+  animation: tutWordIn 460ms cubic-bezier(.33, .1, .25, 1) both;
   animation-delay: calc(var(--i, 0) * 55ms);
 }
 .tut-text .pow {
   font-weight: 900;
-  color: #1E56C4;
+  /* Momo's own amber, deepened until it reads on frost: the key word is the character's colour,
+     and the one warm note on an ice-coloured bubble. */
+  color: #C4631B;
   rotate: -3deg;
   scale: 1.08;
   margin: 0 .16em;                     /* the 8% scale eats the word space; give it back */
   text-shadow: .06em .06em 0 rgba(0, 0, 0, 0.14);
 }
 @keyframes tutWordIn {
-  0%   { opacity: 0; translate: 0 .45em; scale: .78; }
-  70%  { opacity: 1; translate: 0 -.04em; }
+  0%   { opacity: 0; translate: 0 .38em; scale: .88; }
   100% { opacity: 1; translate: 0 0; scale: 1; }
 }
 .tut-text .pow { animation-name: tutWordIn, tutPow; animation-duration: 460ms, 700ms; animation-timing-function: cubic-bezier(.2, 1.6, .4, 1), ease-out; animation-fill-mode: both, both; }

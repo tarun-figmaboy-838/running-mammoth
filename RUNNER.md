@@ -1056,6 +1056,52 @@ is therefore "stopped (PHASE_INTRO or later, never the skid) and no longer in SH
 the skid froze him mid-slide; firing during the tremble froze the performance. Test: tremble.spec
 "the last tutorial line ..." asserts LOOK_DOWN and a spent plan at the moment the line appears.
 
+### The ditch stage arrives in beats
+
+Asked for: the comedy elements all landed at once; the hole should be shown, then described, then
+the options should come down as they are talked about. `PHASE_INTRO` now runs three beats on its
+own clock (`G.introT`, `G.stageBeat`), and that clock stops while the tremble is still playing and
+while a tutorial line has the game frozen — so a spoken beat lasts exactly as long as it is read.
+
+| beat | what is on stage | length |
+|---|---|---|
+| 0 | the hole alone (the tutorial's "Oh no! The path is broken." owns it) | `T.gapBeat` 900 ms |
+| 1 | the instruction sign slides in over the hole | `T.signBeat` 700 ms |
+| 2 | the options come down left to right, `T.dropStagger` 220 ms apart, a pop each | `shapeDrop` + stagger |
+
+The sign is held back by the HUD until beat 1 (its text is never blanked — `replayInstruction`
+reads it — only its visibility is gated). Each option carries its place in the row as `order`, and
+`updateL1` delays its drop by `order * dropStagger`. A tap still skips the reading, now by pushing
+`introT` to the end of beat 1. Tests: stage.spec "the hole comes first".
+
+### The instruction sign lives in the left band
+
+Asked for: the panel overlapped the hanging options. The option row is centred on the safe area
+(`mammothX + clearOfPlayer` = 770 to `W - 60`), so everything from the left edge to x 770 of the
+1920-unit stage is clear sky above the character's head. The sign is now left-aligned at 1.6% with
+a 40% cap instead of centred, and on a phone its height comes from the STAGE (17.4% of the stage's
+own height) rather than from `vw` — the stage is letterboxed, so a vw-based height grew relative to
+the stage on a short, wide phone and the plank ran back under the ropes. Measured for the longest
+sentence ("Cut the QUADRILATERAL."): 718 of 1920 on desktop, 908 on a phone, against a leftmost
+rope at 952. Test: stage.spec "the sign sits in the empty left band".
+
+### The dialogue box is in the game's palette
+
+Asked for: the yellow was not the game's. The bubble is frost (`#EAF9FF`, `CFG.colors.frost`) with
+the deep ice edge the hanging chunks are outlined in (`#14507A`), navy ink (`#0C3352`, about 11:1),
+and the key word in Momo's own amber deepened to read on frost (`#C4631B`) — the one warm note on
+an ice-coloured bubble. The shadow is cool to match. `BUBBLE` in `js/bubble.js` and `.tut-face` in
+`css/screens.css` draw the same shape and are kept in step; a test holds them together. The words
+still rise one at a time but with no overshoot, and the instruction sentence now eases in a word at
+a time too (`.instruction-text .iw`, 420 ms, 70 ms apart), both off under reduced motion.
+
+### Every spoken line, in one place
+
+`docs/VO-SCRIPT.md` lists every line the learner reads or hears — the seven tutorial lines, the
+seven instruction sentences, and the interface strings — with an id per line for voice-over files
+and a note on delivery. A test reads the config and the tutorial and fails if a line is missing
+from the script, so the two cannot drift.
+
 ### The bubbles point at the thing (tutorial)
 
 Asked for: the ditch line must point at the ditch and the option line at the right option, not at

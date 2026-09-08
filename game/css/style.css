@@ -135,19 +135,36 @@ a:hover { color: var(--ice-pale); }
      1.2%, not 3.5%: raised again on request. It also buys back a little of the rope —
      the sign is centred over the rig, so every millimetre it moves up is a millimetre
      more of the leftmost rope that the learner can actually see while cutting it. */
+  /* THE EMPTY LEFT BAND, not the middle (asked for: the panel overlapped the hanging
+     options). The option row is centred on the safe area — mammothX + clearOfPlayer (770)
+     to W - 60 — so everything from the left edge to x 770 of the 1920 stage is clear sky
+     above the character's head, and 40% of the stage is exactly that band. Centred, the
+     sign reached the leftmost rope; here it cannot. */
   top: 1.2%;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 92%;
+  left: 1.6%;
+  transform: none;
+  max-width: 40%;
   pointer-events: none;
   transition: opacity 280ms ease, transform 280ms ease;
 }
 .instruction[hidden] { display: none; }
 /* the polygon's name, set apart in the sentence: capitals, heavier, the key-word blue */
+/* THE SENTENCE EASES IN, A WORD AT A TIME (asked for). Smooth in and out, no overshoot —
+   the plank is signage, not a character; the comedy lives in the speech bubble. Each word is
+   an inline-block so the sign still grows sideways and never wraps. */
+.instruction-text .iw {
+  display: inline-block;
+  animation: signWordIn 420ms cubic-bezier(.33, .1, .25, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+@keyframes signWordIn {
+  from { opacity: 0; transform: translateY(0.34em) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
 .instruction-text .key { color: #1E56C4; font-weight: 900; letter-spacing: 0.01em; -webkit-text-stroke: calc(9 * var(--k)) #FFFFFF; paint-order: stroke fill; }
 .instruction.leaving {
   opacity: 0;
-  transform: translateX(-50%) translateY(-18px) scale(0.97);
+  transform: translateY(-18px) scale(0.97);
 }
 
 /* A carved ice sign, not a button: a frosted slab with a bright rim, a top gloss and
@@ -438,6 +455,7 @@ a:hover { color: var(--ice-pale); }
      element whose only visible state is inside a keyframe disappears the moment the
      animation does, which is the fault already documented on .hand-hint. */
   .instruction-pill, .btn-jump.pulse, .btn-jump.pressed::after { animation: none; }
+  .instruction-text .iw { animation: none; }
   .card-icon { animation: none; opacity: 1; transform: none; }
 }
 
@@ -620,7 +638,7 @@ a:hover { color: var(--ice-pale); }
 /* On a phone-landscape stage everything still derives from --sign-h, so the sign only
    needs to be told to be a little taller relative to a much smaller stage. */
 @media (max-width: 1200px) {
-  .instruction { max-width: 94%; top: 1%; }
+  .instruction { max-width: 44%; top: 1%; left: 1.2%; }
   /* MUCH smaller on a phone, and the two numbers that set it are both measured:
      the hanging chunks start 122px down a 390px stage, so a card parked at 2.5% must
      be under ~112px tall to clear them; and the interface has to stay under 12% of
@@ -628,5 +646,11 @@ a:hover { color: var(--ice-pale); }
      about 98px. 88px satisfies both with room to spare. It matters more here than on
      desktop because the card is now on screen for the whole phase rather than a few
      seconds. */
-  .instruction-pill { --sign-h: clamp(56px, 10.4vw, 96px); }
+  /* SIZED FROM THE STAGE, NOT THE VIEWPORT, now that the sign has to fit the left band. The
+     stage is 16:9 and letterboxed, so on a phone its width is set by the HEIGHT (a 844x390
+     window gives a 693px-wide stage) — a vw-based height therefore grew relative to the stage
+     on a short, wide phone and the plank ran back under the ropes. 17.4% of the stage's own
+     height keeps the longest sentence ("Cut the QUADRILATERAL.") inside 910 of the 1920 stage
+     units, clear of the leftmost rope at 952, on every phone shape. */
+  .instruction-pill { --sign-h: max(44px, calc(min(100vh, 100vw * 0.5625) * 0.174)); }
 }

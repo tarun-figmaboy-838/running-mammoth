@@ -164,18 +164,28 @@ export class Hud {
      stop kept (the owner's own wording). The engine's sentence is untouched (tests and the
      recall path read it); this is how it is shown. A sentence that does not fit the pattern
      is shown whole. */
+  /** The sentence, WORD BY WORD so each can ease in (see .instruction-text .iw). The polygon's
+      name keeps its `key` class — the tests and the blue styling both look for it — and the full
+      stop is its own span with no space before it, so it stays tight against the name. */
   setInstruction(message) {
     const el = this.el.text;
     if (!el) return;
     const m = /^(.*?\bthe\s+)([a-z]+?)(s?)([.!]?)$/i.exec((message || '').trim());
     el.textContent = '';
-    if (!m) { el.textContent = message; return; }
-    el.appendChild(document.createTextNode(m[1]));
-    const key = document.createElement('span');
-    key.className = 'key';
-    key.textContent = (m[2] + m[3]).toUpperCase();
-    el.appendChild(key);
-    if (m[4]) el.appendChild(document.createTextNode(m[4]));   // the sentence keeps its full stop
+    let n = 0;
+    const word = (text, cls, space) => {
+      if (!text) return;
+      if (space && el.childNodes.length) el.appendChild(document.createTextNode(' '));
+      const s = document.createElement('span');
+      s.className = cls;
+      s.style.setProperty('--i', n++);
+      s.textContent = text;
+      el.appendChild(s);
+    };
+    if (!m) { for (const w of (message || '').trim().split(/\s+/)) word(w, 'iw', true); return; }
+    for (const w of m[1].trim().split(/\s+/)) word(w, 'iw', true);
+    word((m[2] + m[3]).toUpperCase(), 'iw key', true);
+    word(m[4], 'iw', false);                                  // the sentence keeps its full stop
   }
 
   /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
