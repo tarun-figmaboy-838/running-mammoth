@@ -13,7 +13,13 @@ test.describe('the text fits its panel', () => {
     const sentences = await page.evaluate(async () => (await import('/js/engine.js')).CFG.levelOne.phases.map(p => p.instruction));
     expect(sentences.length).toBeGreaterThan(0);
     await force(page, 'GLACIER_BREAK_1');
-    await waitState(page, ['PHASE_INTRO', 'PHASE_ACTIVE'], 40_000);
+    /* WAIT FOR THE QUESTION, not merely for the intro. The intro now arrives in beats and the
+       sign is held back until its own beat (see engine PHASE_INTRO), so measuring during beat 0
+       reads an empty panel. PHASE_ACTIVE has the sign up and stays put until the puzzle is
+       solved, which is what makes the measuring below deterministic. (Pausing instead was tried
+       and is wrong: the HUD is pushed from the game loop, so a paused game never picks up the
+       next sentence.) */
+    await waitState(page, 'PHASE_ACTIVE', 60_000);
     for (const s of sentences) {
       const m = await page.evaluate(async sen => {
         const G = window.iceAgeGame.debug();

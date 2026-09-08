@@ -22,7 +22,8 @@ test.describe('skip to ending (temporary)', () => {
     await btn.click();
     // the run home, then the arrival: the friend stands a short way ahead
     expect(await waitState(page, ['FINAL_RUN', 'COMPLETE'], 5_000)).toMatch(/FINAL_RUN|COMPLETE/);
-    await waitState(page, 'COMPLETE', 20_000);
+    // the run home is six seconds of game time, and a loaded runner plays it at a third of that
+    await waitState(page, 'COMPLETE', 60_000);
     await expect(btn).toBeHidden();                 // gone once the ending is up
 
     await expect(page.locator('#complete')).toBeVisible();
