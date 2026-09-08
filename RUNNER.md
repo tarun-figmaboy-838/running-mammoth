@@ -1408,6 +1408,28 @@ cut line"): the middle slice overlapped the caps by 1 px and a fractional device
 half-covered column. It now runs 12 px under each opaque cap. The letters carry a cream stroke
 (white around the blue polygon name) behind the fill, so the words lift off the wood grain.
 
+### The camera move is eased at both ends
+
+The push-in and the pull-out ran on an exponential approach — a fixed share of the remaining
+distance each frame — which is fastest on its first frame and then creeps: it read as a snap
+followed by a drift. They now run a normalised progress through `easeInOut` from where the move
+started to where it is going (`G.zoomFrom` / `zoomTo` / `zoomP`), on the game clock, so the move
+is identical at any frame rate, slower in (900 ms) than out (520 ms), and it ARRIVES instead of
+tailing off. Measured through a push-in: the speed starts near zero, peaks in the middle at about
+six times the opening quarter, and ends near zero.
+
+### The runs are a journey, one obstacle at a time
+
+Asked for, replacing the tightening curve: after the tutorial every obstacle is far from the next
+and arrives alone. `CFG.obstacle.roomMin` (2.6 s) is the floor every gap is held to, enforced both
+in the table and in the spawner, so no entry can undercut it; at 520 px/s that is about 1350 px of
+clear ice on top of the leap, and measured on the hardest stretch there is never more than ONE
+obstacle on screen at a time. What still grows with the level is the count (two, three, four) and
+the variety (rock, log and bone together later) — the difficulty of this game lives in the
+polygons, not in the timing of jumps. The lead before a stretch appears is 3.0 s, so a run opens
+as travel. The tutorial's own rock is untouched: `timing.run1` 1.4 s, spawned 2150 px off-screen,
+described at 1050 px. Tests: difficulty.spec holds the floor, the growth and the families.
+
 ### The journey lead after a puzzle
 
 Asked for: after the tutorial the obstacles are placed far, so the running shows a journey like a

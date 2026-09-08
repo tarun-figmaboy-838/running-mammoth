@@ -1008,7 +1008,10 @@ const CFG = {
        needs a further ~3.3 s to reach Momo, so the first rock arrives ~5.7 s into the run).
        retryLeadS is the lead after a failed jump: the same stretch is retried at once, not after
        the whole journey again. The tutorial's own rock is not led (timing.run1). */
-    leadS: 2.4, retryLeadS: 0.7,
+    /* 3.0, not 2.4: the clear running before the first obstacle of a stretch appears. With the
+       spawn 2150 px off-screen the first one is then about six seconds into the run — long
+       enough that the stretch opens as a journey rather than as the next obstacle. */
+    leadS: 3.0, retryLeadS: 0.7,
     /* THE DIFFICULTY CURVE OF THE RUNS. Asked for: the running should become a real game as
        the learner progresses, instead of the same two-to-four rocks at the same spacing.
 
@@ -1020,23 +1023,40 @@ const CFG = {
        is always added, so nothing is ever placed inside a jump. `kinds` names the family
        of each obstacle — 'rock' | 'log' | 'bone' — so a stretch can be a combination.
 
-         0  two obstacles, far apart                       single -> multiple, spaced
-         1  three, spaced
-         2  one, then a near pair                          two nearby obstacles
-         3  three consecutive timed jumps
-         4  rock -> log -> bone, the last two close        a combination before the puzzle
-         5  a pair, a breath, a pair, mixed families       the hardest run, before the last puzzle
+       ONE AT A TIME, AND FAR APART — the owner's call, replacing the tightening curve below it.
+       The runs between puzzles are the JOURNEY: the reward for mending a crossing is a stretch of
+       open ice with an obstacle every few seconds, each one arriving alone, cleared, and gone
+       before the next appears on the horizon. Nothing is ever placed close behind another, so a
+       learner is never asked to chain jumps — the difficulty of this game lives in the polygons.
+       What still grows with the level is the COUNT (two, then three, then four) and the VARIETY
+       (rock, log and bone appear together later), which is what makes the last run feel longer
+       than the first without making it tighter.
+
+         0  two, far apart
+         1  three, far apart
+         2  three, far apart
+         3  three, far apart
+         4  three: rock, log, bone
+         5  four: rock, log, bone, rock
+
+       Every gap is at least CFG.obstacle.roomMin seconds of running ON TOP of the leap, so the
+       shortest of them is still a walk rather than a rhythm. The earlier curve (0.6-0.7 s gaps,
+       "three consecutive timed jumps") is kept here as a record of what it replaced.
 
        Beyond the table the last entry repeats, so a longer level cannot fall off the curve.
        The three-strike safety valve (a third failed jump crumbles the obstacle) is untouched,
        so no stretch can dead-end a learner. */
+    /* The floor every gap is held to, in seconds of running after the leap. 2.6 s at 520 px/s is
+       about 1350 px of clear ice — the obstacle behind is off the screen before the next one is
+       reachable, which is what "one at a time" means on a 1920-wide stage. */
+    roomMin: 2.6,
     runs: [
       { room: [3.4] },
-      { room: [2.2, 2.2] },
-      { room: [2.4, 1.0] },
-      { room: [0.7, 0.7] },
-      { room: [1.8, 0.7], kinds: ['rock', 'log', 'bone'] },
-      { room: [0.6, 1.8, 0.6], kinds: ['rock', 'log', 'bone', 'rock'] }
+      { room: [3.0, 3.0] },
+      { room: [3.2, 2.8] },
+      { room: [2.8, 3.2] },
+      { room: [3.0, 2.8], kinds: ['rock', 'log', 'bone'] },
+      { room: [2.8, 3.2, 2.8], kinds: ['rock', 'log', 'bone', 'rock'] }
     ]
   },
   /* Shared sprite geometry. Every sheet, for every character, is rebuilt on one
@@ -5417,7 +5437,10 @@ class ObstacleController {
     let x = worldX + screenX;
     for (let i = 0; i < count; i++) {
       if (i > 0) {
-        const room = plan && plan.room ? plan.room[Math.min(i - 1, plan.room.length - 1)] : (cc.runRoomS || 1.2);
+        /* THE FLOOR IS ENFORCED HERE, not only in the table: a stretch is a journey and no entry
+           may put two obstacles within roomMin seconds of each other (see CFG.obstacle.runs). */
+        const asked = plan && plan.room ? plan.room[Math.min(i - 1, plan.room.length - 1)] : (cc.runRoomS || 1.2);
+        const room = Math.max(asked, cc.roomMin || 0);
         x += leap + CFG.runSpeed * room;
       }
       this.list.push({
@@ -5694,6 +5717,8 @@ function createGame(canvas, hooks = {}) {
        numbers — a coach mark or a verdict positioned in raw stage coordinates would
        drift off its target the moment the canvas zoomed. */
     zoom: 1, zoomWant: 1, zoomVX: 960, zoomVY: 540,
+    // where the current camera move started, where it is going, and how far through it is
+    zoomFrom: 1, zoomTo: 1, zoomP: 1, zoomMs: 900,
     punchAmp: 0, punchT: 0, punchLen: 0, punchAt: 0, punchX: 0, punchY: 0,
     instrHold: 0, instrLast: '',
     phase: 0, phasesDone: 0, gapsThisPhase: null, phaseLayout: null, phaseJumped: false
@@ -7653,13 +7678,28 @@ function createGame(canvas, hooks = {}) {
        what stays on screen. Real dt is still consumed, so a hold always ends. */
     if (G.freeze > 0) { G.freeze -= dt; return; }
     G.t += dt; G.st += dt * 1000;
-    /* Eased towards the target on the game clock, so the move is identical at any
-       frame rate. Different rates in and out: see the note on zoomInMs. */
+    /* THE CAMERA MOVE IS EASED AT BOTH ENDS, not decayed towards the target.
+     *
+     * It used to be an exponential approach — a fixed share of the remaining distance every
+     * frame — which starts at its fastest and then creeps: the push-in lurched away from the
+     * run and took a second and a half to settle the last two per cent, so it read as a snap
+     * followed by a drift rather than as a camera taking an interest. This runs a normalised
+     * progress from where the move started to where it is going and shapes it with the same
+     * ease-in-out the sky crossfade uses: still on the game clock, so it is identical at any
+     * frame rate, still slower in than out, and it ARRIVES — no tail, no creep. */
     {
       const L1z = CFG.levelOne;
-      const ms = G.zoomWant > G.zoom ? L1z.zoomInMs : L1z.zoomOutMs;
-      G.zoom += (G.zoomWant - G.zoom) * clamp(dt * 1000 / Math.max(1, ms) * 2.6, 0, 1);
-      if (Math.abs(G.zoomWant - G.zoom) < 0.0008) G.zoom = G.zoomWant;
+      if (G.zoomWant !== G.zoomTo) {
+        G.zoomTo = G.zoomWant;
+        G.zoomFrom = G.zoom;
+        G.zoomP = 0;
+        G.zoomMs = Math.max(1, G.zoomWant > G.zoom ? L1z.zoomInMs : L1z.zoomOutMs);
+      }
+      if (G.zoom !== G.zoomWant) {
+        G.zoomP = clamp((G.zoomP || 0) + dt * 1000 / G.zoomMs, 0, 1);
+        G.zoom = G.zoomFrom + (G.zoomWant - G.zoomFrom) * easeInOut(G.zoomP);
+        if (G.zoomP >= 1) G.zoom = G.zoomWant;
+      }
     }
     if (G.punchLen > 0) {
       G.punchT += dt;

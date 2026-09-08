@@ -15,14 +15,19 @@ test.describe('the difficulty curve of the runs', () => {
       for (let i = 0; i < 6; i++) { const r = g._runPlan(i); out.push({ i, count: r.plan.room.length + 1, minRoom: Math.min(...r.plan.room), kinds: r.plan.kinds || null, leap: r.leap, speed: r.speed }); }
       return out;
     });
+    /* WHAT GROWS IS THE COUNT AND THE VARIETY, NOT THE TIGHTNESS. The curve used to close the
+       gaps as the level went on (down to 0.6 s, three consecutive jumps); on the owner's call the
+       runs between puzzles are a journey instead — every obstacle far from the next, arriving one
+       at a time — and the difficulty of the game lives in the polygons. So: the count still
+       climbs, the families still arrive, and NO gap is under the floor. */
     expect(t.map(x => x.count)).toEqual([2, 3, 3, 3, 3, 4]);
-    // the tightest gap of a stretch never loosens as the level goes on
-    for (let i = 1; i < t.length; i++) expect(t[i].minRoom, `stretch ${i} vs ${i - 1}`).toBeLessThanOrEqual(t[i - 1].minRoom);
+    const floor = await page.evaluate(async () => (await import('/js/engine.js')).CFG.obstacle.roomMin);
+    expect(floor, 'a real floor').toBeGreaterThanOrEqual(2.4);
+    for (const x of t) expect(x.minRoom, `stretch ${x.i} is a journey, not a rhythm`).toBeGreaterThanOrEqual(floor);
     expect(t[0].minRoom).toBeGreaterThanOrEqual(3);          // generous first
-    expect(t[3].minRoom).toBeLessThanOrEqual(0.8);           // consecutive jumps by the fourth
     // a combination is named before the fifth puzzle
     expect(t[4].kinds).toEqual(['rock', 'log', 'bone']);
-    // clearable: the leap is always added, and the room is at least half a second of running
+    // clearable: the leap is always added on top of every gap
     for (const x of t) expect(x.minRoom).toBeGreaterThanOrEqual(0.5);
     expect(t[0].leap).toBeGreaterThan(400);
   });
