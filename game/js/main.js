@@ -87,7 +87,8 @@ const wantScale = () => {
 if (document.fonts && document.fonts.load) {
   for (const w of [600, 700, 800, 900]) document.fonts.load(w + ' 20px "Baloo 2"').catch(() => {});
 }
-for (const src of ['assets/ui/btn-play-pressed.webp']) { const i = new Image(); i.src = assetUrl(src); }
+/* Nothing to warm here any more: the PLAY button is a single take, so there is no second
+   picture that has to be in the cache before the first press. */
 
 /* THE HD CHARACTER SET IS FOR TABLETS AND LAPTOPS, NOT PHONES. A 3x phone's stage is dense
    enough to qualify by scale alone, and that is exactly where six 3780x2880 sheets are a
@@ -157,7 +158,18 @@ function startTutorial() {
   let last = performance.now();
   const tick = now => {
     if (!tut || tut.done) { tut = null; return; }
-    const dt = Math.min(0.05, (now - last) / 1000);
+    /* THE TUTORIAL'S CLOCK IS REAL TIME, capped only against a tab switch.
+     *
+     * It was capped at 50ms a frame, which is the right cap for a SIMULATION — a big step
+     * tunnels a collider through a rock. The tutorial simulates nothing; it times words
+     * against a voice-over, and the voice plays on the audio clock, which is real seconds
+     * whatever the frame rate. So on a slow renderer the two came apart: measured on a
+     * headless run at about 8fps, the sentences arrived at a quarter speed while the
+     * recording ran on, and the second half of a line appeared as the voice finished
+     * saying it. 0.25s still swallows the jump a backgrounded tab produces (rAF stops, so
+     * the first frame back can be seconds) without slowing the reading on any device that
+     * renders at four frames a second or better. */
+    const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
     tut.update(dt);
     requestAnimationFrame(tick);

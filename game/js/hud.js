@@ -268,8 +268,16 @@ export class Hud {
         this.setInstruction(message);
         el.hidden = false;
         el.classList.remove('leaving');
-        // restart the entrance animation only for a new line, never for a re-assert
-        if (isNewLine) {
+        /* RESTART THE DROP ONLY FOR A NEW LINE, NEVER FOR A RE-ASSERT — and never while one
+           is still running. Two things can ask for the panel in quick succession: the staged
+           intro handing the plank from the tutorial's teaching line to the phase's question,
+           and a rapid tap or a scene change arriving on top of that. Restarting mid-fall
+           snaps the plank back above the frame and drops it again, which is the overlapping
+           animation this guards. The drop is 760ms (signDrop in style.css); inside that
+           window a new line changes the words and keeps the fall it is already making. */
+        const now = performance.now();
+        if (isNewLine && !(this._dropAt && now - this._dropAt < 760)) {
+          this._dropAt = now;
           this.el.pill.style.animation = 'none';
           void this.el.pill.offsetWidth;
           this.el.pill.style.animation = '';

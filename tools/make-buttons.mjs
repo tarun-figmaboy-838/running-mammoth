@@ -28,12 +28,16 @@ import { writeFileSync, existsSync } from 'node:fs';
 /* One entry per button. `outW` is about twice the widest the control is ever drawn on
    a 1920 stage, which is as much resolution as a 2x display can show. */
 const BUTTONS = {
+  /* PLAY came as a SINGLE take this time — a nearly square amber-to-red button with the
+     word painted into it — so, like TRY AGAIN below, it has no `pressed` entry and the
+     press is done in CSS (a darkening plus a compression). The previous delivery was a
+     two-take pair and its pressed file went with it.
+     outW 900: the button is drawn up to about 460px on a 4K stage, and twice that is as
+     much resolution as a 2x display can show. */
   play: {
-    normal: 'art-source/btn-play-normal-raw.png',
-    pressed: 'art-source/btn-play-pressed-raw.png',
+    normal: 'art-source/btn-play-raw.png',
     outNormal: 'game/assets/ui/btn-play.webp',
-    outPressed: 'game/assets/ui/btn-play-pressed.webp',
-    outW: 940
+    outW: 900
   },
   /* TRY AGAIN came as a SINGLE take — there is no pressed version of it. So it has
      no `pressed` entry, the builder just trims and scales the one image, and the press

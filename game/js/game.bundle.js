@@ -89,8 +89,7 @@ const ASSET_V = {
   "assets/sky/07-dusk.webp": "d511553c",
   "assets/sky/08-night.webp": "fdbec669",
   "assets/ui/btn-normal.webp": "ad490138",
-  "assets/ui/btn-play-pressed.webp": "ee743b30",
-  "assets/ui/btn-play.webp": "240067f7",
+  "assets/ui/btn-play.webp": "18279ab0",
   "assets/ui/btn-pressed.webp": "4636e1dd",
   "assets/ui/btn-tryagain.webp": "f17bd92f",
   "assets/ui/icons/hint.svg": "2eb235fd",
@@ -6059,6 +6058,10 @@ function createGame(canvas, hooks = {}) {
         was spawned and again after a crash, to re-teach the control. The button is gone
         (see index.html) and nothing else ever read the flag, so it is gone with it
         rather than left being set for no reader. */
+    /* TRUE WHILE THE TUTORIAL HAS A LINE ON SCREEN, pushed in by api.setDialogue. Two
+        things read it and both are about not talking over the teaching: a tap may not skip
+        a beat while a line is being read, and the idle hints do not start. */
+    dialogue: false,
     instruction: '', jumpEnabled: false,
     complete: false,
     l1: null,
@@ -7797,6 +7800,10 @@ function createGame(canvas, hooks = {}) {
      Deliberately NOT skippable: the run segments (they are the journey), and the wrong
      and success beats (they are the feedback — a splash cut short teaches nothing). */
   function skipPreRoll() {
+    /* NOT WHILE A TUTORIAL LINE IS BEING READ. Skipping is for a player who has seen this
+       before; during the teaching it is a tap landing on a sentence that has not finished,
+       and it took the ground out from under the line that was explaining it. */
+    if (G.dialogue) return false;
     if (G.state === 'GLACIER_BREAK_1' && G.st < T.breakSkid - 1) {
       G.st = T.breakSkid - 1;         // one step short, so the final frame still runs
       return true;
@@ -8054,6 +8061,10 @@ function createGame(canvas, hooks = {}) {
      which corners make a diagonal — the only nudges point at WHERE the problem is
      (the hole, the corners), so the reasoning stays theirs. */
   function updateHints(dt) {
+    /* NO HELP OVER THE TEACHING. A tutorial line is already telling the player what to do;
+       a hint arriving on top of it is two voices at once, and the idle clocks must not even
+       accumulate while a line is up or the hand appears the instant it finishes. */
+    if (G.dialogue) { G.idle = 0; G.idleHand = 0; G.handHint = null; return; }
     if (G.state === 'PHASE_ACTIVE') {
       G.idle += dt;
       const L = G.l1; if (!L) return;
@@ -9910,6 +9921,10 @@ function createGame(canvas, hooks = {}) {
     renderScale: () => rs,
     /** Which character art set was loaded: 'hd' (1.5x cells) or 'base'. */
     artSet: () => hdArt ? 'hd' : 'base',
+    /** The tutorial has a line on screen (or is holding it for the reading pause). While it
+        does, taps cannot skip a beat and the idle hints do not start. Pushed from the
+        tutorial because the engine never reads the DOM. */
+    setDialogue(v) { G.dialogue = !!v; },
     /** Freeze the simulation. `opts.asking` marks a freeze that is waiting for the player to
         act (the tutorial's frozen "Tap to jump" line): only then may a jump input be ARMED for
         later; a freeze for a line being read (asking false) never turns a dismissing tap into a
@@ -10506,8 +10521,16 @@ class Hud {
         this.setInstruction(message);
         el.hidden = false;
         el.classList.remove('leaving');
-        // restart the entrance animation only for a new line, never for a re-assert
-        if (isNewLine) {
+        /* RESTART THE DROP ONLY FOR A NEW LINE, NEVER FOR A RE-ASSERT — and never while one
+           is still running. Two things can ask for the panel in quick succession: the staged
+           intro handing the plank from the tutorial's teaching line to the phase's question,
+           and a rapid tap or a scene change arriving on top of that. Restarting mid-fall
+           snaps the plank back above the frame and drops it again, which is the overlapping
+           animation this guards. The drop is 760ms (signDrop in style.css); inside that
+           window a new line changes the words and keeps the fall it is already making. */
+        const now = performance.now();
+        if (isNewLine && !(this._dropAt && now - this._dropAt < 760)) {
+          this._dropAt = now;
           this.el.pill.style.animation = 'none';
           void this.el.pill.offsetWidth;
           this.el.pill.style.animation = '';
@@ -10747,6 +10770,15 @@ class Tutorial {
     this._built = false;
     this._wasPaused = false;
     this.spoke = false; this.voDur = 0; this._wordStep = 0.055;
+
+    /* THE BOX IS HUGGED TO THE WORDS, so it has to be hugged to the words IN THEIR OWN FONT.
+       Baloo 2 is fetched at boot but it arrives when it arrives, and the first tutorial line
+       can be on screen before it does. Measured with a cold cache: the box was fitted to the
+       fallback face, the webfont then swapped in narrower, and 46px of empty yellow was left
+       beside "This is Momo." — intermittent, because it only shows when the font loses the
+       race. Clearing the cached height makes the next frame re-measure, in the real face. */
+    const d = root && root.fonts;
+    if (d && d.ready && d.ready.then) d.ready.then(() => { this._boxH = 0; this._sizeKey = null; }).catch(() => {});
   }
 
   /* ---- the script ----
@@ -10790,13 +10822,51 @@ class Tutorial {
        read. Line 4 folds the old "this is the button" and "tap it now" into one ask, so the
        time from resume to the obstacle is exactly what it was. Line 6 is the ask itself:
        the sweep hand on the rope of the answer says WHICH and HOW, the sentence says WHY. */
+    /* THE TAIL GOES ON HIS HEAD, and the head is MEASURED, not guessed.
+     *
+     * The spot used to be a 165 x 205 oval around his whole body, so the bubble was placed
+     * off his silhouette and the tail landed wherever the top of that oval happened to be —
+     * over his back, in front of his brow, or in the air beside him depending on the pose.
+     *
+     * Where the head actually is, read off the delivered run sheet (36 frames of
+     * mammoth-run.webp, median of the topmost opaque row and of the head's centre column,
+     * converted through the cell geometry the renderer uses — cell 420 x 320, baseGap 27,
+     * character scale 1.75, so the drawn cell is 735 x 560):
+     *
+     *     the crown is 362px ABOVE the foot line
+     *     and 86px to the RIGHT of the character's own x
+     *
+     * Both are taken from the LIVE player every frame — `drawX` carries the forward offset
+     * of a leap and `feetY` carries the hop and the crouch — so the anchor tracks him
+     * through movement and through a change of sheet, at any stage size, because these are
+     * stage units and the stage is letterboxed as a whole.
+     *
+     * MEDIAN, not per-frame: his head bobs 56px across a run cycle, and a box that chased
+     * it would jitter. Anchored to the middle of that bob the box holds still while the
+     * tail stays on his head throughout.
+     *
+     * The oval is small and sits UNDER the box, so the bubble lands just above his crown —
+     * the tail tip touches the top of his head and the box never covers his eyes. */
+    const HEAD_UP = 362, HEAD_RIGHT = 86;
+    /* His head's x on its own, for the one line whose BOX is centred on the stage (the jump
+       ask, on the owner's call) but whose tail should still lean toward him. */
+    const momoHeadX = () => {
+      try {
+        const p = this.game._player && this.game._player();
+        if (p && typeof p.drawX === 'number') return p.drawX + HEAD_RIGHT;
+      } catch (e) { /* he is not up yet */ }
+      return 430 + HEAD_RIGHT;
+    };
     const momo = () => {
-      let feet = 840;
+      let feet = 840, x = 430;
       try {
         const p = this.game._player && this.game._player();
         if (p && typeof p.feetY === 'number') feet = p.feetY;
-      } catch (e) { /* fall back to the path line */ }
-      return { x: 430, y: feet - 200, rx: 165, ry: 205, world: true };
+        if (p && typeof p.drawX === 'number') x = p.drawX;
+      } catch (e) { /* fall back to where he stands */ }
+      const hx = x + HEAD_RIGHT, hy = feet - HEAD_UP;
+      const ry = 58;
+      return { x: hx, y: hy + ry, rx: 86, ry, aimX: hx, world: true };
     };
     return [
       {
@@ -10849,9 +10919,14 @@ class Tutorial {
            would drop the box just as the player needs it. */
         id: 'jump',
         at: g => !!g.jumpEnabled,
-        spot: () => ({ x: 960, y: 560, rx: 260, ry: 40, aimX: 620, world: true }),
+        spot: () => ({ x: 960, y: 560, rx: 260, ry: 40, aimX: momoHeadX(), world: true }),
         text: 'Tap to jump over obstacles.',
-        advance: 'jumped', pause: 1.2
+        /* FROZEN UNTIL THE LINE IS FINISHED, not for a guessed 1.2 seconds: the sentence,
+           its voice and the reading pause all complete with the world held still, and only
+           then does the run resume and the jump become the thing to do. The rock is frozen
+           with everything else, so it is exactly as far away when play resumes as it was
+           when the line began and the jump is no harder than it was tuned to be. */
+        advance: 'jumped', pause: 'line'
       },
       {
         id: 'gap',
@@ -11088,6 +11163,18 @@ class Tutorial {
          capped so none of them outstays its welcome. */
       plan = lines.map(t => ({ text: t, dur: clampN(1.0 + t.length * 0.055, 1.55, 3.6) }));
     }
+    /* AND NO BEAT MAY BE SHORTER THAN ITS OWN REVEAL. The words arrive one after another
+       and each takes WORD_IN to land, so a sentence is only complete at
+       (words - 1) x step + WORD_IN. Sharing a short clip out by length could hand a beat
+       less time than that — and the sentence was then replaced while its last word was
+       still animating in, which is exactly the "incomplete dialogue" this round is about.
+       The floor is computed with the FASTEST step the reveal will ever use, so it is the
+       true minimum; setWords then spreads the words across whatever duration ends up here. */
+    for (const b of plan) {
+      const words = b.text.trim().split(/\s+/).filter(Boolean).length || 1;
+      const floor = (words - 1) * 0.055 + Tutorial.WORD_IN + Tutorial.SETTLE;
+      if (b.dur < floor) b.dur = floor;
+    }
     this._beatKey = key; this._beatPlan = plan;
     return plan;
   }
@@ -11104,13 +11191,24 @@ class Tutorial {
     return plan[plan.length - 1];
   }
 
-  /* HOW LONG THE WHOLE LINE STAYS UP: its sentences, added up. A describing step holds for
-     that and then moves on by itself, so splitting a line lengthens the step rather than
-     squeezing its sentences into the old hold. With a voice it can never be shorter than
-     the clip plus a beat, so a line is never taken off the screen mid-word. */
+  /* WHEN IS A LINE FINISHED? Both of these, and then a pause:
+       A. every sentence has been on screen for long enough to arrive in full (the beats,
+          each of which now contains its own reveal — see beats());
+       B. the voice-over has stopped.
+     readShown() is A, readTime() is A and B and the reading pause. Nothing in this file
+     advances a step, drops a box or hands the plank back on anything else.
+
+     IT NEVER WAITS ON AN AUDIO EVENT. api.say() returns the length of the clip it is going
+     to play, or 0 when it will not be heard at all — muted, no context, no file, decode
+     failed. So a line with no audio is gated on its text alone and still completes, and a
+     clip that dies half way through cannot hang the tutorial: there is no 'ended' listener
+     to miss. That is the whole of the audio-failure handling, and it is why it cannot
+     deadlock. */
+  readShown(text) {
+    return this.beats(text).reduce((a, b) => a + b.dur, 0);
+  }
   readTime(text) {
-    const total = this.beats(text).reduce((a, b) => a + b.dur, 0);
-    return this.voDur > 0 ? Math.max(total, this.voDur + 0.45) : total;
+    return Math.max(this.readShown(text), this.voDur || 0) + Tutorial.READ_PAUSE;
   }
 
   /* NO TAP-TO-ADVANCE. A describing step moves on by itself and a tap does nothing.
@@ -11142,6 +11240,9 @@ class Tutorial {
     if (this.game.saySign) this.game.saySign('');
     if (this.done) return;
     this.done = true;
+    // the tutorial is over: the game must never be left believing a line is still up
+    this._presenting = false;
+    if (this.game.setDialogue) this.game.setDialogue(false);
     this.resume();
     this.hideFocus();
     if (this.el.layer) this.el.layer.hidden = true;
@@ -11175,6 +11276,22 @@ class Tutorial {
    * actually run is not a workaround for the freeze; it is the instruction landing
    * after its demonstration rather than before it. */
   static WARMUP = 1.1;              // seconds of game time before the first step
+
+  /* THE READING PAUSE, and it is the whole of requirement 1: a line is not finished when
+     its last word appears, and it is not finished when the voice stops. It is finished
+     when BOTH have happened — and then it is held, still complete on screen, for this
+     long before anything is allowed to move on. One second reads comfortably for a child
+     at this sentence length; it is one number here so it can be tuned without hunting. */
+  static READ_PAUSE = 1.0;
+
+  /* How long a word takes to arrive once its turn comes (.tut-text .w in screens.css).
+     The reveal is NOT finished at the last word's DELAY — it is finished 460ms after it,
+     and a sentence swapped out in between is a sentence the player never fully saw. */
+  static WORD_IN = 0.46;
+
+  /* The gap between the last word landing and the reading pause starting, so the two do
+     not run into each other on a slow frame. */
+  static SETTLE = 0.12;
 
   update(dt) {
     if (this.done || this.step < 0) return;
@@ -11225,6 +11342,8 @@ class Tutorial {
        a rock coming into range, the blocks arriving — and while it waits the game runs
        and the layer shows nothing. */
     if (!s.at(g)) {
+      // nothing is presenting while a step waits for its moment
+      if (this._presenting) { this._presenting = false; if (this.game.setDialogue) this.game.setDialogue(false); }
       /* A STEP THAT HAS STARTED AND LOST ITS MOMENT IS OVER, not waiting. The game accepts a
          cut about a second before the teaching line on the plank has finished; a quick learner
          who cut the right rope in that second moved the game on to the success — and this
@@ -11249,8 +11368,14 @@ class Tutorial {
        that has to be READ before it can be acted on ("Tap to jump over obstacles.") holds
        the obstacle still for the reading, exactly as the old describing step did, and then
        the run resumes with the hand still asking. `true` freezes for the whole step. */
-    const frozen = s.pause === true || (typeof s.pause === 'number' && this.t < s.pause);
-    if (frozen) this.pause(typeof s.pause === 'number'); else this.resume();
+    /* 'line' freezes until the dialogue has finished AND been read (readTime); a number
+       freezes for that many seconds; true freezes for the whole step. */
+    const holdFor = s.pause === 'line' ? this.readTime(this.follow || (typeof s.text === 'function' ? s.text(g) : s.text)) : null;
+    const frozen = s.pause === true ||
+                   (holdFor !== null && this.t < holdFor) ||
+                   (typeof s.pause === 'number' && this.t < s.pause);
+    // an ask's freeze may arm a jump for later; a line being read may not (see api.setPaused)
+    if (frozen) this.pause(typeof s.pause === 'number' || s.pause === 'line'); else this.resume();
 
     /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
        frozen copy belong to describing steps; the hand belongs to asking ones. */
@@ -11270,6 +11395,14 @@ class Tutorial {
     const beat = this.beatAt(line, this.t);
     const text = beat.text;
     this._beatDur = beat.dur;
+
+    /* THE GAME IS TOLD A LINE IS PRESENTING, and it is the engine that acts on it: while
+       this holds, a tap cannot skip the collapse or the card's hold (skipPreRoll) and the
+       idle hints do not start counting. One flag, pushed from here, because the engine
+       never reads the DOM and the tutorial is the only thing that knows a line is up.
+       It covers the reading pause as well — the line is not finished until that is over. */
+    this._presenting = !!line && this.t < this.readTime(line);
+    if (this.game.setDialogue) this.game.setDialogue(this._presenting);
 
     /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
 
@@ -11317,7 +11450,12 @@ class Tutorial {
        enough for two short beats, short enough to be out of the way before anyone is
        ready to act. A describing step keeps its box for its whole life, because the box
        IS the step. */
-    const keepBox = describing || this.t < Math.min(3.2, this.readTime(line));
+    /* THE BOX STAYS FOR THE WHOLE LINE, on an ask as well as on a describing step. It used
+       to be capped at 3.2s so it did not sit over the blocks while the player thought — but
+       a cap can cut a sentence off before it has finished arriving, which is the fault this
+       round exists to fix. It now leaves when the line is genuinely finished: every word
+       shown, the voice done, and the reading pause spent. */
+    const keepBox = describing || this.t < this.readTime(line);
     this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null, s.pause === false);
 
     // and a describing step moves on once every sentence has been up long enough to read
@@ -11380,8 +11518,16 @@ class Tutorial {
        WHOLE line's clip, which was right while the whole line sat in the box at once; now
        that the sentences arrive one at a time (see beats), each has to keep pace with its
        own share of the recording or the second one crawls in after the voice has left it. */
-    const span = this.voDur > 0 ? (this._beatDur || this.voDur) : 0;
-    this._wordStep = span > 0 ? clampN((span * 0.82) / Math.max(1, words - 1), 0.055, 0.55) : 0.055;
+    /* THE LAST WORD HAS TO LAND BEFORE THE SENTENCE LEAVES. The step used to be 82% of the
+       beat divided by the word count — which places the last word's DELAY inside the beat
+       but lets its 460ms arrival run past the end of it, so on a short beat the sentence was
+       swapped out while its final word was still fading in. The room for the animation and a
+       settle is taken off first now, so the reveal always completes with time to spare. */
+    const span = (this._beatDur || (this.voDur > 0 ? this.voDur : 0));
+    const room = span - Tutorial.WORD_IN - Tutorial.SETTLE;
+    this._wordStep = (span > 0 && words > 1 && room > 0)
+      ? clampN(room / (words - 1), 0.055, 0.55)
+      : 0.055;
     const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
     /* THE FALLBACK, and it is needed BECAUSE the sentences arrive one at a time. A line
        used to be in the box whole, so its one key word was always somewhere in it. Split
@@ -11627,11 +11773,28 @@ class Tutorial {
          "Oh no! The path is broken."). Unhide before measuring. And re-measure whenever the
          sentence changes: the first sentence's height was cached for all of them, which
          placed a three-line box as if it were two. */
-      if (b && keepBox && b.hidden) b.hidden = false;
+      /* AND RE-MEASURE WHEN THE BOX COMES BACK. If the sentence changed while the box was
+         hidden — an ask drops its words and the next beat arrives behind them — setWords ran
+         but the hug did not, because a hidden box measures zero. The box then came back
+         wearing the width of the sentence before it. */
+      if (b && keepBox && b.hidden) { b.hidden = false; this._boxH = 0; }
       const sizeKey = st ? st.clientWidth + 'x' + st.clientHeight : '';
-      if (st && b && !b.hidden && (fresh || !this._boxH || this._sizeKey !== sizeKey)) {
+      /* AND WHEN THE WORDS THEMSELVES CHANGE SIZE UNDER THE BOX.
+         The box is fitted to the laid-out sentence — its width AND its bottom padding, which
+         is trimmed by the font's own descent so the air above the capitals matches the air
+         under the last line. All of that is measured in whatever face is on screen at the
+         moment of measuring, and Baloo 2 arrives when it arrives: on a cold cache the first
+         line can be fitted to the fallback and then reflow narrower and shorter inside a box
+         that no longer matches it (measured: 46px of empty yellow beside "This is Momo.",
+         and 5px of mismatched air). fonts.ready alone does not cover it — it can resolve
+         before this layer exists — so the trigger is the thing that actually changed: the
+         text's own laid-out width. */
+      const inkW = this.el.text ? this.el.text.scrollWidth : 0;
+      const reflowed = this._hugInkW !== undefined && Math.abs(inkW - this._hugInkW) > 1;
+      if (st && b && !b.hidden && (fresh || reflowed || !this._boxH || this._sizeKey !== sizeKey)) {
         this._sizeKey = sizeKey;
         this.hugWords(b);
+        this._hugInkW = this.el.text ? this.el.text.scrollWidth : 0;
       }
       /* MEASURED WHENEVER THE BOX CHANGES SIZE, from layout (offsetWidth/Height ignore the
          pop-in transform), back into stage units. Measured once per sentence it went stale:
@@ -11853,7 +12016,8 @@ const wantScale = () => {
 if (document.fonts && document.fonts.load) {
   for (const w of [600, 700, 800, 900]) document.fonts.load(w + ' 20px "Baloo 2"').catch(() => {});
 }
-for (const src of ['assets/ui/btn-play-pressed.webp']) { const i = new Image(); i.src = assetUrl(src); }
+/* Nothing to warm here any more: the PLAY button is a single take, so there is no second
+   picture that has to be in the cache before the first press. */
 
 /* THE HD CHARACTER SET IS FOR TABLETS AND LAPTOPS, NOT PHONES. A 3x phone's stage is dense
    enough to qualify by scale alone, and that is exactly where six 3780x2880 sheets are a
@@ -11923,7 +12087,18 @@ function startTutorial() {
   let last = performance.now();
   const tick = now => {
     if (!tut || tut.done) { tut = null; return; }
-    const dt = Math.min(0.05, (now - last) / 1000);
+    /* THE TUTORIAL'S CLOCK IS REAL TIME, capped only against a tab switch.
+     *
+     * It was capped at 50ms a frame, which is the right cap for a SIMULATION — a big step
+     * tunnels a collider through a rock. The tutorial simulates nothing; it times words
+     * against a voice-over, and the voice plays on the audio clock, which is real seconds
+     * whatever the frame rate. So on a slow renderer the two came apart: measured on a
+     * headless run at about 8fps, the sentences arrived at a quarter speed while the
+     * recording ran on, and the second half of a line appeared as the voice finished
+     * saying it. 0.25s still swallows the jump a backgrounded tab produces (rAF stops, so
+     * the first frame back can be seconds) without slowing the reading on any device that
+     * renders at four frames a second or better. */
+    const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
     tut.update(dt);
     requestAnimationFrame(tick);

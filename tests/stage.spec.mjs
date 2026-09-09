@@ -131,6 +131,47 @@ test.describe('the staged intro, the sign and the script', () => {
     expect(r.wordAnim, 'the words ease in').toBe('tutWordIn');
   });
 
+  test('the sign drops straight, rebounds upward, and never shows a cut rope end', async ({ page }) => {
+    /* The panel is the plank AND the two ropes above it, resting with its top edge on the top
+       of the stage so the ropes run off the frame. Two things follow, and both are held here:
+
+       IT MAY NEVER GO BELOW ITS REST LINE. Overshoot downward — which is what a falling weight
+       really does, and what the first cut of this animation did by 5% — and the top of the
+       element comes into the picture, so the ropes' cut ends hang in the sky as two stubs.
+       The rebound is upward instead: every frame is at or above the rest line.
+
+       AND IT MOVES ON ONE AXIS. No sideways travel, no rotation (a board on two ropes cannot
+       tilt: the ropes hold it level), no scaling — so there is nothing to jitter or snap. */
+    await boot(page, { fast: 2 });
+    await force(page, 'GLACIER_BREAK_1');
+    await waitState(page, 'PHASE_ACTIVE', 60_000);
+    const t = await page.evaluate(async () => {
+      const p = document.getElementById('instruction-pill');
+      p.style.animation = 'none'; void p.offsetWidth; p.style.animation = '';   // replay the arrival
+      const rows = []; const t0 = performance.now();
+      while (performance.now() - t0 < 1400) {
+        await new Promise(r => requestAnimationFrame(r));
+        const m = new DOMMatrixReadOnly(getComputedStyle(p).transform);
+        rows.push({ dy: m.f, dx: m.e, rot: Math.atan2(m.b, m.a) * 180 / Math.PI, scale: Math.hypot(m.a, m.b) });
+      }
+      return rows;
+    });
+    expect(t.length, 'the arrival was sampled').toBeGreaterThan(12);
+    // 0.6px of slack for sub-pixel rounding; anything more is rope end on screen
+    expect(Math.max(...t.map(r => r.dy)), 'never below its rest line').toBeLessThan(0.6);
+    expect(Math.min(...t.map(r => r.dy)), 'and it really does fall from above').toBeLessThan(-40);
+    expect(Math.max(...t.map(r => Math.abs(r.dx))), 'no sideways travel').toBeLessThan(0.6);
+    expect(Math.max(...t.map(r => Math.abs(r.rot))), 'no rotation').toBeLessThan(0.05);
+    expect(Math.max(...t.map(r => r.scale)) - Math.min(...t.map(r => r.scale)), 'no scaling').toBeLessThan(0.01);
+    // a rebound: the direction of travel reverses at least twice on the way to rest
+    let turns = 0;
+    for (let i = 2; i < t.length; i++) {
+      const a = t[i - 1].dy - t[i - 2].dy, b = t[i].dy - t[i - 1].dy;
+      if (a * b < -1e-6) turns++;
+    }
+    expect(turns, 'it rebounds rather than stopping dead').toBeGreaterThanOrEqual(2);
+  });
+
   test('the VO script holds every line the learner is shown', async () => {
     const doc = readFileSync('docs/VO-SCRIPT.md', 'utf8');
     const engine = readFileSync('game/js/engine.js', 'utf8');

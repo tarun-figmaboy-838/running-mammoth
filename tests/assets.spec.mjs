@@ -158,7 +158,7 @@ test.describe('assets', () => {
       const RASTER_OK = ['assets/ui/icons/touch.png',
                          'assets/ui/plank-l.webp', 'assets/ui/plank-m.webp', 'assets/ui/plank-r.webp',
                          'assets/ui/btn-normal.webp', 'assets/ui/btn-pressed.webp',
-                         'assets/ui/btn-play.webp', 'assets/ui/btn-play-pressed.webp',
+                         'assets/ui/btn-play.webp',
                          'assets/ui/btn-tryagain.webp'];
       const isUi = u.startsWith('assets/ui/');
       if (isUi && !u.endsWith('.svg') && !RASTER_OK.includes(u)) {

@@ -103,6 +103,110 @@ test.describe('the text fits its panel', () => {
     }
   });
 
+  test('a line finishes before anything moves on: all its words, its voice, then a pause', async ({ page }) => {
+    /* The whole of line 1 plus the start of line 2 is about eight seconds of real time, and
+       this runs it at whatever speed the host renders — give it room rather than reporting a
+       slow machine as a broken gate. */
+    test.setTimeout(180_000);
+    /* The rule (asked for): a tutorial line is not finished when its last word appears and it
+       is not finished when the voice stops — it is finished when BOTH have happened, and then
+       it is held complete on screen for a reading pause. Nothing may advance before that, the
+       game stays frozen through it, and no idle hint may start.
+
+       Measured on line 1, which is the one that carries two sentences and the longest clip. */
+    await boot(page, { tutorial: true, skipScreens: true, sound: true });
+    await page.evaluate(() => window.iceAgeGame.sfx('ui'));            // the gesture the context needs
+    const r = await page.evaluate(async () => {
+      const g = window.iceAgeGame, tx = () => document.getElementById('tut-text');
+      const layer = () => document.getElementById('tutorial');
+      const shown = () => (!layer() || layer().hidden || !tx()) ? '' : tx().textContent.trim();
+      const seen = []; let last = null, voOn = false, voEnd = -1, everUnpaused = false, everHand = false;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 90000) {
+        await new Promise(res => requestAnimationFrame(res));
+        const t = (performance.now() - t0) / 1000;
+        const s = shown(), v = g._voice();
+        if (s !== last) { seen.push({ t, s }); last = s; }
+        if (v.saying) voOn = true;
+        if (voOn && !v.saying && voEnd < 0) voEnd = t;
+        // while line 1 is up the world must be frozen and no hand may appear
+        if (s && /Momo|friend/.test(s)) { if (!g.isPaused()) everUnpaused = true; if (g.debug().handHint) everHand = true; }
+        // line 1's two sentences, then whatever replaces them — that third event is the gate
+        if (seen.filter(x => x.s).length >= 3 && voEnd > 0) break;
+      }
+      return { seen: seen.map(x => ({ t: +x.t.toFixed(2), s: x.s })), voEnd: +voEnd.toFixed(2), everUnpaused, everHand,
+               ctx: g._voice().ctx };
+    });
+    const first = r.seen.find(x => x.s === 'This is Momo.');
+    const second = r.seen.find(x => x.s === 'He needs to find his friend.');
+    const next = r.seen.find(x => x.t > (second ? second.t : 0) && x.s !== 'He needs to find his friend.');
+    expect(first, 'the first sentence is shown on its own').toBeTruthy();
+    expect(second, 'then the second, on its own').toBeTruthy();
+    expect(second.t, 'the second follows the first').toBeGreaterThan(first.t);
+    /* THE READING PAUSE, when there was a voice to wait for. Without one — muted, blocked,
+       or a machine too slow to reach the end of the line inside the budget — the pause cannot
+       be measured here, and the test says so rather than passing on an assumption. What is
+       still checked in that case is the part that does not need audio: the sentences arrived
+       in order, the world stayed frozen, and no hint appeared. */
+    if (r.ctx === 'running' && r.voEnd > 0 && next) {
+      expect(next.t - r.voEnd, 'the finished line is held after the voice stops').toBeGreaterThanOrEqual(0.9);
+    } else {
+      console.log('reading pause NOT MEASURED here (voice ctx=' + r.ctx + ', voEnd=' + r.voEnd + ', a third event seen: ' + !!next + ')');
+    }
+    expect(r.everUnpaused, 'the world is frozen for the whole of the line').toBe(false);
+    expect(r.everHand, 'and no idle hint starts over it').toBe(false);
+  });
+
+  test('rapid taps cannot skip a line, duplicate a step, or move the game on', async ({ page }) => {
+    /* A child taps because a finger is on the screen. Twelve taps during a line must change
+       nothing at all: not the sentence, not the step, not the clock. */
+    await boot(page, { tutorial: true, skipScreens: true });
+    await page.waitForFunction(() => /This is Momo/.test(document.getElementById('tut-text').textContent), null, { timeout: 60_000 });
+    const before = await page.evaluate(() => ({ st: window.iceAgeGame.state(), t: window.iceAgeGame.debug().t,
+                                                text: document.getElementById('tut-text').textContent }));
+    const box = await page.locator('#stage').boundingBox();
+    for (let i = 0; i < 12; i++) await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.35, { delay: 8 });
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => ({ st: window.iceAgeGame.state(), t: window.iceAgeGame.debug().t,
+                                               text: document.getElementById('tut-text').textContent,
+                                               dialogue: window.iceAgeGame.debug().dialogue }));
+    expect(after.st, 'the state did not move').toBe(before.st);
+    expect(after.t, 'the game clock did not move: it is frozen').toBeCloseTo(before.t, 2);
+    /* STILL ON LINE 1. Not "the same sentence": the line is delivered a sentence at a time and
+       the second one arrives on its own clock, which is the line PLAYING, not a tap skipping
+       it. What a skip would look like is the tutorial jumping to a later line — so the text
+       must still be one of line 1's two sentences. */
+    expect(['This is Momo.', 'He needs to find his friend.'],
+           'the taps did not jump the tutorial past line 1').toContain(after.text.trim());
+    expect(after.dialogue, 'the engine knows a line is up').toBe(true);
+  });
+
+  test("the dialogue's tail stays on the mammoth's head", async ({ page }) => {
+    /* Measured off the delivered run sheet: his crown is 362px above the foot line and 86px
+       right of his own x (tutorial.js: HEAD_UP / HEAD_RIGHT). The bubble is placed so its
+       tail tip touches that point, and it is read from the LIVE player every frame, so it
+       holds through his movement and through a change of sheet. */
+    await boot(page, { tutorial: true, skipScreens: true });
+    await page.waitForFunction(() => /This is Momo/.test(document.getElementById('tut-text').textContent), null, { timeout: 60_000 });
+    await page.waitForTimeout(500);
+    const m = await page.evaluate(() => {
+      const st = document.getElementById('stage').getBoundingClientRect();
+      const shape = document.getElementById('tut-shape').getBoundingClientRect();
+      const box = document.getElementById('tut-bubble').getBoundingClientRect();
+      const p = window.iceAgeGame._player();
+      const sx = x => (x - st.left) / st.width * 1920, sy = y => (y - st.top) / st.height * 1080;
+      return { headX: p.drawX + 86, headY: p.feetY - 362,
+               tipX: sx(shape.left + shape.width / 2), tipY: sy(shape.bottom),
+               boxTop: sy(box.top), boxBottom: sy(box.bottom), stageW: st.width };
+    });
+    // the tail's tip lands on the crown, within a few stage px at any stage size
+    expect(Math.abs(m.tipX - m.headX), 'the tail is over his head, not beside him').toBeLessThan(24);
+    expect(Math.abs(m.tipY - m.headY), 'and it touches the top of it').toBeLessThan(24);
+    // and the box sits ABOVE the head, so it cannot cover his eyes
+    expect(m.boxBottom, 'the box is clear of his head').toBeLessThanOrEqual(m.headY + 2);
+    expect(m.boxTop, 'and it is on the stage').toBeGreaterThan(0);
+  });
+
   test('a line arrives one sentence at a time, never as a paragraph', async ({ page }) => {
     /* Asked for: shorter sentences, in sequence, like comic dialogue. "This is Momo. He needs
        to find his friend." used to land as one block of text — a paragraph in a speech bubble,

@@ -25,6 +25,7 @@ const box = (page, sel) => page.evaluate(s => {
     hidden: el.hidden, x: Math.round(r.x), y: Math.round(r.y),
     w: Math.round(r.width), h: Math.round(r.height),
     position: cs.position, opacity: cs.opacity, visibility: cs.visibility,
+    filter: cs.filter,                       // the press is a filter now, not a second picture
     bg: cs.backgroundImage.replace(/^.*\//, '').slice(0, 40)
   };
 }, sel);
@@ -423,13 +424,34 @@ test('the cover and its PLAY button', async ({ page }, info) => {
   console.log(info.project.name, 'PLAY', JSON.stringify(b), 'stage', stage.w + 'x' + stage.h);
   expect(b.bg, 'the supplied art').toContain('btn-play');
   expect(b.w).toBeGreaterThan(120);
+  /* RAISED, AND FULLY IN FRAME (asked for). It sat at 2.8% off the bottom, which on a phone
+     in landscape is where the browser's own chrome and the gesture bar arrive; 7% of the
+     stage is a comfortable margin of ice under it. Held as a share of the stage so it is the
+     same margin at every size, and the whole button must be inside the stage. */
+  const gapBelow = (stage.y + stage.h) - (b.y + b.h);
+  expect(gapBelow / stage.h, 'a comfortable margin under the button').toBeGreaterThan(0.05);
+  expect(b.y, 'and the top of it is on the stage').toBeGreaterThan(stage.y);
+  expect(b.y + b.h, 'and the bottom of it is too').toBeLessThan(stage.y + stage.h);
   await page.mouse.move(b.x + b.w / 2, b.y + b.h / 2);
   await page.mouse.down();
   await page.waitForTimeout(110);
   await page.screenshot({ path: `test-results/qa-play-pressed-${info.project.name}.png` });
   const pressed = await box(page, '#btn-play');
   console.log(info.project.name, 'PRESSED bg =', pressed.bg);
-  expect(pressed.bg, 'the press is the other picture').toContain('btn-play-pressed');
+  /* THE PRESS IS NOT A PICTURE ANY MORE. This delivery of PLAY is a single take, so the
+     press is a darkening and a compression in CSS (screens.css), the way TRY AGAIN's is.
+     What is held is that pressing changes something visible and does not move the target's
+     centre: the same picture, darker, and smaller rather than displaced. */
+  expect(pressed.bg, 'the same picture, not a second one').toContain('btn-play.webp');
+  expect(pressed.filter, 'and it darkens under the finger').toMatch(/brightness\(0?\.\d+\)/);
+  /* THE SAME OUTER DIMENSIONS IN BOTH STATES, and no layout shift. The press was a darkening
+     AND a 6% compression; the compression is gone because a control that changes size under a
+     thumb is a control that moves while it is being hit, and the requirement is that resting
+     and pressed are the same box. So the only thing that changes is the light. */
+  expect(pressed.w, 'the pressed box is the resting box').toBe(b.w);
+  expect(pressed.h, 'in both axes').toBe(b.h);
+  expect(Math.abs((pressed.x + pressed.w / 2) - (b.x + b.w / 2)), 'and it does not move').toBeLessThan(1);
+  expect(Math.abs((pressed.y + pressed.h / 2) - (b.y + b.h / 2)), 'in either axis').toBeLessThan(1);
   await page.mouse.up();
 });
 

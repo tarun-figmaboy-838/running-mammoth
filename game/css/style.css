@@ -205,10 +205,14 @@ a:hover { color: var(--ice-pale); }
 .instruction.leaving {
   animation: signPullUp 280ms cubic-bezier(.5, -0.3, .8, .6) both;
 }
+/* And the exit is straight up as well — no dip below the mark first, for the same reason the
+   drop no longer overshoots downward: 3.5% down is the ropes' cut ends in the picture. The
+   gather is a brief HOLD instead, which reads as the same intake of breath without moving the
+   panel into the frame, and no rotation. */
 @keyframes signPullUp {
-  0%   { transform: none; opacity: 1; }
-  22%  { transform: translateY(3.5%) rotate(0.5deg); opacity: 1; }
-  100% { transform: translateY(-130%) rotate(-2.4deg); opacity: 0; }
+  0%   { transform: translateY(0); opacity: 1; }
+  20%  { transform: translateY(0); opacity: 1; animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
+  100% { transform: translateY(-130%); opacity: 0; }
 }
 
 /* THE ARRIVAL: a board lowered on two ropes, not a pendulum.
@@ -224,14 +228,35 @@ a:hover { color: var(--ice-pale); }
    the two return bobs decay 5% -> -2% -> 0.8%, and the tilt is a third of a degree, not two.
    Slower than before as well: 760ms, because a heavy thing on ropes takes a moment to
    settle and a quick settle reads as light. */
+/* IT NEVER GOES BELOW ITS REST POSITION, and that is not a style choice — it is what keeps
+   the ropes attached to the top of the frame.
+
+   The element is the plank AND the two ropes above it, and it rests with its top edge on the
+   stage's top edge, so the ropes run off the frame exactly like the ice blocks'. Overshoot it
+   DOWNWARD past that rest — which is what a falling weight really does, and what the first
+   version did by 5% — and the top of the element comes down into the picture, so the ropes'
+   cut ends appear as two floating stubs hanging in the sky. Measured at 5% of a 227px panel
+   that is 11px of exposed rope end, on screen for about 150ms, twice per crossing.
+
+   So the rebound is UPWARD: it falls to the mark, springs back up, and settles down onto it.
+   Every keyframe is at or above 0, the ropes stay off the top of the frame throughout, and it
+   still reads as weight on a rope — a bounce after a drop is a rebound whichever way it goes.
+
+   PURELY VERTICAL, TOO. No rotation (a board on two ropes cannot tilt like a pendulum — the
+   ropes hold it level), no scaling, and nothing sideways: translateY is the only thing that
+   changes, so there is nothing to jitter or snap. */
 @keyframes signDrop {
   0%   { transform: translateY(-125%); opacity: 0; animation-timing-function: cubic-bezier(.5, 0, .85, .35); }
   10%  { opacity: 1; }
-  44%  { transform: translateY(0) rotate(0deg); animation-timing-function: cubic-bezier(.25, .55, .45, 1); }
-  60%  { transform: translateY(5%) rotate(0.35deg); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
-  76%  { transform: translateY(-2%) rotate(-0.2deg); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
-  89%  { transform: translateY(0.8%) rotate(0.08deg); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
-  100% { transform: none; opacity: 1; }
+  /* the fall, accelerating, arriving on the mark */
+  46%  { transform: translateY(0); animation-timing-function: cubic-bezier(.2, .5, .4, 1); }
+  /* the rebound: up, and back down, twice, each smaller */
+  62%  { transform: translateY(-5.5%); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
+  76%  { transform: translateY(0); animation-timing-function: cubic-bezier(.3, .4, .5, 1); }
+  87%  { transform: translateY(-2%); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
+  95%  { transform: translateY(0); animation-timing-function: cubic-bezier(.3, .4, .5, 1); }
+  98%  { transform: translateY(-0.6%); }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
 /* THE SIGN: the owner's hanging plank, in three slices.

@@ -2011,3 +2011,101 @@ picture; they read as stickers, not weather. Now: in play `FLAKE_K` 5.2 (near 17
 the far (small) flakes carry a per-flake `blur(0.35–1.1px)` while the near ones stay crisp.
 That depth-of-field is the thing that puts them inside the scene: snow in a picture is sharp
 close up and soft further back, never uniformly crisp.
+
+---
+
+## 14. The review round: dialogue completion, the drop, the tail, the button
+
+### A tutorial line finishes before anything moves on
+
+The rule, and it is now the only thing that advances a step: a line is finished when **both**
+its text has fully arrived **and** its voice-over has stopped — and then it is held, complete
+on screen, for a reading pause (`Tutorial.READ_PAUSE`, 1.0s, one number).
+
+Three faults were in the way, all measured:
+
+1. **A sentence could be replaced while its last word was still animating in.** The words
+   arrive one at a time and each takes 460ms to land (`.tut-text .w`), but the beat's length
+   was shared out from the clip by character count alone, so a short beat could end before its
+   own reveal. `beats()` now floors every beat at `(words-1)·step + WORD_IN + SETTLE`, and
+   `setWords` takes the animation and a settle off the top before spreading the words — so the
+   reveal always completes inside its beat.
+2. **The reading pause did not exist.** The hold was the clip plus 0.45s. It is
+   `max(text, voice) + READ_PAUSE` now.
+3. **The tutorial's clock was capped at 50ms a frame** — the right cap for a simulation, wrong
+   for text timed against a voice, because the voice plays on the audio clock in real seconds.
+   Measured on a headless run at ~8fps: the sentences arrived at a quarter speed while the
+   recording ran on, and the second half of a line appeared as the voice was finishing it. The
+   cap is 0.25s now (still swallowing a tab switch, tracking real time at 4fps or better).
+
+Traced end to end with audio on, the four frozen lines:
+
+```
+ 1.00s "This is Momo."            VO starts        paused
+ 2.34s "He needs to find his friend."
+ 5.02s                            VO ends
+ 6.71s next line                                   -> 1.69s of reading pause
+ 6.71s "Help Momo cross the Frozen Pass!"  VO 6.71-9.64  -> 1.36s pause
+13.50s "Watch out!"                        VO 13.5-14.51 -> 1.92s pause
+16.43s "Tap to jump over obstacles."       VO 16.4-18.76 -> 2.62s pause, then the world resumes
+```
+
+**Nothing interrupts it.** A new flag, `G.dialogue`, is pushed into the engine by the tutorial
+(`api.setDialogue`) and two things read it: `skipPreRoll()` refuses to skip a beat while a line
+is up, and `updateHints()` will not even accumulate its idle clocks, so a hand cannot appear
+the instant a line ends. Measured: twelve rapid taps during line 1 changed the state, the game
+clock and the sentence by nothing at all.
+
+**The jump ask freezes until its line is finished** (`pause: 'line'`) rather than for a guessed
+1.2s, so the order is always: line → voice → pause → the interaction is enabled. The rock is
+frozen with everything else, so the jump is exactly as hard as it was tuned to be.
+
+**Audio failure cannot deadlock it.** `api.say()` returns the clip's length, or 0 when it will
+not be heard — muted, no context, no file, a failed decode. Nothing waits on an `ended` event,
+so a line with no audio is gated on its text alone and still completes, and a clip that dies
+half way through cannot hang the step.
+
+### The sign drops straight, and never shows a cut rope end
+
+The panel is the plank AND its two ropes, resting with its top edge on the top of the stage so
+the ropes run off the frame. The first cut of `signDrop` overshot 5% DOWNWARD past that rest —
+which is what a falling weight really does, and which brought the top of the element into the
+picture: the ropes' cut ends appeared as two stubs hanging in the sky, 11px of them, for about
+150ms, twice per crossing.
+
+The rebound is **upward** instead: it falls to the mark, springs up, and settles back onto it.
+Every keyframe is at or above the rest line. The tilt is gone too (a board on two ropes cannot
+swing like a pendulum — the ropes hold it level), and so is any scaling. Measured over the
+arrival: **0.00px below the rest line, 0.00px sideways, 0.000° of rotation, scale 1.000 flat,
+4 direction changes** — a straight fall with two rebounds.
+
+The exit was dipping 3.5% down before leaving, for the same reason and with the same effect;
+it holds instead and then goes straight up. And the HUD will not restart a drop that is already
+running (`_dropAt`, the 760ms of the animation), so rapid input or a scene change cannot stack
+two arrivals on top of each other.
+
+### The tail sits on the mammoth's head
+
+It used to be aimed at a 165 x 205 oval around his whole body, so it landed over his back or in
+the air beside him depending on the pose. His head was then measured off the delivered run sheet
+— 36 frames of `mammoth-run.webp`, the median topmost opaque row and head centre column,
+converted through the renderer's own cell geometry (420 x 320 cell, baseGap 27, character scale
+1.75, so the drawn cell is 735 x 560):
+
+> **the crown is 362px above the foot line and 86px right of his own x**
+
+Both are read from the LIVE player every frame, so the anchor carries the forward offset of a
+leap (`drawX`) and the hop and crouch (`feetY`), and holds through a change of sheet at any
+stage size. The median rather than the per-frame top, because his head bobs 56px across a run
+cycle and a box chasing it would jitter. Measured on line 1: head at (516, 478), the tail tip at
+(517, 477) — **1px out on each axis** — with the box above the crown, clear of his eyes.
+
+The one line whose box is NOT on him is the jump ask, centred on the stage on the owner's call;
+its tail still leans at his head (`momoHeadX`).
+
+### The PLAY button
+
+Raised from 2.8% to **7%** of the stage off the bottom — at 2.8% it sat almost on the frame edge,
+which on a phone in landscape is where the browser's chrome and the gesture bar arrive. And the
+press keeps the resting state's box exactly: the compression is gone, so pressed is a darkening
+only. Measured: resting 216x227, pressed 216x227, centre moved 0.00px.

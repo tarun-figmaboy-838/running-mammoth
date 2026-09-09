@@ -5192,6 +5192,10 @@ export function createGame(canvas, hooks = {}) {
         was spawned and again after a crash, to re-teach the control. The button is gone
         (see index.html) and nothing else ever read the flag, so it is gone with it
         rather than left being set for no reader. */
+    /* TRUE WHILE THE TUTORIAL HAS A LINE ON SCREEN, pushed in by api.setDialogue. Two
+        things read it and both are about not talking over the teaching: a tap may not skip
+        a beat while a line is being read, and the idle hints do not start. */
+    dialogue: false,
     instruction: '', jumpEnabled: false,
     complete: false,
     l1: null,
@@ -6930,6 +6934,10 @@ export function createGame(canvas, hooks = {}) {
      Deliberately NOT skippable: the run segments (they are the journey), and the wrong
      and success beats (they are the feedback — a splash cut short teaches nothing). */
   function skipPreRoll() {
+    /* NOT WHILE A TUTORIAL LINE IS BEING READ. Skipping is for a player who has seen this
+       before; during the teaching it is a tap landing on a sentence that has not finished,
+       and it took the ground out from under the line that was explaining it. */
+    if (G.dialogue) return false;
     if (G.state === 'GLACIER_BREAK_1' && G.st < T.breakSkid - 1) {
       G.st = T.breakSkid - 1;         // one step short, so the final frame still runs
       return true;
@@ -7187,6 +7195,10 @@ export function createGame(canvas, hooks = {}) {
      which corners make a diagonal — the only nudges point at WHERE the problem is
      (the hole, the corners), so the reasoning stays theirs. */
   function updateHints(dt) {
+    /* NO HELP OVER THE TEACHING. A tutorial line is already telling the player what to do;
+       a hint arriving on top of it is two voices at once, and the idle clocks must not even
+       accumulate while a line is up or the hand appears the instant it finishes. */
+    if (G.dialogue) { G.idle = 0; G.idleHand = 0; G.handHint = null; return; }
     if (G.state === 'PHASE_ACTIVE') {
       G.idle += dt;
       const L = G.l1; if (!L) return;
@@ -9043,6 +9055,10 @@ export function createGame(canvas, hooks = {}) {
     renderScale: () => rs,
     /** Which character art set was loaded: 'hd' (1.5x cells) or 'base'. */
     artSet: () => hdArt ? 'hd' : 'base',
+    /** The tutorial has a line on screen (or is holding it for the reading pause). While it
+        does, taps cannot skip a beat and the idle hints do not start. Pushed from the
+        tutorial because the engine never reads the DOM. */
+    setDialogue(v) { G.dialogue = !!v; },
     /** Freeze the simulation. `opts.asking` marks a freeze that is waiting for the player to
         act (the tutorial's frozen "Tap to jump" line): only then may a jump input be ARMED for
         later; a freeze for a line being read (asking false) never turns a dismissing tap into a

@@ -945,44 +945,101 @@
      y 800 and the feet near y 830, and the flat ice ledge runs from about y 945. Down
      here the button sits ON that ledge, clear of both, which is also where a player
      looks for a start button. */
-  bottom: 3%;
+  /* 7%, raised on request so it is clearly clear of the bottom edge. Measured on the banner:
+     the snow lip is a flat band at y 71% and the ice face runs from there to the bottom, so a
+     button 25% of the stage tall sitting 7% up occupies 68%..93% — standing on the ledge with
+     a comfortable margin of ice beneath it, its top edge just onto the lip, and well clear of
+     the mammoth and the lettering above. At 2.8% it sat almost on the frame edge, which on a
+     phone in landscape is where a browser's own chrome and gesture bar arrive. */
+  bottom: 7%;
   transform: translateX(-50%);
-  width: clamp(190px, calc(22 * var(--u)), 860px);
-  /* the common box the two takes were built onto — printed by tools/make-buttons.mjs,
-     and it moves whenever the art is re-delivered (the owner's new stone-rimmed PLAY is
-     1764 x 621, where the previous pair was 1880 x 711). Getting this wrong letterboxes
-     the art inside its own element and the button stops matching its hit area. */
-  aspect-ratio: 1764 / 621;
-  background-image: url("../assets/ui/btn-play.webp?v=240067f7");
-  /* NO PERPETUAL BOB. See the note on .btn-replay: an infinitely animating button is a
-     target that has moved by the time a finger lands on it, and Playwright refuses to
-     click one at all ("element is not stable"), which is why no test caught it. It
-     arrives with a pop and then holds still to be pressed. */
-  animation: cardPop 460ms cubic-bezier(.2, 1.5, .4, 1) both;
+  /* BIG, because it is the only thing on the screen to do — 13.5 stage units wide and nearly
+     square, so it stands 25% of the stage tall where the old wide pill stood 8.6%: about
+     two and a half times the area, in a shape the eye lands on rather than reads. It went to
+     16 units first and came back on review ("make little small"); at 13.5 its top edge also
+     clears the banner's snow lip instead of overlapping it. The floor is a generous thumb on
+     the smallest phone (94px at a 693px stage) and the ceiling stops it swallowing a 4K
+     screen. */
+  width: clamp(94px, calc(13.5 * var(--u)), 520px);
+  /* the opaque box of the delivered art — printed by tools/make-buttons.mjs, and it moves
+     whenever the art is re-delivered (this take is 1048 x 1101, nearly square, where the
+     stone-rimmed pair before it was 1764 x 621). Getting this wrong letterboxes the art
+     inside its own element and the button stops matching its hit area. */
+  aspect-ratio: 1048 / 1101;
+  background-image: url("../assets/ui/btn-play.webp?v=18279ab0");
+  /* NO PERPETUAL BOB, and this is load-bearing rather than taste: an infinitely animating
+     button is a target that has moved by the time a finger lands on it, and Playwright
+     refuses to click one at all ("element is not stable"), which is why no test caught the
+     last one. Everything alive about this button therefore happens in things that DO NOT
+     change its box — the halo behind it (::before) and the sheen inside it (::after) — and
+     the button itself arrives with a pop and then holds still to be pressed. */
+  /* the pop on arrival and then the pulse, both set together below with the keyframes */
   filter: drop-shadow(0 clamp(5px, calc(0.52 * var(--u)), 20px) clamp(10px, calc(1 * var(--u)), 40px) rgba(46, 12, 4, 0.5));
+  transition: filter 160ms ease;
   z-index: 3;
 }
-/* the amber cap's own box, measured off the normal take */
-.btn-play:hover {
-  filter: drop-shadow(0 clamp(5px, 0.52vw, 10px) clamp(10px, 1vw, 20px) rgba(46, 12, 4, 0.5))
-          drop-shadow(0 0 clamp(14px, 1.5vw, 30px) rgba(255, 176, 32, 0.9));
+
+/* NO RING. There was a radial halo behind the button, scaling and fading — asked off:
+   "remove the pulse ring, pulse the button instead". A ring is a second object announcing
+   the control; what should draw the eye is the control.
+
+   SO THE BUTTON PULSES ITSELF — and it does it in LIGHT, not in size. It brightens and its
+   own glow swells, on the button's alpha, so the whole painted shape lifts and settles.
+   Nothing about its box changes, and that is deliberate three times over: an infinitely
+   resizing button is a target that has moved by the time a finger lands on it, Playwright
+   refuses to click one at all ("element is not stable"), and the press has to keep exactly
+   the outer dimensions the resting state has. This is the same call the ending's Play again
+   makes for the same reason — it glows without moving. */
+.btn-play {
+  animation: cardPop 520ms cubic-bezier(.2, 1.6, .35, 1) both,
+             playPulse 2.2s ease-in-out 520ms infinite;
+}
+@keyframes playPulse {
+  0%, 100% {
+    filter: drop-shadow(0 clamp(5px, calc(0.52 * var(--u)), 20px) clamp(10px, calc(1 * var(--u)), 40px) rgba(46, 12, 4, 0.5))
+            drop-shadow(0 0 clamp(6px, calc(0.6 * var(--u)), 14px) rgba(255, 176, 40, 0.35))
+            brightness(1);
+  }
+  50% {
+    filter: drop-shadow(0 clamp(5px, calc(0.52 * var(--u)), 20px) clamp(10px, calc(1 * var(--u)), 40px) rgba(46, 12, 4, 0.5))
+            drop-shadow(0 0 clamp(18px, calc(1.9 * var(--u)), 40px) rgba(255, 196, 62, 0.95))
+            brightness(1.09);
+  }
 }
 
-/* THE PRESS. The other picture — plus, on this one button, a real squash.
+/* NO SHEEN HERE. A masked band of light sweeping the face was written and then found to
+   be dead: .btn-play::after is already the PRESS SPARKS, defined further down this file, and
+   the later rule wins — the sheen never drew a pixel. Recorded rather than left in place,
+   because a rule that looks like it does something and does not is worse than no rule. The
+   button's "alive" is its own pulse above; its press keeps the ring and the sparks it had. */
 
-   The art's own travel is the cap sinking about a fifth of the button's height, which
-   at 430px wide is legible but quiet, and the feedback was reported as not reading as a
-   tap at all. So this is the one control that also MOVES: 4% down and a shade wider, on
-   a spring curve. That is deliberate, and it is the opposite of the rule the round
-   in-game buttons follow — a thumb covers a 96px round button at the moment it would
-   travel, so movement there is invisible and a darkening is what reads. A 430px pill on
-   a menu screen is not covered by the thumb, so movement is exactly what sells it. */
+/* HOVER: brighter and hotter, and the same size. The button keeps ONE outer dimension in
+   every state — resting, hovered and pressed — so nothing on the cover shifts under a
+   pointer and the press cannot be mistaken for the button changing shape. */
+.btn-play:hover {
+  animation-play-state: running, paused;      /* the pop may finish; the pulse yields to hover */
+  filter: drop-shadow(0 clamp(6px, 0.63vw, 13px) clamp(12px, 1.2vw, 26px) rgba(46, 12, 4, 0.5))
+          drop-shadow(0 0 clamp(18px, 1.9vw, 38px) rgba(255, 196, 62, 1))
+          brightness(1.07);
+}
+
+/* THE PRESS. This delivery is a SINGLE take — there is no pressed picture to swap in — so
+   the press is made the way TRY AGAIN's is: the whole face darkens, and it compresses.
+
+   Both, deliberately. The darkening is what survives a thumb covering the button, which is
+   the rule the round in-game controls follow; the compression is what sells a tap on a
+   250px control on a menu screen, which a thumb does not cover. It goes DOWN into the
+   press (0.94) rather than travelling, so the centre of the target never moves. */
+/* THE PRESS: the face darkens, and NOTHING moves or resizes. The compression that was here
+   is gone — the requirement is that the pressed state keeps the resting state's outer
+   dimensions exactly, with no layout shift, and a darkening is also what survives a thumb
+   covering the control (the rule the round in-game buttons follow). */
 .btn-play:active,
 .btn-play.pressed {
-  background-image: url("../assets/ui/btn-play-pressed.webp?v=ee743b30");
   animation: none;
-  scale: 1.035 0.94;
-  filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(4px, 0.42vw, 8px) rgba(46, 12, 4, 0.55));
+  scale: 1;
+  filter: brightness(0.84) saturate(1.14)
+          drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(4px, 0.42vw, 8px) rgba(46, 12, 4, 0.55));
 }
 /* NO OUTLINE ON A PICTURE BUTTON. An outline traces the element's BOX, and these
    buttons are a transparent box with a rounded painted object inside it — so a yellow
@@ -1205,6 +1262,8 @@
   to   { opacity: 1; scale: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
+  /* The button keeps its resting state and its glow, and stops pulsing. */
+  .btn-play { animation: none; }
   .card-fun { animation: none; rotate: none; }
   .card-fun::before { animation: none; }
   .card-fun h1 { rotate: none; }
