@@ -4470,7 +4470,13 @@ class PlayerController {
       underA = this.t < span ? 1 - easeInOut(this.t / span) : 0;
     }
     this.lastFrame = f; this.lastSheetRef = sheet;
-    this.lastBlend = blendF >= 0 ? blendU : 0; this.lastUnder = underA;   // read by the tests
+    /* Read by the tests. Three separate things, and they were worth separating: lastBlend is
+       the dissolve WITHIN a sheet (the idle's own crossfade, a flight pose into the next);
+       lastCross is a dissolve from ANOTHER sheet over this one (the settle into the idle);
+       lastUnder is the pose being handed over FROM, fading out underneath. */
+    this.lastBlend = blendF >= 0 ? blendU : 0;
+    this.lastCross = blendSheet && blendF >= 0 ? blendU : 0;
+    this.lastUnder = underA;
     this.lastSheet = sheet === this.sheet ? 'run' : sheet === this.jumpSheet ? 'jump'
       : sheet === this.skidSheet ? 'skid' : sheet === this.shakeSheet ? 'shake'
       : sheet === this.hurtSheet ? 'hurt' : sheet === this.idleSheet ? 'idle' : sheet === this.trembleSheet ? 'tremble' : '?';

@@ -211,7 +211,7 @@ test.describe('the tremble, the stop and the crash', () => {
       const g = window.iceAgeGame, p = g._player(); const m = await import('/js/engine.js');
       g.setPaused(true); g._force('COMPLETE'); p.setState('CELEBRATE');
       const rows = [];
-      for (let t = 0; t <= 2.2; t += 1 / 60) { p.t = t; p.hop = p.hopPhase(t).hop; g._renderOnce(); rows.push({ t, hop: p.hop, seg: p.hopPhase(t).seg, sheet: p.lastSheet, f: p.lastFrame, blend: p.lastBlend || 0 }); }
+      for (let t = 0; t <= 2.2; t += 1 / 60) { p.t = t; p.hop = p.hopPhase(t).hop; g._renderOnce(); rows.push({ t, hop: p.hop, seg: p.hopPhase(t).seg, sheet: p.lastSheet, f: p.lastFrame, blend: p.lastBlend || 0, cross: p.lastCross || 0 }); }
       return { rows, J: p.J, H: m.CFG.sprite.hop };
     });
     const peaks = r.rows.filter((x, i) => i > 0 && i < r.rows.length - 1 && x.hop > r.rows[i - 1].hop && x.hop >= r.rows[i + 1].hop && x.hop > 5);
@@ -225,7 +225,12 @@ test.describe('the tremble, the stop and the crash', () => {
     expect(segs).toEqual(['crouch', 'arc', 'land', 'arc', 'land', 'absorb', 'idle']);
     const idle = r.rows.filter(x => x.seg === 'idle');
     expect(idle[0].sheet, 'the ending breathes on the idle sheet').toBe('idle');
-    expect(idle[0].blend, 'entered through a dissolve from the settle').toBeGreaterThan(0.85);
-    expect(idle.find(x => x.t > idle[0].t + r.H.toIdle + 0.02 && x.blend > 0.99), 'which has finished').toBeUndefined();
+    /* The dissolve to watch here is the CROSS-SHEET one — the settle fading over the idle. The
+       idle's own crossfade (blend) runs for ever by design, so asserting on it measured the
+       wrong thing entirely. */
+    expect(idle[0].cross, 'entered through a dissolve from the settle').toBeGreaterThan(0.85);
+    expect(idle.find(x => x.t > idle[0].t + r.H.toIdle + 0.02 && x.cross > 0.01), 'which finishes').toBeUndefined();
+    // and the idle is moving from its first frame, not waiting out the dissolve
+    expect(new Set(idle.filter(x => x.t < idle[0].t + 0.5).map(x => x.f)).size, 'the idle steps straight away').toBeGreaterThan(2);
   });
 });
