@@ -2000,3 +2000,14 @@ moving the same way: 33 frames    opposite: 1 (centroid noise)
 
 **The rule this leaves behind:** when the complaint is about what is on screen, measure
 the pixels. A model that is consistent with itself proves nothing about the picture.
+
+### The flakes are smaller, softer, and have depth
+
+Reviewed after the first flake pass: "big, and not like inside the game". Both were true.
+In play a near flake reached 31px at 0.7 alpha — a third of an ice block's edge, pure white —
+and on the cover the biggest was ~75px. White shapes that size and that solid sit ON the
+picture; they read as stickers, not weather. Now: in play `FLAKE_K` 5.2 (near 17–24px, mid
+9–15px) at 0.34–0.6 alpha; on the cover 2.0 stage units × size (17–44px) at 0.44–0.72, and
+the far (small) flakes carry a per-flake `blur(0.35–1.1px)` while the near ones stay crisp.
+That depth-of-field is the thing that puts them inside the scene: snow in a picture is sharp
+close up and soft further back, never uniformly crisp.

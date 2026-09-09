@@ -80,13 +80,15 @@
   position: absolute;
   top: 0;
   left: var(--x);
-  /* 3.4 stage units at s:1, so the biggest flake is about the size of a title letter's
-     serif and the smallest reads as distance rather than as dirt. */
-  width: calc(3.4 * var(--u) * var(--s));
+  /* 2.0 stage units at s:1 (was 3.4 — reviewed as big, and as sitting ON the banner rather
+     than falling inside it). The biggest flake is now about 44px on a 1920 stage, the
+     smallest 17px, and the far ones are blurred a little (--blur, per flake) so the layer
+     has depth: crisp near, soft far, which is how snow in a picture actually looks. */
+  width: calc(2.0 * var(--u) * var(--s));
   aspect-ratio: 1;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='3.2' stroke-linecap='round'%3E%3Cg%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(60 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(120 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(180 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(240 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(300 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3C/g%3E%3Ccircle cx='24' cy='24' r='3' fill='%23ffffff'/%3E%3C/svg%3E") center / contain no-repeat;
-  opacity: calc(0.34 + 0.42 * var(--s));      /* the nearer it is, the more solid */
-  filter: drop-shadow(0 0 calc(0.4 * var(--u)) rgba(180, 224, 255, 0.9));
+  opacity: calc(0.26 + 0.40 * var(--s));      /* the nearer it is, the more solid: 0.44 .. 0.72 */
+  filter: blur(var(--blur, 0px)) drop-shadow(0 0 calc(0.3 * var(--u)) rgba(180, 224, 255, 0.7));
   will-change: transform;
   animation: coverFlakeFall var(--t) linear var(--d) infinite;
 }
@@ -96,20 +98,20 @@
   from { transform: translate3d(0, -14vh, 0) rotate(0deg); }
   to   { transform: translate3d(calc(3 * var(--u)), 112vh, 0) rotate(var(--spin)); }
 }
-.cover-snow i:nth-child(1) { --x: 4%; --s: 0.62; --t: 13s; --d: -1s; --spin: 360deg; }
-.cover-snow i:nth-child(2) { --x: 11%; --s: 1; --t: 17s; --d: -7s; --spin: -360deg; }
-.cover-snow i:nth-child(3) { --x: 19%; --s: 0.48; --t: 11s; --d: -4s; --spin: 360deg; }
-.cover-snow i:nth-child(4) { --x: 26%; --s: 0.82; --t: 15s; --d: -12s; --spin: -360deg; }
-.cover-snow i:nth-child(5) { --x: 33%; --s: 0.55; --t: 12s; --d: -9s; --spin: 360deg; }
-.cover-snow i:nth-child(6) { --x: 41%; --s: 1.15; --t: 19s; --d: -2s; --spin: -360deg; }
-.cover-snow i:nth-child(7) { --x: 48%; --s: 0.7; --t: 14s; --d: -15s; --spin: 360deg; }
-.cover-snow i:nth-child(8) { --x: 56%; --s: 0.45; --t: 10s; --d: -6s; --spin: -360deg; }
-.cover-snow i:nth-child(9) { --x: 63%; --s: 0.95; --t: 16s; --d: -11s; --spin: 360deg; }
-.cover-snow i:nth-child(10) { --x: 70%; --s: 0.6; --t: 13s; --d: -3s; --spin: -360deg; }
-.cover-snow i:nth-child(11) { --x: 78%; --s: 1.05; --t: 18s; --d: -8s; --spin: 360deg; }
-.cover-snow i:nth-child(12) { --x: 85%; --s: 0.52; --t: 11s; --d: -14s; --spin: -360deg; }
-.cover-snow i:nth-child(13) { --x: 92%; --s: 0.78; --t: 15s; --d: -5s; --spin: 360deg; }
-.cover-snow i:nth-child(14) { --x: 97%; --s: 0.66; --t: 12s; --d: -10s; --spin: -360deg; }
+.cover-snow i:nth-child(1) { --x: 4%; --s: 0.62; --t: 13s; --d: -1s; --spin: 360deg; --blur: 0.7px; }
+.cover-snow i:nth-child(2) { --x: 11%; --s: 1; --t: 17s; --d: -7s; --spin: -360deg; --blur: 0px; }
+.cover-snow i:nth-child(3) { --x: 19%; --s: 0.48; --t: 11s; --d: -4s; --spin: 360deg; --blur: 1.1px; }
+.cover-snow i:nth-child(4) { --x: 26%; --s: 0.82; --t: 15s; --d: -12s; --spin: -360deg; --blur: 0.35px; }
+.cover-snow i:nth-child(5) { --x: 33%; --s: 0.55; --t: 12s; --d: -9s; --spin: 360deg; --blur: 0.7px; }
+.cover-snow i:nth-child(6) { --x: 41%; --s: 1.15; --t: 19s; --d: -2s; --spin: -360deg; --blur: 0px; }
+.cover-snow i:nth-child(7) { --x: 48%; --s: 0.7; --t: 14s; --d: -15s; --spin: 360deg; --blur: 0.35px; }
+.cover-snow i:nth-child(8) { --x: 56%; --s: 0.45; --t: 10s; --d: -6s; --spin: -360deg; --blur: 1.1px; }
+.cover-snow i:nth-child(9) { --x: 63%; --s: 0.95; --t: 16s; --d: -11s; --spin: 360deg; --blur: 0px; }
+.cover-snow i:nth-child(10) { --x: 70%; --s: 0.6; --t: 13s; --d: -3s; --spin: -360deg; --blur: 0.7px; }
+.cover-snow i:nth-child(11) { --x: 78%; --s: 1.05; --t: 18s; --d: -8s; --spin: 360deg; --blur: 0px; }
+.cover-snow i:nth-child(12) { --x: 85%; --s: 0.52; --t: 11s; --d: -14s; --spin: -360deg; --blur: 1.1px; }
+.cover-snow i:nth-child(13) { --x: 92%; --s: 0.78; --t: 15s; --d: -5s; --spin: 360deg; --blur: 0.35px; }
+.cover-snow i:nth-child(14) { --x: 97%; --s: 0.66; --t: 12s; --d: -10s; --spin: -360deg; --blur: 0.7px; }
 
 /* ---------- text buttons (PLAY, Try Again, Replay) ----------
    Built to the supplied reference: a glossy coloured pill inside a METALLIC RIM.

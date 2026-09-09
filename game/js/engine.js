@@ -2747,8 +2747,11 @@ class BackgroundTimeManager {
 /* ---------------- Atmosphere (aurora / snowfall) ---------------- */
 class Atmosphere {
   /* How many px across a flake is drawn, per px of its old dot radius. One place, so the
-     test that holds "the snow is evident" and the renderer cannot disagree. */
-  static FLAKE_K = 6.8;
+     test that holds "the snow is evident" and the renderer cannot disagree.
+     5.2, from 6.8: at 6.8 a near flake was up to 31px — a third of an ice block's edge —
+     and read as a white sticker laid on the picture rather than snow falling inside it
+     (reviewed: "big, and not like inside the game"). 17-24px is still plainly a flake. */
+  static FLAKE_K = 5.2;
   constructor() {
     const mk = (n, cfg) => Array.from({ length: n }, () => ({
       x: rand(0, 1920), y: rand(-80, 1080),
@@ -2771,8 +2774,11 @@ class Atmosphere {
        The near layer is the one that crosses the ice blocks and the answer, so it is the
        sparsest of the three — and it stops entirely while a question is up (see drawFront). */
     this.far = mk(26, { r0: 0.9, r1: 1.7, f0: 16, f1: 26, s0: 5, s1: 12, a0: 0.14, a1: 0.26, par: 0.12 });
-    this.mid = mk(9, { r0: 1.8, r1: 2.8, f0: 30, f1: 46, s0: 9, s1: 18, a0: 0.42, a1: 0.6, par: 0.26 });
-    this.near = mk(4, { r0: 3.2, r1: 4.6, f0: 62, f1: 92, s0: 16, s1: 30, a0: 0.5, a1: 0.7, par: 0.5 });
+    /* Softer than the first flake pass (0.42-0.6 / 0.5-0.7): pure white at those alphas sat
+       ON the picture. A flake inside the scene takes some of the sky's light, so it is a
+       little translucent — still plainly there, no longer a cut-out. */
+    this.mid = mk(9, { r0: 1.8, r1: 2.8, f0: 30, f1: 46, s0: 9, s1: 18, a0: 0.34, a1: 0.5, par: 0.26 });
+    this.near = mk(4, { r0: 3.2, r1: 4.6, f0: 62, f1: 92, s0: 16, s1: 30, a0: 0.42, a1: 0.6, par: 0.5 });
     this.aur = [
       { y: 330, amp: 26, freq: 0.0019, sp: 0.22, h: 250, c: [116, 255, 190], a: 0.15 },
       { y: 286, amp: 20, freq: 0.0027, sp: -0.18, h: 210, c: [108, 214, 255], a: 0.10 },

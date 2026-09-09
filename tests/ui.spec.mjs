@@ -287,9 +287,12 @@ test.describe('ui', () => {
     await boot(page);
     const s = await page.evaluate(() => window.iceAgeGame._snow());
     expect(s.sprite, 'the flake sprite is built, so nothing is falling back to dots').toBe(true);
-    expect(Math.min(...s.drawnPx), 'a flake is big enough to see').toBeGreaterThanOrEqual(20);
-    expect(Math.max(...s.drawnPx), 'and not so big it competes with the ice blocks').toBeLessThan(40);
-    expect(Math.min(...s.alpha), 'and solid enough to see').toBeGreaterThanOrEqual(0.45);
+    /* 15..30px and alpha from 0.4: the first pass went to 31px at 0.7 and was reviewed as a
+       white sticker on the picture. A flake INSIDE the scene is smaller and a little
+       translucent — evident, not pasted on. */
+    expect(Math.min(...s.drawnPx), 'a flake is big enough to see').toBeGreaterThanOrEqual(15);
+    expect(Math.max(...s.drawnPx), 'and not so big it sits on the picture').toBeLessThan(30);
+    expect(Math.min(...s.alpha), 'and solid enough to see').toBeGreaterThanOrEqual(0.4);
     expect(s.spins.every(v => Math.abs(v) > 0.05), 'each one turns as it falls').toBe(true);
     expect(new Set(s.spins.map(Math.sign)).size, 'and not all the same way').toBe(2);
     // FEW. This is the number that was asked to come down; it is the whole point of the test.
