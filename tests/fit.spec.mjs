@@ -181,6 +181,48 @@ test.describe('the text fits its panel', () => {
     expect(after.dialogue, 'the engine knows a line is up').toBe(true);
   });
 
+  test('muted, and with the voice throwing, the tutorial still shows every line and never hangs', async ({ page }) => {
+    /* The completion gate waits for the text AND the voice — so the failure mode to rule out
+       is a line that waits for a voice that will never come. It cannot happen by construction
+       (api.say returns a LENGTH, or 0 when it will not be heard; nothing subscribes to an
+       'ended' event) and this holds that construction from both sides:
+
+         MUTED    - sound off, which is how every test in this suite boots.
+         THROWING - say() replaced with a function that throws, which is what a broken decode
+                    or a revoked context looks like from the tutorial's side.
+
+       In both cases the lines must still arrive, in order, and the tutorial must still reach
+       the ask. A deadlock would show up as the first line staying on screen for ever. */
+    test.setTimeout(180_000);
+    await boot(page, { tutorial: true, skipScreens: true });        // sound: false by default
+    await page.evaluate(() => {
+      const g = window.iceAgeGame;
+      g.say = () => { throw new Error('audio is gone'); };           // the harshest failure
+    });
+    const seen = await page.evaluate(async () => {
+      const g = window.iceAgeGame, out = []; let last = null;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 60000) {
+        await new Promise(r => requestAnimationFrame(r));
+        const l = document.getElementById('tutorial'), tx = document.getElementById('tut-text');
+        const s = (!l || l.hidden || !tx) ? '' : tx.textContent.trim();
+        if (s && s !== last) { out.push({ t: +((performance.now() - t0) / 1000).toFixed(2), s }); last = s; }
+        if (out.length >= 5) break;
+      }
+      return { out, vo: g._voice().said.slice(0, 4) };
+    });
+    const lines = seen.out.map(o => o.s);
+    // it got past the first sentence, and past the first LINE: no line is waiting on a voice
+    expect(lines.length, 'the tutorial kept moving with no audio: ' + JSON.stringify(lines)).toBeGreaterThanOrEqual(4);
+    expect(lines[0]).toBe('This is Momo.');
+    expect(lines[1]).toBe('He needs to find his friend.');
+    expect(lines).toContain('Help Momo cross the Frozen Pass!');
+    // and each one was on screen long enough to read, rather than flashing past
+    for (let i = 1; i < seen.out.length; i++) {
+      expect(seen.out[i].t - seen.out[i - 1].t, 'sentence ' + i + ' was readable').toBeGreaterThan(0.6);
+    }
+  });
+
   test("the dialogue's tail stays on the mammoth's head", async ({ page }) => {
     /* Measured off the delivered run sheet: his crown is 362px above the foot line and 86px
        right of his own x (tutorial.js: HEAD_UP / HEAD_RIGHT). The bubble is placed so its

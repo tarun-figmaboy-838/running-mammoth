@@ -703,7 +703,19 @@ export class Tutorial {
        line is never taken off the screen mid-sentence. */
     if (!this.spoke && line) {
       this.spoke = true;
-      this.voDur = (this.game.say && this.game.say(VO[s.id] || '')) || 0;
+      /* A VOICE THAT THROWS IS A VOICE THAT IS NOT THERE — it is not the end of the lesson.
+         say() returns a length, or 0 when the line will not be heard, and the completion gate
+         is built on that (see readTime). But it can also THROW: a revoked AudioContext, a
+         decode that blew up, a host that has torn the audio layer down. Unguarded, that
+         exception left update() before it had drawn anything, which killed the animation
+         frame that drives this layer — so the tutorial stopped dead on its first line AND the
+         game stayed frozen behind it, with no way out. Measured: with say() throwing, not one
+         sentence ever appeared. Caught, the line simply has no voice and is gated on its text
+         alone, which is the same path muting already takes. */
+      let dur = 0;
+      try { dur = (this.game.say && this.game.say(VO[s.id] || '')) || 0; }
+      catch (e) { dur = 0; }
+      this.voDur = dur;
     }
     /* ONE SENTENCE AT A TIME (see beats). `text` from here down is the sentence showing
        NOW rather than the whole line, and show() pops the box afresh for each one. The plank

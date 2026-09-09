@@ -2109,3 +2109,24 @@ Raised from 2.8% to **7%** of the stage off the bottom — at 2.8% it sat almost
 which on a phone in landscape is where the browser's chrome and the gesture bar arrive. And the
 press keeps the resting state's box exactly: the compression is gone, so pressed is a darkening
 only. Measured: resting 216x227, pressed 216x227, centre moved 0.00px.
+
+### A voice that throws does not stop the lesson
+
+Found by the test written for it, not by reading the code. `api.say()` returns a length, or 0
+when the line will not be heard, and the completion gate is built on that — but it can also
+THROW: a revoked AudioContext, a decode that blew up, a host that has torn the audio layer
+down. Unguarded, that exception left `Tutorial.update()` before it had drawn anything, which
+killed the animation frame driving the layer — so the tutorial stopped dead on its first line
+**and the game stayed frozen behind it**, because this layer pauses the simulation while a
+line is read. Measured with `say()` replaced by a thrower: not one sentence ever appeared.
+
+Two guards, because either alone leaves a hole:
+
+- the call is wrapped, so a throwing voice is simply a line with no voice — gated on its text
+  alone, the same path muting already takes;
+- and the tick behind it catches anything else, finishes the tutorial properly (which resumes
+  the game and clears the overlay) and reports the fault, so no future error in this layer can
+  leave a player looking at a frozen screen.
+
+Test: fit.spec "muted, and with the voice throwing, the tutorial still shows every line and
+never hangs" — it drives both the muted case and the throwing case.

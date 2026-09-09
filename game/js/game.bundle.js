@@ -11386,7 +11386,19 @@ class Tutorial {
        line is never taken off the screen mid-sentence. */
     if (!this.spoke && line) {
       this.spoke = true;
-      this.voDur = (this.game.say && this.game.say(VO[s.id] || '')) || 0;
+      /* A VOICE THAT THROWS IS A VOICE THAT IS NOT THERE — it is not the end of the lesson.
+         say() returns a length, or 0 when the line will not be heard, and the completion gate
+         is built on that (see readTime). But it can also THROW: a revoked AudioContext, a
+         decode that blew up, a host that has torn the audio layer down. Unguarded, that
+         exception left update() before it had drawn anything, which killed the animation
+         frame that drives this layer — so the tutorial stopped dead on its first line AND the
+         game stayed frozen behind it, with no way out. Measured: with say() throwing, not one
+         sentence ever appeared. Caught, the line simply has no voice and is gated on its text
+         alone, which is the same path muting already takes. */
+      let dur = 0;
+      try { dur = (this.game.say && this.game.say(VO[s.id] || '')) || 0; }
+      catch (e) { dur = 0; }
+      this.voDur = dur;
     }
     /* ONE SENTENCE AT A TIME (see beats). `text` from here down is the sentence showing
        NOW rather than the whole line, and show() pops the box afresh for each one. The plank
@@ -12100,7 +12112,22 @@ function startTutorial() {
      * renders at four frames a second or better. */
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
-    tut.update(dt);
+    /* AND IF THE TUTORIAL EVER THROWS, THE GAME MUST NOT BE LEFT FROZEN.
+       This layer PAUSES the simulation while a line is read, so an exception escaping
+       update() does not merely stop the tutorial — it stops the animation frame that would
+       have resumed the game, and the player is left looking at a still screen with no way
+       out. Found for real: a say() that threw took the whole loop down on the first line.
+       That specific hole is plugged where it happened, and this is the failsafe behind it:
+       whatever goes wrong, the tutorial is finished properly — which resumes the game and
+       clears its overlay — and the fault is reported rather than swallowed silently. */
+    try {
+      tut.update(dt);
+    } catch (err) {
+      console.error('the tutorial stopped on an error; the game continues without it', err);
+      try { tut.finish(); } catch (e) { game.setPaused(false); }
+      tut = null;
+      return;
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

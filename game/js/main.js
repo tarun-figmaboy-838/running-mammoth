@@ -171,7 +171,22 @@ function startTutorial() {
      * renders at four frames a second or better. */
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
-    tut.update(dt);
+    /* AND IF THE TUTORIAL EVER THROWS, THE GAME MUST NOT BE LEFT FROZEN.
+       This layer PAUSES the simulation while a line is read, so an exception escaping
+       update() does not merely stop the tutorial — it stops the animation frame that would
+       have resumed the game, and the player is left looking at a still screen with no way
+       out. Found for real: a say() that threw took the whole loop down on the first line.
+       That specific hole is plugged where it happened, and this is the failsafe behind it:
+       whatever goes wrong, the tutorial is finished properly — which resumes the game and
+       clears its overlay — and the fault is reported rather than swallowed silently. */
+    try {
+      tut.update(dt);
+    } catch (err) {
+      console.error('the tutorial stopped on an error; the game continues without it', err);
+      try { tut.finish(); } catch (e) { game.setPaused(false); }
+      tut = null;
+      return;
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
