@@ -2,17 +2,21 @@ import { test, expect } from '@playwright/test';
 /* Runs against the real deployment, not a simulator. Kept out of the default run by
    requiring LIVE_URL; with it set this is the only check that proves production. */
 const LIVE = process.env.LIVE_URL;
+/* HOW LONG BOOT IS ALLOWED. The whole art set is fetched before the title appears, so on a
+   slow link a healthy deployment and a broken one both look like a hung page. Tunable so a
+   thin connection reports the truth instead of a false failure: LIVE_BOOT_MS=420000. */
+const BOOT_MS = Number(process.env.LIVE_BOOT_MS) || 120_000;
 test.skip(!LIVE, 'set LIVE_URL to run against the deployment');
 
 test('the deployed game loads and plays', async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(BOOT_MS + 120_000);
   const bad = [], errs = [];
   page.on('response', r => { if (r.status() >= 400) bad.push(r.status() + ' ' + r.url()); });
   page.on('pageerror', e => errs.push('PAGEERROR ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text()); });
 
   await page.goto(LIVE, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction('window.iceAgeGame && window.iceAgeGame.state() !== "BOOT"', null, { timeout: 120_000 });
+  await page.waitForFunction('window.iceAgeGame && window.iceAgeGame.state() !== "BOOT"', null, { timeout: BOOT_MS });
   console.log('  landed on: ' + page.url());
   console.log('  state:     ' + await page.evaluate('window.iceAgeGame.state()'));
 
