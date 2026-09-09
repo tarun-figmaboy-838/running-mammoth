@@ -1470,6 +1470,23 @@ Test note: tremble.spec "the last tutorial line" waited for "Use the right ice p
 speech bubble long after that line moved to the plank; it now waits on `#instruction-text` and
 measures the pill. Strips: `qa-report/startle-strip2.png`, `qa-report/hop-strip4.png`.
 
+### A hand-over leaves fast (the curve, not the length)
+
+The owner: "the first gif to the second looks slow and unnatural." The dissolve was shaped like
+a hold. `underA = 1 - easeInOut(u)` is an S-curve, and the flat part at the *start* of an S is
+the outgoing pose sitting at almost full opacity:
+
+| through the change | 10% | 20% | 33% | 50% | 67% |
+|---|---|---|---|---|---|
+| old pose, ease-in-out | 1.00 | 0.97 | 0.86 | 0.50 | 0.14 |
+| old pose, cubed | 0.73 | 0.51 | 0.30 | 0.13 | 0.04 |
+
+Two nearly-solid poses on screen at once for the first half of the change is a ghosted double
+exposure, not a blend — and at `handover` 0.18 s that was ~120 ms of it. Now `(1-u)³` and 0.12 s:
+measured on the skid→tremble hand-over (the first sheet change at a ditch), the outgoing pose is
+below 10% by **67 ms** and gone by 100 ms. The same curve carries the settle→idle dissolve at
+the ending and the startle's recovery. Strip: `qa-report/handover-strip.png`.
+
 ### The animation timing, measured
 
 Every state walked frame by frame on a hand-driven clock, recording how long each pose is

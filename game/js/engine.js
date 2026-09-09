@@ -241,7 +241,10 @@ export const CFG = {
        or pose, the pose it came from is drawn over the new one and faded out across this many
        seconds. Asked for: the changes between the delivered animations read as cuts. Off for the
        run, the jump and the crash, whose cuts are the timing. */
-    handover: 0.18,
+    /* 0.12, and see the note on the curve in draw(): a hand-over LEAVES fast. Measured at 0.18
+       with an ease-in-out the outgoing pose was still at 90% a fifth of the way through, which
+       reads as two characters on screen rather than one changing pose. */
+    handover: 0.12,
     /* The quick states — take-off, flight, touchdown, the skid into a stop — hand over in this
        much: enough to take the snap off a pose change, short enough that the take-off is still
        a take-off. */
@@ -3515,7 +3518,8 @@ class PlayerController {
         if (this.trembleSheet && F.tremble && this.t > SP.startle) {
           sheet = this.trembleSheet; f = F.tremble - 1;
           if (this.t < SP.startle + SP.handover && this.jumpSheet) {
-            blendSheet = this.jumpSheet; blendF = J.alert; blendU = 1 - easeInOut((this.t - SP.startle) / SP.handover);
+            const ur = clamp((this.t - SP.startle) / SP.handover, 0, 1);
+            blendSheet = this.jumpSheet; blendF = J.alert; blendU = (1 - ur) * (1 - ur) * (1 - ur);
           }
         } else f = J.alert;
         break;
@@ -3549,7 +3553,9 @@ class PlayerController {
           sheet = this.idleSheet; idleT = P.since;
           f = Math.floor(idleT * SP.idleFps) % F.idle;
           if (SP.hop && P.since < SP.hop.toIdle && this.jumpSheet) {
-            blendSheet = this.jumpSheet; blendF = J.absorb; blendU = 1 - P.since / SP.hop.toIdle;
+            // the settle leaves over the moving idle on the same fast-out curve as a hand-over
+            const uu = clamp(P.since / SP.hop.toIdle, 0, 1);
+            blendSheet = this.jumpSheet; blendF = J.absorb; blendU = (1 - uu) * (1 - uu) * (1 - uu);
           }
           break;
         }
@@ -3600,7 +3606,12 @@ class PlayerController {
       // the crouch is short and has its own dissolve out, so the way in is quicker
       const span = FAST ? (SP.handoverFast || 0.08)
                  : this.state === 'CELEBRATE' && SP.hop ? Math.min(SP.handover, SP.hop.crouch * 0.55) : SP.handover;
-      underA = this.t < span ? 1 - easeInOut(this.t / span) : 0;
+      /* LEAVES FAST. Cubed, not eased-in-out: an S-curve holds the old pose at near-full opacity
+         through the first third of the change, so both poses read as solid at once and the change
+         looks slow. Cubing puts most of the fade in the first few frames — the new pose is what
+         you see, the old one a short trail. */
+      const u = clamp(this.t / span, 0, 1);
+      underA = (1 - u) * (1 - u) * (1 - u);
     }
     this.lastFrame = f; this.lastSheetRef = sheet;
     /* Read by the tests. Three separate things, and they were worth separating: lastBlend is
