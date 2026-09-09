@@ -97,7 +97,8 @@ for (const [name, viewport, dpr, touch] of MATRIX) {
     Object.assign(row, await page.evaluate(() => {
       const st = document.getElementById('stage').getBoundingClientRect();
       const bad = [];
-      let jumpPx = null;
+      /* No control to measure any more: the JUMP button is gone and the stage itself is
+         the jump. What this pass still catches is anything DRAWN outside the stage. */
       for (const el of document.querySelectorAll('#hud *, .overlay:not([hidden]) *')) {
         if (el.hidden || !el.getClientRects().length) continue;
         const r = el.getBoundingClientRect();
@@ -105,9 +106,8 @@ for (const [name, viewport, dpr, touch] of MATRIX) {
         if (r.left < st.left - 2 || r.right > st.right + 2 || r.top < st.top - 2 || r.bottom > st.bottom + 2) {
           bad.push((el.id || el.className || el.tagName).toString().slice(0, 26));
         }
-        if (el.id === 'btn-jump') jumpPx = Math.round(Math.min(r.width, r.height));
       }
-      return { offStage: [...new Set(bad)].slice(0, 6).join(','), jumpBtnPx: jumpPx };
+      return { offStage: [...new Set(bad)].slice(0, 6).join(',') };
     }));
 
     row.errors = errors.length ? errors.slice(0, 3).join(' | ') : '';
@@ -132,7 +132,6 @@ for (const r of rows) {
   if (r.maxSide > 4096) problems.push(`${r.name}: backbuffer side ${r.maxSide} px (past a common 4096 texture limit)`);
   if (r.overflowX > 2) problems.push(`${r.name}: the page scrolls sideways by ${r.overflowX}px`);
   if (r.offStage) problems.push(`${r.name}: drawn outside the stage: ${r.offStage}`);
-  if (r.jumpBtnPx !== null && r.jumpBtnPx < 44) problems.push(`${r.name}: JUMP button ${r.jumpBtnPx}px (under the 44px touch target)`);
   if (r.p95Ms > 60) problems.push(`${r.name}: p95 frame ${r.p95Ms}ms`);
   if (r.heapAfterMB && r.heapAfterMB > 420) problems.push(`${r.name}: heap ${r.heapAfterMB}MB`);
   if (!/portrait/.test(r.name) && r.rotateShown) problems.push(`${r.name}: the rotate screen is up in landscape`);

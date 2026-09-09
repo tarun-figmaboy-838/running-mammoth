@@ -56,26 +56,60 @@
 .cover-art {
   position: absolute;
   inset: 0;
-  background: url("../assets/art/cover.webp?v=2854fd0e") center/contain no-repeat;
+  background: url("../assets/art/cover.webp?v=e9ed7c85") center/contain no-repeat;
 }
-/* snow drifting over the banner, layered radial gradients so it costs no assets */
+/* SNOW OVER THE BANNER — real six-armed flakes, falling and turning.
+
+   It was six radial-gradient dots on one drifting element, which is the cheapest possible
+   snow and looks it: dots, all moving as one sheet, at one speed. The cover is the first
+   thing anyone sees and the game is called Frozen Rush, so it gets the snowfall; the PLAY
+   world keeps a sparse one (see Atmosphere in engine.js — asked for: less in game, no
+   clutter over what the player is reading).
+
+   FOURTEEN ELEMENTS, NOT A BACKGROUND, for one reason: a flake has to TURN as it falls, and
+   a background layer cannot rotate. Each <i> is one flake with its own column, size, fall
+   time, head start and spin direction, all set below. The flake is a data-URI SVG, so the
+   layer still costs no asset and no request. Under reduced motion nothing falls. */
 .cover-snow {
   position: absolute;
-  inset: -12%;
-  background-image:
-    radial-gradient(2.5px 2.5px at 20% 30%, rgba(255,255,255,.90) 50%, transparent 51%),
-    radial-gradient(2px   2px   at 65% 15%, rgba(255,255,255,.75) 50%, transparent 51%),
-    radial-gradient(3px   3px   at 82% 62%, rgba(255,255,255,.85) 50%, transparent 51%),
-    radial-gradient(2px   2px   at 38% 78%, rgba(255,255,255,.70) 50%, transparent 51%),
-    radial-gradient(2.5px 2.5px at 8%  58%, rgba(255,255,255,.80) 50%, transparent 51%),
-    radial-gradient(2px   2px   at 52% 45%, rgba(255,255,255,.65) 50%, transparent 51%);
-  background-size: 34% 44%;
-  animation: snowFall 11s linear infinite;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
-@keyframes snowFall {
-  from { transform: translate3d(0, -12%, 0); }
-  to   { transform: translate3d(-6%, 12%, 0); }
+.cover-snow i {
+  position: absolute;
+  top: 0;
+  left: var(--x);
+  /* 3.4 stage units at s:1, so the biggest flake is about the size of a title letter's
+     serif and the smallest reads as distance rather than as dirt. */
+  width: calc(3.4 * var(--u) * var(--s));
+  aspect-ratio: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='3.2' stroke-linecap='round'%3E%3Cg%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(60 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(120 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(180 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(240 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3Cg transform='rotate(300 24 24)'%3E%3Cpath d='M24 24V6'/%3E%3Cpath d='M24 12.5l-4.4 4.4M24 12.5l4.4 4.4' stroke-width='2.6'/%3E%3Cpath d='M24 19l-3 3M24 19l3 3' stroke-width='2.2'/%3E%3C/g%3E%3C/g%3E%3Ccircle cx='24' cy='24' r='3' fill='%23ffffff'/%3E%3C/svg%3E") center / contain no-repeat;
+  opacity: calc(0.34 + 0.42 * var(--s));      /* the nearer it is, the more solid */
+  filter: drop-shadow(0 0 calc(0.4 * var(--u)) rgba(180, 224, 255, 0.9));
+  will-change: transform;
+  animation: coverFlakeFall var(--t) linear var(--d) infinite;
 }
+/* It falls the whole height of the cover and a little past it, drifts sideways as it goes,
+   and turns once — the drift and the turn are what separate falling from scrolling. */
+@keyframes coverFlakeFall {
+  from { transform: translate3d(0, -14vh, 0) rotate(0deg); }
+  to   { transform: translate3d(calc(3 * var(--u)), 112vh, 0) rotate(var(--spin)); }
+}
+.cover-snow i:nth-child(1) { --x: 4%; --s: 0.62; --t: 13s; --d: -1s; --spin: 360deg; }
+.cover-snow i:nth-child(2) { --x: 11%; --s: 1; --t: 17s; --d: -7s; --spin: -360deg; }
+.cover-snow i:nth-child(3) { --x: 19%; --s: 0.48; --t: 11s; --d: -4s; --spin: 360deg; }
+.cover-snow i:nth-child(4) { --x: 26%; --s: 0.82; --t: 15s; --d: -12s; --spin: -360deg; }
+.cover-snow i:nth-child(5) { --x: 33%; --s: 0.55; --t: 12s; --d: -9s; --spin: 360deg; }
+.cover-snow i:nth-child(6) { --x: 41%; --s: 1.15; --t: 19s; --d: -2s; --spin: -360deg; }
+.cover-snow i:nth-child(7) { --x: 48%; --s: 0.7; --t: 14s; --d: -15s; --spin: 360deg; }
+.cover-snow i:nth-child(8) { --x: 56%; --s: 0.45; --t: 10s; --d: -6s; --spin: -360deg; }
+.cover-snow i:nth-child(9) { --x: 63%; --s: 0.95; --t: 16s; --d: -11s; --spin: 360deg; }
+.cover-snow i:nth-child(10) { --x: 70%; --s: 0.6; --t: 13s; --d: -3s; --spin: -360deg; }
+.cover-snow i:nth-child(11) { --x: 78%; --s: 1.05; --t: 18s; --d: -8s; --spin: 360deg; }
+.cover-snow i:nth-child(12) { --x: 85%; --s: 0.52; --t: 11s; --d: -14s; --spin: -360deg; }
+.cover-snow i:nth-child(13) { --x: 92%; --s: 0.78; --t: 15s; --d: -5s; --spin: 360deg; }
+.cover-snow i:nth-child(14) { --x: 97%; --s: 0.66; --t: 12s; --d: -10s; --spin: -360deg; }
 
 /* ---------- text buttons (PLAY, Try Again, Replay) ----------
    Built to the supplied reference: a glossy coloured pill inside a METALLIC RIM.
@@ -371,79 +405,51 @@
 }
 .tut-focus[hidden] { display: none; }
 
-/* A DOM CONTROL RAISED ABOVE THE SHEET while the tutorial is introducing it. 41 is one
-   above .tutorial, so the control is sharp and fully lit while everything else sits
-   behind the blur — the same result the copied focus panel gets for canvas targets,
-   achieved the way DOM allows. Removed again the moment the step moves on. */
-.tut-lift {
-  /* Raised above the sheet, and glowing along its own outline exactly like a canvas
-     subject on .tut-focus — one treatment for every highlighted thing, character or
-     control. !important because the button carries a filter of its own. */
-  z-index: 41 !important;
-  filter: drop-shadow(0 0 clamp(5px, 0.5vw, 10px) rgba(255, 201, 77, 0.95))
-          drop-shadow(0 0 clamp(14px, 1.5vw, 28px) rgba(255, 186, 56, 0.6)) !important;
-  animation: tutFocusBreathe 2.6s ease-in-out infinite;
-}
+/* NO .tut-lift. It raised a DOM control above the blur sheet and glowed it, for the one
+   step that introduced the JUMP button. The button is gone (index.html) and every subject
+   the tutorial has left is drawn on the canvas, where showFocus re-renders it alone. */
 
 /* THE HAND. It taps, on the spot being explained, and it IS the instruction to tap —
    there is no button. Same supplied art as the swipe hint, so a child learns one hand
    that means "your finger goes here". */
 .tut-hand {
   position: absolute;
-  width: clamp(54px, calc(5.6 * var(--u)), 216px);
+  /* SMALLER (asked for). 5.6 stage units was a hand as wide as the block it was
+     sweeping over; 3.6 demonstrates the gesture without hiding what the gesture is
+     about. The tap hand below is smaller again. */
+  width: clamp(40px, calc(3.6 * var(--u)), 110px);
   aspect-ratio: 300 / 360;
-  translate: -50% -50%;
+  --tip-x: 20%; --tip-y: 4%;
+  /* THE FINGERTIP IS THE POINT, NOT THE MIDDLE OF THE HAND.
+     The art is 300x360 with the index finger's tip about 20% across and 4% down, so a
+     hand centred on the cut line (translate -50% -50%) put its tip half a hand-height
+     ABOVE the line and a fifth of a hand-width beside it — reported as the hand not
+     being on the dashes. Translating by the tip's own place in the box lands the tip on
+     the point the engine gives, at any size. One image change is one edit here. */
+  translate: calc(-1 * var(--tip-x)) calc(-1 * var(--tip-y));
   background: url("../assets/ui/icons/touch.png?v=d05ff66d") center / contain no-repeat;
   filter: drop-shadow(0 clamp(3px, calc(0.31 * var(--u)), 12px) clamp(6px, calc(0.63 * var(--u)), 24px) rgba(4, 20, 44, 0.6));
   pointer-events: none;
 }
 .tut-hand[hidden] { display: none; }
-/* TWO GESTURES, and the hand has to perform the one being asked for — a child copies
-   the movement, so a tapping hand on a step that wants a swipe teaches the wrong
-   thing. The step names its gesture and this picks the animation. */
-/* THE TAP HAND IS SMALL AND UPRIGHT. At the size of the button it hid the button; asked for:
-   small, finger pointing straight up, fingertip a little inside the button's lower edge (the
-   tutorial places its centre just under that edge), pulsing. The icon is drawn leaning left,
-   so the base rotation squares it up; the pulse is a press and a lift, not a wave. */
-.tut-hand[data-gesture="tap"] {
-  --hand-rot: 16deg;
-  width: clamp(36px, 3.4vw, 66px);
-  rotate: var(--hand-rot);
-  animation: tutTap 1s cubic-bezier(.35, 0, .3, 1) infinite;
-}
+/* ONE GESTURE NOW: the sweep, on the rope of the answer. There was a TAP hand too, on the
+   JUMP button and then in open sky, and both are gone — the button with the control it
+   pointed at, and the sky one on request: a hand tapping one spot teaches that the spot is
+   the control, when the whole stage is. The jump is taught in words on Momo instead
+   (tutorial.js, step 4). The ripple went with it, since a contact ring belongs to a tap and
+   on a sweep it reads as a series of them. */
 .tut-hand[data-gesture="sweep"] { animation: tutSweep 1.5s cubic-bezier(.4, 0, .3, 1) infinite; }
-/* ACROSS the rope, which is the cut. The ripple is switched off for this one: a
-   contact ring belongs to a tap, and on a sweep it reads as a series of taps. */
-.tut-hand[data-gesture="sweep"]::after { display: none; }
+/* The vertical part of every step is the FINGERTIP anchor (--tip-y), not -50%: the tip
+   sweeps ALONG the dashed cut line instead of the hand's waist sweeping along it while
+   the tip travels through the sky above. */
 @keyframes tutSweep {
-  0%   { translate: -170% -50%; rotate: -14deg; opacity: 0; }
-  14%  { translate: -140% -50%; rotate: -12deg; opacity: 1; }
-  66%  { translate: 40% -50%;   rotate: 10deg;  opacity: 1; }
-  84%  { translate: 70% -50%;   rotate: 12deg;  opacity: 0; }
-  100% { translate: -170% -50%; rotate: -14deg; opacity: 0; }
+  0%   { translate: -170% calc(-1 * var(--tip-y)); rotate: -14deg; opacity: 0; }
+  14%  { translate: -140% calc(-1 * var(--tip-y)); rotate: -12deg; opacity: 1; }
+  66%  { translate: 40% calc(-1 * var(--tip-y));   rotate: 10deg;  opacity: 1; }
+  84%  { translate: 70% calc(-1 * var(--tip-y));   rotate: 12deg;  opacity: 0; }
+  100% { translate: -170% calc(-1 * var(--tip-y)); rotate: -14deg; opacity: 0; }
 }
-/* A tap is a press and a lift with a beat of stillness between — a hand that moves
-   continuously reads as waving, not tapping. The ripple is the ::after. */
-@keyframes tutTap {
-  0%, 100% { scale: 1;    rotate: var(--hand-rot, 0deg); }
-  38%      { scale: .82;  rotate: var(--hand-rot, 0deg); }
-  56%      { scale: 1.05; rotate: var(--hand-rot, 0deg); }
-}
-.tut-hand::after {
-  content: "";
-  position: absolute;
-  left: 14%; top: 6%;
-  width: 46%; aspect-ratio: 1;
-  border-radius: 50%;
-  border: clamp(2px, 0.21vw, 4px) solid rgba(255, 236, 170, 0.95);
-  animation: tutTapRing 1.15s cubic-bezier(.2, .7, .3, 1) infinite;
-}
-@keyframes tutTapRing {
-  0%, 30% { scale: .3; opacity: 0; }
-  45%     { scale: 1;  opacity: .95; }
-  85%     { scale: 2.1; opacity: 0; }
-  100%    { scale: .3; opacity: 0; }
-}
+/* tutTap, tutTapRing and the ::after ring that carried them went with the tap hand. */
 
 /* NO SPOTLIGHT ELEMENT ANY MORE. There was a .tut-spot: a transparent circle whose own
    huge box-shadow supplied the dim, with a gold outline round it.
@@ -637,11 +643,15 @@
 .tut-skip:hover { background: rgba(6, 32, 60, 0.72); }
 
 @media (prefers-reduced-motion: reduce) {
+  /* The flakes hold still, part way down, rather than being parked at the top of their
+     fall: an element whose only visible state is inside a keyframe disappears the moment
+     the animation does. */
+  .cover-snow i { animation: none; transform: translate3d(0, 42vh, 0); }
   .tut-veil { -webkit-backdrop-filter: brightness(0.6); backdrop-filter: brightness(0.6); animation: none; }
-  .tut-focus, .tut-lift { animation: none; }
+  .tut-focus { animation: none; }
   .tut-bubble { animation: none; scale: 1; rotate: -1.1deg; translate: -50% -50%; }
-  .tut-hand, .tut-hand::after { animation: none; }
-  .tut-hand[data-gesture="sweep"] { animation: none; translate: -50% -50%; }
+  .tut-hand { animation: none; }
+  .tut-hand[data-gesture="sweep"] { animation: none; translate: calc(-1 * var(--tip-x)) calc(-1 * var(--tip-y)); }
   /* still ARRIVES at its resting values rather than being parked mid-pop */
   .tut-bubble { animation: none; scale: 1; rotate: -1.4deg; translate: -50% -50%; }
 }
@@ -936,9 +946,12 @@
   bottom: 3%;
   transform: translateX(-50%);
   width: clamp(190px, calc(22 * var(--u)), 860px);
-  /* the common box the two takes were built onto */
-  aspect-ratio: 1880 / 711;
-  background-image: url("../assets/ui/btn-play.webp?v=722ee46e");
+  /* the common box the two takes were built onto — printed by tools/make-buttons.mjs,
+     and it moves whenever the art is re-delivered (the owner's new stone-rimmed PLAY is
+     1764 x 621, where the previous pair was 1880 x 711). Getting this wrong letterboxes
+     the art inside its own element and the button stops matching its hit area. */
+  aspect-ratio: 1764 / 621;
+  background-image: url("../assets/ui/btn-play.webp?v=240067f7");
   /* NO PERPETUAL BOB. See the note on .btn-replay: an infinitely animating button is a
      target that has moved by the time a finger lands on it, and Playwright refuses to
      click one at all ("element is not stable"), which is why no test caught it. It
@@ -964,7 +977,7 @@
    a menu screen is not covered by the thumb, so movement is exactly what sells it. */
 .btn-play:active,
 .btn-play.pressed {
-  background-image: url("../assets/ui/btn-play-pressed.webp?v=9a8a1105");
+  background-image: url("../assets/ui/btn-play-pressed.webp?v=ee743b30");
   animation: none;
   scale: 1.035 0.94;
   filter: drop-shadow(0 clamp(1px, 0.1vw, 2px) clamp(4px, 0.42vw, 8px) rgba(46, 12, 4, 0.55));

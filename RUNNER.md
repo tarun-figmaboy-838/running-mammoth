@@ -244,14 +244,18 @@ size is hard. Three- and five-option phases are comfortable.
 ## 5. What is on screen, and what is not
 
 **Present:** the character, the ice path, the crevasse and its meltwater, the ropes coming
-out of the fog, the hanging chunks, the instruction card, a tick or cross over the
-crossing for a second after an answer, and a JUMP button bottom-right during running
-segments. That is the whole interface.
+out of the fog, the hanging chunks and the instruction card. That is the whole interface —
+there is no control of any kind on the stage.
 
 **Removed deliberately — do not ask for these back without saying so:**
 - the character-select screen (one explorer now: the mammoth)
 - the phase-progress diamonds
 - any second instruction line during a phase
+- **the JUMP button.** A tap anywhere already jumped, so the button was a second way to
+  do one thing, and on a phone it was a corner target competing with the one instruction
+  that matters. Gone from the markup, the stylesheet and the HUD, along with its pressed
+  art, its tap ring, `hud.flashJump()` and `G.jumpPulse`. The tutorial's fourth line
+  teaches the control with a hand tapping open sky; Space / ↑ / W still jump.
 - **the three round icon buttons top-right (hint / sound / pause).** Gone from the
   markup. So there is no in-game mute, no pause, and no way to bring the instruction
   card back: sound and motion can only be set from the URL (`?sound=0`, `?reduced=1`).
@@ -1650,3 +1654,349 @@ pass: the button in `index.html`, its rule in `style.css`, the three `skipEnd` l
 `tests/skip-end.spec.mjs`.
 
 The tutorial names what is ahead — rock, log or fossil — from the obstacle's kind (`obstacleName`).
+
+---
+
+## 12. The six-point round (September 2026)
+
+Six items, in the owner's order. Each is a rule now.
+
+### 1. The dialogue speaks a sentence at a time
+
+Asked for: shorter, simpler sentences, arriving in sequence rather than a whole paragraph
+landing at once — "make it feel like comic dialogue".
+
+A step's line is now split at its own full stops and the sentences take the box in turn
+(`Tutorial.beats`): "This is Momo." lands, is read, pops out, and "He needs to find his
+friend." pops in behind it. Each sentence gets its own pop, its own hug to the words and
+its own beat, which is what makes it read as someone speaking rather than as a caption
+appearing. Three lines split: 1, 5 ("Oh no!" / "The path is broken.") and 7.
+
+**The words themselves are not rewritten in `tutorial.js`.** Every line is one recorded
+take (`CFG.vo.lines`) and is listed verbatim in `docs/VO-SCRIPT.md`; changing a sentence
+in one of the three without the others is how the voice ends up saying something the
+screen is not showing, and a test holds them together. The split happens on the way to
+the screen. A line that has to be genuinely shorter is shortened in the script, re-recorded
+and moved in the doc — all three at once.
+
+When there is a voice, the sentences share the clip in proportion to their own length, and
+each one's words rise across its own share (`setWords`), so what is on screen is what is
+being said. Measured on line 1 (a 3.99s clip): "This is Momo." holds 1.27s, "He needs to
+find his friend." 3.17s. Silent, each sentence gets a beat to look at it plus ~55ms a
+character, floored at 1.55s so a two-word beat is not a flash.
+
+### 2. The rope and the block it carries move together
+
+Reported as the rope and the shape travelling in opposite directions. Two unrelated
+clocks: the rig swings on `comedy.swayHz` (0.22Hz, one shared angle for every option) and
+the rope's bend ran on `rope.swayHz` (0.35Hz) **with a random phase per rope**. Two sine
+waves at different frequencies drift in and out of step, so for most of every cycle a
+block leaned one way while its own cord bowed the other.
+
+The bend is now the swing's own angular VELOCITY (`rigLag()`, the derivative of
+`rigSwing()`, negated so it trails): dead straight at each end of the arc where the rig is
+momentarily at rest, bowed furthest back as it passes through the middle at speed. That is
+what a rope on a pendulum does, it is one number for the whole row, and it cannot disagree
+with the block. `rope.swayHz` and the per-shape `phase` are gone — there is nothing left to
+desynchronise.
+
+### 3. One cut line, and everything points at it
+
+Three things aimed at the stretch of rope a swipe has to cross, and all three worked it
+out for themselves: the marching dashes interpolated along the swaying rope 60px above the
+block, the idle hand hint sat at the rope's MIDPOINT (about 180px higher), and the
+tutorial's sweep hand sat at the block's anchor x — the rope's top end, not where the rope
+is at the height of the dashes.
+
+`cutGuide(sh)` is the one source now. It is published on the shape each frame (`sh.guide`),
+`drawCutGuide`, `updateHints` and `Tutorial.ropeBox` all read it, and a hand cannot drift
+off its own dashes because there is only one number. A real bug went with it: `toView`
+rebuilt the mapped box field by field and **dropped `handX`/`handY`**, so a spot that put
+its hand anywhere other than its own centre lost that the moment the puzzle zoomed — which
+is every moment the rope hand is ever shown.
+
+Both hands are also smaller, and anchored by the FINGERTIP rather than the middle of the
+hand (`--tip-x`/`--tip-y`, 20%/4% of the art). Centred, the tip sat half a hand-height
+above the line it was meant to be sweeping along. The idle hand goes from 5 stage units
+wide to 3.4, the sweep hand from 5.6 to 3.6.
+
+### 4. A cut rope shows where it was cut
+
+Both halves used to be constants: the falling block carried a 34px snippet of cord whatever
+happened, and 72% of the rope was left on the rig. So a swipe just under the fog and a
+swipe just above the block produced exactly the same picture, and the one thing the learner
+had just DONE left no trace of where they did it.
+
+Both are measured from the crossing point now (`cutShape`, from `hit.y`): the cord below
+the cut goes down with the block, the cord above it stays hanging, and the two add up to
+the rope that was there. The stub's recoil is 0.78 of its length rather than 0.42 — a rope
+does spring back when it parts, but it does not lose most of itself, and taking three
+fifths away threw the information out again. Floors of 22px and 16px so a cut at either
+extreme still parts visibly instead of looking like the knot came undone.
+
+Nothing about the mechanic moved: where a rope may be cut is unchanged and the hit test is
+still `ropeSpan`'s straight line.
+
+### 5. There is no JUMP button
+
+A tap anywhere already jumped, so the button was a second way to do one thing — and on a
+phone it was a corner target competing with the one instruction that matters, which is
+"touch the screen". Gone from the markup, the stylesheet and the HUD, along with the
+pressed-art swap, the tap ring, the focus outline, `hud.flashJump()`, the keydown listener
+that existed only to flash it, and `G.jumpPulse` (which had no other reader). `.tut-lift`
+and `Tutorial.domSpot` went too: the button was the only DOM thing the tutorial ever
+pointed at, so every subject it has left is drawn on the canvas.
+
+The fourth tutorial line still says "Tap to jump over obstacles." — the recorded words are
+now literally true — and its hand taps in open sky at stage (1080, 470), deliberately not
+on an object: a finger on the rock or on Momo would read as "tap THIS", which is the
+opposite of the lesson. Space / ↑ / W still jump, handled where they always were, in the
+engine's own key listener.
+
+### 6. The leap travels forward
+
+The character's world position is fixed at `mammothX` and the ground scrolls past him,
+which is what keeps the collider, the obstacle spacing and every distance in the game
+arithmetic rather than simulation. The cost of it was that a jump was a pure vertical: he
+rose 360px and came down on the pixel he left, like a character bouncing on a treadmill.
+
+The DRAWN character now carries a forward offset through the flight — 0 at the take-off,
+`CFG.jumpLead` (120px) by the landing, linear in time, which against a parabolic height is
+exactly a projectile's arc — and over the next `jumpLeadBackS` (0.75s) of running the frame
+eases back to him, so nothing accumulates across a stretch of four rocks. How far through
+the flight he is comes off `vy` rather than a second clock, so it cannot disagree with the
+physics and a jump cut short by a rock simply stops where it was.
+
+**It is a draw offset and nothing else**, the same rule the whole comedy layer follows:
+`mammothX` is the collider and never moves, the arc's height, airtime and press window are
+untouched, and the jump is exactly as hard as it was tuned to be. `player.drawX` is the
+drawn position and the contact shadow, the take-off and landing clouds and the footfall
+spray all read it, so the effects travel with him. Test: game.spec "the leap travels
+forward and lands ahead, without moving the collider".
+
+---
+
+## 13. The sign, the cut line and the jump prompt (September 2026)
+
+### The instruction panel is a hanging board
+
+The owner delivered a new plank — a snowy board on two ropes with a knot and a steel
+eyelet at each end (`art-source/sign-hanging-src.png`, 2172 x 724).
+
+**It is three slices, cut by `tools/make-sign.mjs`,** which measures the delivery and
+prints every number the stylesheet uses. The two ends are pinned at their natural aspect
+and only the middle stretches, because the panel grows with its sentence and a rope
+stretched to 1.6x reads as a smear.
+
+**The middle slice is everything BETWEEN the caps, and that is the whole trick.** The
+first cut took a narrow clean sample from the centre of the board, and the joins were
+visible — reported as "the crop looks visible, not a natural single hanging board". The
+plank is hand-drawn, so its top edge, its pale inner panel and its bottom edge all wander
+by a few pixels along its length: measured, the sample's pale panel started 6px higher and
+ended 8px lower than the cap it butted against, which is a two-pixel step in the board's
+own edge at each join. Cutting the middle out of the span between the caps makes both
+seams continuous **by construction** — the middle's first column is the cap's next column
+— and the tool now measures both joins and refuses to write files if either is more than
+1px out. It also keeps the snow in the middle of the delivered board, which the narrow
+sample threw away.
+
+**The ropes are in the picture and the panel sits at `top: 0`,** so they run off the top of
+the frame exactly as the ice blocks' ropes do. Everything above the plank is transparent.
+That is why `--sign-h` is 9.4 stage units where the old flat art wanted 7.6: only 285 rows
+of the 652 are the plank.
+
+**It drops in and is pulled back up** (`signDrop`, `signPullUp`). The drop settles in three
+decaying swings — 4%, -2.4%, 1.2% — about a pivot set above the panel where the ropes leave
+the frame, because a single overshoot reads as a bounce off a floor, which is the opposite
+of hanging. The exit dips before it goes, which is what makes it read as a pull rather than
+a slide, and finishes inside the 300ms the HUD waits before hiding the panel. Both are off
+under reduced motion. `pillIn` went with the flat sign.
+
+The words still reveal in step with the voice (`Hud.setInstruction` spreads the reveal
+across the spoken clip), and the panel still shrinks to fit its sentence — that is all the
+middle slice does.
+
+### The cut line: one height, the middle of what is on screen
+
+Reported as the dashes being low and not lining up. Both were true, and each had its own
+cause.
+
+- **They did not line up** because the height was worked out per block, 60px above its own
+  top edge — and a phase's shapes are fitted uniformly, so a triangle and a hexagon have
+  tops up to forty pixels apart. Three marks that are one instruction stepped up and down
+  across the row. `rowGuideY()` now sets ONE height for the whole row.
+- **They were low** because 60px above the block is the bottom of the rope. The mark now
+  goes on the middle of the rope — and *the middle of what is on screen*, not of the world:
+  the puzzle pushes in at `zoomK` 1.24 and the push-in crops the top of the world, so the
+  world middle (y 171) came out a fifth of the way down the visible rope. Solving the view
+  transform for the frame's top edge (world y 109 at that zoom) puts it at y 237, which is
+  the middle of the picture at any zoom, including none.
+- **The dash sits ON the cord**, bend included: the guide adds the rope's bow, which is at
+  its widest exactly where the mark now goes.
+
+Everything that points at a cut reads `cutGuide` — the dashes, the idle hand, the tutorial's
+sweep hand and the engine's demo stroke. That last one was a third place deriving its own
+position (the rope's midpoint at the anchor's x, about 180px above the marks).
+
+### A rope never moves on its own
+
+Reported twice: first as the rope and the shape moving in opposite directions, then as the
+two waving differently and looking detached. Both times the cause was the cord's bend having
+a CLOCK.
+
+| | what it was | why it read wrong |
+|---|---|---|
+| first | its own frequency (0.35Hz) with a random phase per rope, against a rig swaying at 0.22Hz | two unrelated sine waves drift in and out of step |
+| second | the swing's own angular velocity | honest physics, but velocity is 90° out of phase with position, so the cord's middle still travelled on a different schedule from the block on its end |
+
+A rope and the thing tied to it are one object, and the only way that is certain on screen
+is for them to share ONE transform and nothing else. The bend is now a constant per rope
+(`ropeBow`, deterministic from the shape's seed so the row is not stamped out), rotated with
+the rig exactly as the block is. Test: tremble.spec "the rope moves with the block it carries
+and never on its own" holds that every rope's bend is the same number after six seconds of
+swinging as it was at the start.
+
+### The jump prompt is words on Momo
+
+No hand (asked for). A hand tapping one spot is the one thing that must not be said once the
+control is the whole stage — it teaches that the spot is the control. The fourth tutorial
+line keeps its recorded words, "Tap to jump over obstacles.", and its box sits on Momo, who
+is the one doing the jumping. The tap hand, its press keyframes and its contact ring are gone
+from the stylesheet with it; the sweep hand on the rope is the only hand left in the game.
+
+### The cover, the PLAY button and the snow
+
+**The banner is the owner's `FROZEN RUSH` art** (`art-source/cover-frozen-rush-2.png` →
+`game/assets/art/cover.webp`, 1672 x 941, the same box as the take it replaces, so nothing
+in the cover's layout moved).
+
+**The PLAY button is the owner's stone-rimmed pair**, built by `tools/make-buttons.mjs`
+from the two delivered takes. The press is in the art, as it is for every button in this
+game — measured, the "pressed" take is the darker of the two (mean luminance 122 against
+157), which is the family's rule holding by itself. The pair's common box changed from
+1880 x 711 to 1764 x 621, and `aspect-ratio` in `screens.css` had to move with it or the
+art letterboxes inside its own element and the picture stops matching the hit area.
+
+**The snow is six-armed flakes, not dots.** Three depths: the far layer stays dots — at a
+pixel and a half a dendrite is a grey smudge and costs a blit to say nothing — and the mid
+and near layers are the drawn flake. Two things make them read, and both were needed:
+
+- **The arms are fat.** A dendrite at true proportions is hairline-thin at 20px across and
+  disappears; these are a cartoon flake, arms an eighth of the radius.
+- **They are bigger and more solid than the dots were**: a near flake is about 22–33px
+  across where the dot was 9, at 0.62–0.86 alpha where the dot was 0.3–0.46.
+
+Each turns as it falls, at its own rate and its own direction — a flake that keeps one
+orientation all the way down reads as a sticker on the screen, and the spin is the whole
+difference between falling and scrolling. It goes with the rest of the motion under
+`?reduced=1`.
+
+**It is one sprite, drawn once.** A dozen strokes per flake per frame for thirty flakes is
+the "gradient per particle" mistake the house rules warn about, so the flake is rasterised
+into one 96px offscreen canvas the first time it is needed and blitted from then on: one
+image, thirty draws, no paths. Test: ui.spec "the snow is fairy flakes, and they are
+evident" — which also fails if the sprite is ever null, since that silently falls back to
+dots.
+
+### The hanging rig holds still
+
+Reported three times — the rope and the shape moving in opposite directions, then the two
+waving differently, then *still* not synced. The first two were real and are written up
+above (the cord's bend had a clock, twice). The third was measured and was not:
+
+```
+135 samples over six seconds of play
+  block travel  12.46 px      rope travel  11.90 px   (halfway up the cord)
+  frames moving the SAME way: 130      OPPOSITE: 0
+```
+
+They were rigid, and it still looked wrong. That is not a synchronisation fault, and no
+amount of correctness fixes it: a big solid block travelling 12px is visible, the thin cord
+travelling the same 12px is not, and the eye reads the difference as the two coming apart.
+The only thing that fixes it is for neither to move.
+
+So `CFG.comedy.swayRad` is **0**, and that also puts the row back where this game's own rule
+had it — *"the options are the question being asked and a question should hold still while
+it is read"* (2026-09-04, when the sway, the arrival bounce and the missed-swipe jiggle went
+together). What keeps the row alive is light rather than movement: the halo, and the sheen
+sweeping the ice. The ropes still carry their fixed curve; they simply do not move. The
+mechanism is untouched and one number turns it back on. Test: tremble.spec "the hanging rig
+does not move: not the cord, not the ice, not ever".
+
+### The snow is on the banner, not over the answer
+
+Both asks, together: real flakes and evident — then fewer of them, no clutter over what the
+player is reading. A flake reads by its shape and its size, not by how many there are, so
+each one keeps its size and its opacity and the counts came down: mid 20 → 9, near 10 → 4,
+far 34 → 26.
+
+**Nothing falls in front of an open question.** The near layer is the only snow drawn OVER
+the ice blocks, and a 30px flake tumbling across the shape a child is counting the sides of
+is exactly the distraction that was asked to go — so it stops for as long as a crossing is
+open (`drawFront(..., quiet)`, and `quiet` is simply "a puzzle exists"). The two layers
+behind it never stop, so the weather does not blink off with the question.
+
+**The banner is where the snowfall lives.** `.cover-snow` was six radial-gradient dots
+drifting as one sheet; it is now fourteen real six-armed flakes, each with its own column,
+size, fall time, head start and spin direction. They are elements rather than a background
+layer for one reason: a flake has to TURN as it falls and a background cannot rotate. The
+flake itself is a data-URI SVG in the stylesheet, so the layer still costs no asset and no
+request. Off under reduced motion — and held part way down rather than parked at the top of
+the fall, so it cannot vanish with the animation. Tests: ui.spec "the snow is fairy flakes:
+evident one at a time, and few of them" and "nothing falls in front of an open question".
+
+### The rig moves again — a little, and visibly as one piece
+
+The still rig (above) was reviewed as dead: "add minor evident motion, but keep it in
+sync". `CFG.comedy.swayRad` is 0.030 (1.7°, the block travels ~17px) and the cord's bend is
+now **locked to the swing's position** (`ropeBow`): a fixed curve per rope, plus
+`rope.bowSwing` (9px) times the swing's own normalised angle. So the rope is at its most
+curved on the very frame the block is at its furthest — both extremes land together, which
+is what "moving together" looks like on a thin line. Measured: block 17px, cord 30px at its
+middle, same direction on 108 of 108 frames, opposite on none. The test holds it as a
+correlation: every rope's bend against the swing, > 0.95.
+
+The velocity-locked version is the one to avoid: it is honest physics and it is 90° out of
+phase, which the eye reads as two schedules.
+
+### The board is lowered, not swung
+
+The first drop pivoted the sign above the frame with a 2.2° tilt, reviewed as unnatural —
+and a sign on TWO ropes cannot swing like that; the ropes keep it level. `signDrop` is now a
+fall: ease-in (gravity) to the mark at 44%, the ropes stretch 5% past it, then two return
+bobs (−2%, +0.8%) with a third of a degree of tilt as one rope takes the weight first. 760ms
+and `linear` on the outside, because each keyframe carries its own curve.
+
+### The jump line sits in the middle
+
+Words alone, no hand (a hand tapping one spot teaches that the spot is the control), and now
+in the CENTRE of the stage rather than on Momo — asked for, and right: "Tap to jump" is an
+instruction about the whole screen, and a box in the middle of the sky says "anywhere" the
+way a box parked on one character cannot. The tail still leans toward Momo (`aimX`).
+
+### The rope and the block WERE on opposite sides — a sign error, found on the fourth report
+
+Everything above about the bend was real, and none of it was the fault the owner kept
+seeing. The block is drawn with `ctx.rotate(a)` then a step of `len` down the rope, and the
+canvas matrix takes (0, len) to (−len·sin a, len·cos a): a positive swing carries the block
+to the **left**. `ropeSpan()` put the rope's end at `anchorX **+** sin(a)·len` — to the
+right. So every hanging block and its own rope leaned to opposite sides of the anchor, up to
+30px apart at the end of the arc, and swapped sides every half cycle. The hit test and the
+drawn rope agreed with each other (both read `ropeSpan`), which is why no cut test caught
+it; only the picture was wrong.
+
+**Why three fixes missed it.** Each was verified by measuring the model against itself —
+`sh.x` (computed with the same +sin) against the guide point (computed from `ropeSpan`,
+also +sin) — and each came out "in sync" because both numbers shared the error. The proof
+that finally counts reads the **backbuffer**: `qa-report/probe-pixels.mjs` finds the painted
+cord just above the block and the painted ice at the block's top edge, through a full swing.
+Before: the two reversed sides. After (`-sin` in `ropeSpan` and in `updateL1`'s `sh.x`):
+
+```
+38 samples, swing -0.030 .. +0.030 rad
+painted rope-end minus painted block-centre:  1.7 .. 7.8 px, at BOTH ends of the arc
+moving the same way: 33 frames    opposite: 1 (centroid noise)
+```
+
+**The rule this leaves behind:** when the complaint is about what is on screen, measure
+the pixels. A model that is consistent with itself proves nothing about the picture.

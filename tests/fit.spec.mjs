@@ -85,7 +85,7 @@ test.describe('the text fits its panel', () => {
     };
 
     await line('This is Momo');
-    const first = await measure();          // the long one: three lines on a desktop stage
+    const first = await measure();          // the first sentence of line 1, on its own
     await line('Help Momo cross');
     const second = await measure();
 
@@ -101,5 +101,39 @@ test.describe('the text fits its panel', () => {
       expect(Math.abs(m.airTop - m.airBottom), `${m.text}: air above vs below`).toBeLessThanOrEqual(Math.max(2, m.fontPx * 0.06));
       expect(Math.abs(m.svgW - m.boxW), `${m.text}: the yellow follows the box`).toBeLessThanOrEqual(2);
     }
+  });
+
+  test('a line arrives one sentence at a time, never as a paragraph', async ({ page }) => {
+    /* Asked for: shorter sentences, in sequence, like comic dialogue. "This is Momo. He needs
+       to find his friend." used to land as one block of text — a paragraph in a speech bubble,
+       which is the one thing a five-year-old will not read. It is split at its own full stops
+       now (Tutorial.beats) and the sentences take the box in turn.
+
+       What is held here is the SEQUENCE: each sentence is on screen by itself, in script order,
+       and the two halves are never up together. The words are not changed by the split, so the
+       recording and docs/VO-SCRIPT.md still match — a separate test holds that. */
+    await boot(page, { tutorial: true, skipScreens: true });
+    const seen = await page.evaluate(async () => {
+      const out = [];
+      const tx = document.getElementById('tut-text'), layer = document.getElementById('tutorial');
+      const t0 = performance.now();
+      while (performance.now() - t0 < 14000) {
+        await new Promise(r => requestAnimationFrame(r));
+        if (!layer || layer.hidden || !tx) continue;
+        const t = tx.textContent.trim();
+        if (t && t !== out[out.length - 1]) out.push(t);
+        if (out.includes('He needs to find his friend.') && out.length > 2) break;
+      }
+      return out;
+    });
+
+    const iFirst = seen.indexOf('This is Momo.');
+    const iSecond = seen.indexOf('He needs to find his friend.');
+    expect(iFirst, 'the first sentence is shown on its own').toBeGreaterThanOrEqual(0);
+    expect(iSecond, 'and then the second one is').toBeGreaterThan(iFirst);
+    // the whole line never appears as one block, which is the thing that was asked to stop
+    expect(seen.some(t => /This is Momo\..*friend/.test(t)), 'the two are never up together').toBe(false);
+    // and every sentence that arrives is a short one
+    for (const t of seen) expect(t.length, `"${t}" is a sentence, not a paragraph`).toBeLessThan(46);
   });
 });

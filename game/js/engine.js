@@ -69,6 +69,28 @@ export const CFG = {
   jumpVel: -1470,          // apex 360px, airtime 0.98s (was 295px / 0.887s)
   coyoteMs: 150,           // pressed a moment late off the ground still counts
   bufferMs: 190,           // pressed a moment early still fires on landing
+  /* THE LEAP GOES FORWARD, AND LANDS FORWARD.
+   *
+   * The character's world position is fixed at mammothX and the ground scrolls past
+   * him, which is the standard runner arrangement and is what keeps the collider, the
+   * obstacle spacing and every distance in the game arithmetic rather than simulation.
+   * The cost of it is that a jump was a pure vertical: he rose 360px and came down on
+   * the very pixel he left, like a character bouncing on a treadmill. Nothing about the
+   * take-off read as LEAPING OVER the rock — he hopped and the rock slid under him.
+   *
+   * So the drawn character carries a forward offset through the flight: 0 at the
+   * take-off, `jumpLead` px ahead by the landing, linear in time — which, against a
+   * parabolic height, is exactly a projectile's arc. He touches down visibly ahead of
+   * where he left, and over the next `jumpLeadBackS` of running the frame eases back to
+   * him (the world catching up with a runner who has just gained on it), so nothing
+   * accumulates over a stretch of four rocks and he never drifts across the screen.
+   *
+   * IT IS A DRAW OFFSET AND NOTHING ELSE — the same rule the whole comedy layer follows.
+   * The collider is still the fixed box at mammothX, the arc's height, airtime and
+   * press window are untouched, and the jump is exactly as hard as it was tuned to be.
+   * 120px is about a quarter of the ground a leap covers (520px/s x 0.98s = 510), which
+   * reads as travel without putting him a body-length from his own hit box. */
+  jumpLead: 120, jumpLeadBackS: 0.75,
   totalDistance: 11200,
   // surfaceRatio anchors the path image to surfaceY. The art's faint top fringe starts
   // at src y~216 but its SOLID snow edge is at ~227, so the old 0.406 left the feet
@@ -822,9 +844,15 @@ export const CFG = {
      the knot-and-fray cap that sits on the block, `fray` the frayed end alone (a cut rope's
      end). cordW is the cord's width in art px — the drawn width divided by it is the scale
      everything else is drawn at, so the knot is as thick as the rope it is tied in.
-     `bow` is the bend's amplitude in stage px, per rope, swaying at swayHz. */
+     `bow` is the bend's amplitude in stage px, and IT HAS NO CLOCK — see ropeBow(). It
+     is the rope's own slight curve, fixed for the life of that rope and rotated with the
+     rig exactly as the block is, so the cord and the ice it carries are one moving piece.
+     Two earlier versions both animated it and both were reported as the rope and the
+     shape moving separately: first its own frequency with a random phase per rope, then
+     the swing's velocity, which is real physics but sits 90 degrees out of phase with the
+     block's position. Nothing about a hanging rope needs a second clock. */
   rope: { src: 'assets/env/rope-tied.webp', artW: 96, cordW: 35, cord: [96, 1216], seg: 280,
-          knot: [1222, 1303], fray: [1262, 1303], bow: 7, swayHz: 0.35 },
+          knot: [1222, 1303], fray: [1262, 1303], bow: 7, bowSwing: 9 },
   /* THE VOICE-OVER. The owner recorded every line the learner is shown as ONE take (39 s), in
      the order of docs/VO-SCRIPT.md. One file is one download and one decode, so instead of
      sixteen files this names a WINDOW per line: [start, length] in seconds, measured off the
@@ -928,12 +956,27 @@ export const CFG = {
      and the cut hit test is against the rope. A learner cannot be made to miss by a
      wobble. */
   comedy: {
-    /* THE HANGING SWAY. One shared angle for every option, pivoting from the rig line
-       off the top of the screen — see rigSwing(). Slow and small: 1.3 degrees over a
-       4.5s cycle carries the bottom of a block about 11px, which reads as weight on a
-       rope without making a shape harder to count. Per-option phases were what made the
-       row look messy, so there is deliberately no per-shape variation here at all. */
-    swayHz: 0.22, swayRad: 0.022,
+    /* THE HANGING SWAY. One shared angle for every option, pivoting from the rig line off
+       the top of the screen (rigSwing), and the ROPE'S BEND IS LOCKED TO IT (ropeBow).
+
+       This number has been 0.022, then 0, and is now 0.030. The history is the point:
+
+         0.022  a 1.3 degree breath. Reported three times as the rope and the block moving
+                separately — twice for real (the bend had its own clock) and once when they
+                were provably rigid: over 135 frames they moved the same way on 130 of them
+                and in opposite directions on none. What was left was not a synchronisation
+                fault. A solid block travelling 12px is visible; a thin cord travelling the
+                same 12px is not, and the eye reads the difference as the two coming apart.
+         0      so it was switched off entirely. Which reads as dead — asked for at once:
+                bring the motion back, keep it synchronised.
+         0.030  1.7 degrees, and the cord is now VISIBLY part of it: its bend swells and
+                relaxes with the swing's own position (not its velocity, which is what put
+                them 90 degrees apart before), so at each end of the arc the rope is at its
+                most curved AND the block is at its furthest. Everything peaks on the same
+                frame, which is what "moving together" looks like on a thin line. The block
+                travels about 17px, enough to be alive, far too little to make a shape
+                harder to count. */
+    swayHz: 0.22, swayRad: 0.030,
     tremorHz: 9.5,        // knock-knees frequency. Above ~12 it reads as video noise
     scareDecay: 1.35,     // seconds for a full fright to fall away
     shakeHoldMs: 1250,    // how long the fright state holds when there is no shake art
@@ -2703,15 +2746,33 @@ class BackgroundTimeManager {
 
 /* ---------------- Atmosphere (aurora / snowfall) ---------------- */
 class Atmosphere {
+  /* How many px across a flake is drawn, per px of its old dot radius. One place, so the
+     test that holds "the snow is evident" and the renderer cannot disagree. */
+  static FLAKE_K = 6.8;
   constructor() {
     const mk = (n, cfg) => Array.from({ length: n }, () => ({
       x: rand(0, 1920), y: rand(-80, 1080),
       r: rand(cfg.r0, cfg.r1), fall: rand(cfg.f0, cfg.f1),
-      sway: rand(cfg.s0, cfg.s1), ph: rand(0, 6.283), a: rand(cfg.a0, cfg.a1), par: cfg.par
+      sway: rand(cfg.s0, cfg.s1), ph: rand(0, 6.283), a: rand(cfg.a0, cfg.a1), par: cfg.par,
+      // its own slow turn as it falls, either way round (see drawSnow)
+      spin: rand(0.12, 0.5) * (Math.random() < 0.5 ? -1 : 1)
     }));
-    this.far = mk(34, { r0: 0.9, r1: 1.7, f0: 16, f1: 26, s0: 5, s1: 12, a0: 0.16, a1: 0.3, par: 0.12 });
-    this.mid = mk(22, { r0: 1.6, r1: 2.6, f0: 30, f1: 46, s0: 9, s1: 18, a0: 0.28, a1: 0.44, par: 0.26 });
-    this.near = mk(9, { r0: 3.0, r1: 4.6, f0: 62, f1: 92, s0: 16, s1: 30, a0: 0.3, a1: 0.46, par: 0.5 });
+    /* THREE DEPTHS, AND FEW OF THEM. The far layer is still dots — at a pixel and a half a
+       six-armed flake is a grey smudge and costs a blit to say nothing. The mid and near
+       layers are the drawn flake (Atmosphere.flake).
+
+       THE COUNTS CAME BACK DOWN. They went up to make the flakes evident, and evident they
+       are — but twenty of them crossing the play area is weather competing with the thing
+       the player is reading, and it was asked to stop: fewer flakes, no clutter over the
+       interface. What makes snow read is the SHAPE and the size of each flake, not how many
+       there are, so the size and the alpha stay and the count is halved. The banner is where
+       a real snowfall belongs, and it has one (.cover-snow).
+
+       The near layer is the one that crosses the ice blocks and the answer, so it is the
+       sparsest of the three — and it stops entirely while a question is up (see drawFront). */
+    this.far = mk(26, { r0: 0.9, r1: 1.7, f0: 16, f1: 26, s0: 5, s1: 12, a0: 0.14, a1: 0.26, par: 0.12 });
+    this.mid = mk(9, { r0: 1.8, r1: 2.8, f0: 30, f1: 46, s0: 9, s1: 18, a0: 0.42, a1: 0.6, par: 0.26 });
+    this.near = mk(4, { r0: 3.2, r1: 4.6, f0: 62, f1: 92, s0: 16, s1: 30, a0: 0.5, a1: 0.7, par: 0.5 });
     this.aur = [
       { y: 330, amp: 26, freq: 0.0019, sp: 0.22, h: 250, c: [116, 255, 190], a: 0.15 },
       { y: 286, amp: 20, freq: 0.0027, sp: -0.18, h: 210, c: [108, 214, 255], a: 0.10 },
@@ -2928,8 +2989,57 @@ class Atmosphere {
     ctx.filter = 'none';
     ctx.restore();
   }
-  drawSnow(ctx, worldX, t, reduced, layers) {
+  /* A REAL SNOWFLAKE, DRAWN ONCE AND KEPT.
+   *
+   * The snow was round white dots. Asked for: proper fairy flakes, and evidently so. A
+   * six-armed dendrite is a dozen strokes, and drawing a dozen strokes per flake per
+   * frame for thirty flakes is exactly the "gradient per particle" mistake the house
+   * rules warn about — so it is rasterised once into a small offscreen canvas and blitted
+   * from then on. One image, thirty draws, no paths.
+   *
+   * 96px is about four times the biggest a flake is ever drawn (23px), so it is still
+   * sharp on a 2x backbuffer, and it costs one 96x96 canvas for the life of the page.
+   */
+  static flake() {
+    if (Atmosphere._flake) return Atmosphere._flake;
+    const S = 96, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const g = c.getContext('2d');
+    g.translate(S / 2, S / 2);
+    g.strokeStyle = '#FFFFFF'; g.lineCap = 'round'; g.lineJoin = 'round';
+    /* A soft glow of its own, so a white flake still reads against a white sky at dawn
+       and against the pale ice — the same reason the cut line carries one. */
+    g.shadowColor = 'rgba(198, 234, 255, 0.95)'; g.shadowBlur = S * 0.1;
+    const R = S * 0.42;
+    for (let i = 0; i < 6; i++) {
+      g.save();
+      g.rotate(i * Math.PI / 3);
+      /* FAT ARMS, and that is what makes a flake read at all. A dendrite drawn at true
+         proportions is hairline-thin once it is 20px across: the shape disappears and what
+         is left is a grey speck, which is what the dots were. These are a cartoon flake —
+         the arms are an eighth of the radius. */
+      g.lineWidth = S * 0.075;
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -R); g.stroke();          // the arm
+      g.lineWidth = S * 0.058;
+      // two pairs of branches, the classic dendrite: the outer pair shorter than the inner
+      for (const [at, len] of [[0.46, 0.30], [0.74, 0.20]]) {
+        g.beginPath();
+        g.moveTo(0, -R * at); g.lineTo(-R * len * 0.9, -R * (at + len * 0.55));
+        g.moveTo(0, -R * at); g.lineTo(R * len * 0.9, -R * (at + len * 0.55));
+        g.stroke();
+      }
+      g.restore();
+    }
+    g.fillStyle = '#FFFFFF';
+    g.beginPath(); g.arc(0, 0, S * 0.08, 0, 6.2832); g.fill();             // the hub
+    return (Atmosphere._flake = c);
+  }
+
+  /* `flakes` draws the six-armed sprite; the far layer stays as dots, because at that
+     size and alpha a dendrite is a grey smudge and thirty more blits buy nothing. */
+  drawSnow(ctx, worldX, t, reduced, layers, flakes) {
     const damp = reduced ? 0.35 : 1;
+    const spr = flakes ? Atmosphere.flake() : null;
     ctx.save();
     for (const layer of layers) {
       for (const f of layer) {
@@ -2937,8 +3047,21 @@ class Atmosphere {
         const drift = Math.sin(t * 0.6 + f.ph) * f.sway;
         const x = ((f.x - worldX * f.par * 0.35 + drift) % 2000 + 2000) % 2000 - 40;
         ctx.globalAlpha = f.a * (0.75 + 0.25 * Math.sin(t * 1.6 + f.ph));
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath(); ctx.arc(x, y, f.r, 0, 6.2832); ctx.fill();
+        if (spr) {
+          /* It turns as it falls — slowly, and each at its own rate and direction. A flake
+             that keeps one orientation all the way down reads as a sticker on the screen;
+             this is the whole difference between falling and scrolling. Under reduced
+             motion the spin goes with the rest of the movement. */
+          const d = f.r * Atmosphere.FLAKE_K;
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(f.ph + (reduced ? 0 : t * f.spin));
+          ctx.drawImage(spr, -d / 2, -d / 2, d, d);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath(); ctx.arc(x, y, f.r, 0, 6.2832); ctx.fill();
+        }
       }
     }
     ctx.restore();
@@ -2950,11 +3073,18 @@ class Atmosphere {
     const L = light || { c: [255, 255, 255], dim: 1 };
     this.drawFrost(ctx, L);
     this.drawClouds(ctx, worldX, L, reduced);
-    this.drawSnow(ctx, worldX, t, reduced, [this.far, this.mid]);
+    this.drawSnow(ctx, worldX, t, reduced, [this.far]);
+    this.drawSnow(ctx, worldX, t, reduced, [this.mid], true);
     this.drawWind(ctx, worldX, t, L, reduced);
   }
-  drawFront(ctx, worldX, t, reduced) {
-    this.drawSnow(ctx, worldX, t, reduced, [this.near]);
+  /* NOTHING FALLS IN FRONT OF THE QUESTION. `quiet` is set while a crossing is open: the
+     near layer is the only snow drawn OVER the ice blocks, and a 30px flake tumbling across
+     the shape a child is counting the sides of is exactly the distraction that was asked to
+     go. The two layers behind stay, so the weather does not switch off — it just stops
+     crossing the answer. */
+  drawFront(ctx, worldX, t, reduced, quiet) {
+    if (quiet) return;
+    this.drawSnow(ctx, worldX, t, reduced, [this.near], true);
   }
 }
 
@@ -3031,6 +3161,10 @@ class PlayerController {
   }
   reset() {
     this.state = 'RUN'; this.t = 0; this.y = 0; this.vy = 0;
+    /* THE FORWARD OFFSET OF A LEAP (CFG.jumpLead). `dx` is where the drawing is,
+       relative to mammothX; `dxFrom`/`dxT` are the ease back to zero after the landing.
+       Draw only — see the note in CFG. */
+    this.dx = 0; this.dxFrom = 0; this.dxT = 0;
     this.airborne = false; this.lastGround = 0; this.bufferedJump = -1;
     this.squash = 1; this.tilt = 0; this.hop = 0;
     this.runDist = 0; this.lastStepFrame = -1;
@@ -3133,7 +3267,7 @@ class PlayerController {
        read as either. The crouch is already in the art (J.crouch); what the launch
        needs is the stretch that follows it. */
     this.squash = 1.13; this.audio.jump();
-    this.particles.poof(CFG.mammothX - 10, CFG.surfaceY, 4, 0.8);
+    this.particles.poof(this.drawX - 10, CFG.surfaceY, 4, 0.8);
   }
   update(dt, now, moving, speed) {
     this.t += dt;
@@ -3151,8 +3285,18 @@ class PlayerController {
     if (this.airborne) {
       this.vy += CFG.gravity * dt;
       this.y += this.vy * dt;
+      /* THE ARC TRAVELS. How far through the flight he is, read off the vertical speed
+         rather than a clock: vy runs from jumpVel to +|jumpVel| over the airtime, so
+         this is 0 at the take-off and 1 at the touchdown, is linear in time (vy is), and
+         needs no second timer that could disagree with the physics. Linear forward
+         against a parabolic height IS the arc. Cut short by a rock, it simply stops
+         where it was. */
+      const u = clamp((this.vy - CFG.jumpVel) / Math.max(1, -2 * CFG.jumpVel), 0, 1);
+      this.dx = (CFG.jumpLead || 0) * u;
       if (this.state === 'JUMP_START' && this.t > 0.08) this.setState('JUMP_AIR');
       if (this.y >= 0) {
+        // he has landed AHEAD; the frame eases back to him over the next stride
+        this.dxFrom = this.dx; this.dxT = 0;
         this.y = 0; this.vy = 0; this.airborne = false; this.lastGround = now;
         /* A KNOCKOUT SURVIVES THE LANDING.
 
@@ -3168,10 +3312,26 @@ class PlayerController {
         if (this.state !== 'KNOCKOUT') {
           // a real squash on arrival: with volume preserved on X this is the weight
           this.setState('LAND'); this.squash = 0.82;
+        } else {
+          /* A CRASH ARRESTS THE LEAP. The ease back to the mark (above) belongs to a
+             landing the run carries on from; a knockout stops the world, so easing a
+             120px offset out over the next three quarters of a second would slide him
+             backwards across the ice while he sits there dazed. Hitting a rock stops you
+             where you hit it, and that is also what the sit is drawn as. */
+          this.dx = 0; this.dxFrom = 0; this.dxT = 0;
         }
-        this.audio.land(); this.particles.poof(CFG.mammothX, CFG.surfaceY, 6, 1.15);
+        this.audio.land(); this.particles.poof(this.drawX, CFG.surfaceY, 6, 1.15);
       }
     } else {
+      /* THE FRAME CATCHES UP. Eased at both ends rather than decayed towards zero: an
+         exponential approach is fastest on its first frame and then creeps, which is
+         the fault already written up on the camera move — it would read as a lurch
+         backwards on the landing frame followed by a long drift. */
+      if (this.dx !== 0) {
+        this.dxT += dt;
+        const p = clamp(this.dxT / Math.max(0.01, CFG.jumpLeadBackS || 0.75), 0, 1);
+        this.dx = p >= 1 ? 0 : this.dxFrom * (1 - easeInOut(p));
+      }
       if (this.bufferedJump > 0 && now - this.bufferedJump < CFG.bufferMs &&
         (this.state === 'RUN' || this.state === 'LAND')) { this.bufferedJump = -1; this.doJump(); }
       /* 0.12, not 0.18: the last 90 ms of a 180 ms landing was the absorb pose held still, which
@@ -3194,7 +3354,7 @@ class PlayerController {
         if (f !== this.lastStepFrame) {
           this.lastStepFrame = f;
           this.audio.step();
-          this.particles.skid(CFG.mammothX - 40, CFG.surfaceY, 1);
+          this.particles.skid(this.drawX - 40, CFG.surfaceY, 1);
         }
       } else {
         this.lastStepFrame = -1;
@@ -3205,8 +3365,8 @@ class PlayerController {
       this.sprayClock += dt;
       while (this.sprayClock > 0.06) {
         this.sprayClock -= 0.06;
-        this.particles.skid(CFG.mammothX - 60, CFG.surfaceY, 1);
-        this.particles.poof(CFG.mammothX - 74, CFG.surfaceY, 1, 0.75);   // a trail of little clouds behind the skidding feet
+        this.particles.skid(this.drawX - 60, CFG.surfaceY, 1);
+        this.particles.poof(this.drawX - 74, CFG.surfaceY, 1, 0.75);   // a trail of little clouds behind the skidding feet
       }
     } else this.sprayClock = 0;
     /* Once the tremble has played out, settle into peering into the crevasse.
@@ -3382,12 +3542,18 @@ class PlayerController {
     this.tilt = lerp(this.tilt, wantTilt, dt * 7);
   }
   get feetY() { return CFG.surfaceY + this.y - this.hop; }
+  /* WHERE HE IS DRAWN. mammothX is where the COLLIDER is and it never moves; this is
+     that plus the leap's forward offset (see CFG.jumpLead). Everything that has to
+     appear under his feet — the contact shadow, the take-off and landing clouds, the
+     footfall spray — reads this, so those effects travel with the arc instead of being
+     left behind at the take-off point. Nothing that DECIDES anything reads it. */
+  get drawX() { return CFG.mammothX + (this.dx || 0); }
   /* `bare` draws the character ALONE — no contact shadow. The tutorial re-draws him on
      its focus canvas and puts a glow round whatever has alpha there; a shadow ellipse
      under his feet would have glowed as a second, floating shape. */
   draw(ctx, t, bare) {
     const img = this.sheet;
-    const x = CFG.mammothX, y = this.feetY;
+    const x = this.drawX, y = this.feetY;
     /* cellK is 1.5 when the hd set is loaded: the cell is bigger and the scale smaller by
        the same factor, so the character stays the same size on stage. */
     const kc = CFG.sprite.cellK || 1, COLS = CFG.sprite.cols || 6;
@@ -5016,7 +5182,11 @@ export function createGame(canvas, hooks = {}) {
   const G = {
     state: 'BOOT', st: 0, worldX: 0, dist: 0, progress: 0, t: 0,
     speedFactor: 1, shake: 0, shakeT: 0, moving: true,
-    instruction: '', jumpEnabled: false, jumpPulse: false,
+    /* NO jumpPulse. It existed to make the JUMP button glow — once when the first rock
+        was spawned and again after a crash, to re-teach the control. The button is gone
+        (see index.html) and nothing else ever read the flag, so it is gone with it
+        rather than left being set for no reader. */
+    instruction: '', jumpEnabled: false,
     complete: false,
     l1: null,
     attempts: 0, idle: 0, hintUntil: 0, hint: null,
@@ -5137,7 +5307,7 @@ export function createGame(canvas, hooks = {}) {
       signBanner: !!G.signSay,
       // how long the spoken question runs, so the HUD can reveal the words in step with it
       voDur: G.voDur || 0,
-      jumpEnabled: G.jumpEnabled, jumpPulse: G.jumpPulse, complete: G.complete,
+      jumpEnabled: G.jumpEnabled, complete: G.complete,
       // TEMPORARY: whether the review control that jumps to the ending may show
       skippable: G.state !== 'BOOT' && G.state !== 'TITLE' && !G.complete,
 
@@ -5275,17 +5445,17 @@ export function createGame(canvas, hooks = {}) {
         /* The very first rock is always a single one: it is the step where the jump is
            being learned, and learning it against three at once is not a difficulty
            curve, it is a wall. */
-        obstacles.spawn(G.worldX, 2150, 1); G.jumpPulse = true; G.retryRun = false; break;
+        obstacles.spawn(G.worldX, 2150, 1); G.retryRun = false; break;
       case 'POST_JUMP_RUN_1':
-        G.jumpPulse = false; G.hitCount = 0; break;
+        G.hitCount = 0; break;
       case 'TITLE':
-        G.moving = false; G.jumpEnabled = false; G.jumpPulse = false;
+        G.moving = false; G.jumpEnabled = false;
         mammoth.setState('IDLE_LOOK');
         break;
       case 'OBSTACLE_HIT':
-        G.moving = false; G.jumpEnabled = false; G.jumpPulse = false; G.oops = false;
+        G.moving = false; G.jumpEnabled = false; G.oops = false;
         break;
-      case 'GLACIER_BREAK_1': G.jumpEnabled = false; G.jumpPulse = false; startBreak(); break;
+      case 'GLACIER_BREAK_1': G.jumpEnabled = false; startBreak(); break;
       case 'PHASE_RUN': G.zoomWant = 1;
         /* PHASE_RUN is also where a retry lands, so it must NOT reset the strike
            count. It used to, which meant the three-strike valve could never fire:
@@ -5718,7 +5888,12 @@ export function createGame(canvas, hooks = {}) {
         const b = polyBounds(pts);
         const x = box.startX + i * box.step;
         return {
-          kind: k, x, y: -260, targetY: L1.optionY, phase: rand(0, 6.28),
+          /* NO PER-ROPE PHASE. There was one — `phase: rand(0, 6.28)` — and the rope's
+             bend was the only thing that read it. A random phase per rope against one
+             shared swing is what made a cord bend away from the block it carries; the
+             bend is a constant per rope now (ropeBow), so there is no clock left for a
+             phase to desynchronise. */
+          kind: k, x, y: -260, targetY: L1.optionY,
           /* Measured, not assumed. A chunk is fitted uniformly into the row's box, so
              its real width and height depend on which shape it is — and the rope, the
              anchor and where it comes to rest are all sized from them. */
@@ -5947,14 +6122,31 @@ export function createGame(canvas, hooks = {}) {
        on screen. */
     const span = ropeSpan(sh);
     sh.pivot = sh.pivot || chunkPivot(sh);
-    sh.tail = 34;                                   // travels down with the chunk
+    /* WHERE THE FINGER CROSSED (a test cut with no stroke parts the rope at its middle). */
+    const hx = hit ? hit.x : span.x0, hy = hit ? hit.y : (ROPE_TOP + span.y1) / 2, ha = hit ? hit.ang : 0;
+    /* THE ROPE PARTS WHERE IT WAS CUT, AND BOTH HALVES SHOW IT.
+     *
+     * Both lengths used to be constants: the block carried a 34px stub of cord whatever
+     * happened, and the length left on the rig was a fixed 72% of the rope. So a learner
+     * who swiped high — right under the fog, with most of the rope below the stroke —
+     * saw the same short snippet fall as one who swiped just above the block, and the
+     * one thing they had just DONE left no trace of where they did it.
+     *
+     * Both are now measured from the crossing point: the cord BELOW the cut goes down
+     * with the block, the cord ABOVE it stays hanging on the rig, and the two always add
+     * up to the rope that was there. Cut low and a long line of rope is left swinging
+     * from the fog with a short tail on the falling ice; cut high and the block takes
+     * most of the rope with it. Nothing about the mechanic changes — where the rope may
+     * be cut is unchanged, and the hit test is still ropeSpan's straight line.
+     *
+     * The floors are so that a cut at the very end of the rope still parts VISIBLY
+     * rather than looking like the knot simply came undone. */
+    sh.tail = clamp(span.y1 - hy, 22, Math.max(22, span.y1 - ROPE_TOP));
     (L.stubs = L.stubs || []).push({
-      x: span.x0, w: sh.w || SHAPE_W, len: (span.y1 - span.y0) * 0.72, t: 0
+      x: span.x0, w: sh.w || SHAPE_W, len: Math.max(16, hy - L1.rigY), t: 0
     });
     particles.frost(span.x0, span.y0 + 30, 5);
-    /* the sweep-slash: on the crossing point, along the finger's direction (a test cut with no
-       stroke gets a level slash at the rope's middle) */
-    const hx = hit ? hit.x : span.x0, hy = hit ? hit.y : (ROPE_TOP + span.y1) / 2, ha = hit ? hit.ang : 0;
+    /* the sweep-slash: on the crossing point, along the finger's direction */
     particles.slashMark(hx, hy, ha);
     if (!reduced) particles.sparkle(hx, hy, 5, 70);
     audio.slice();
@@ -6305,6 +6497,9 @@ export function createGame(canvas, hooks = {}) {
   }
   function updateL1(dt) {
     const L = G.l1; if (!L) return;
+    /* THE ROW'S ONE CUT-LINE HEIGHT, before anything reads it: every rope is marked at
+       the same y so the three dashes read as one instruction (see rowGuideY). */
+    L.guideY = rowGuideY();
     for (const sh of L.shapes) {
       if (sh.state === 'hang') {
         // held above the screen until the instruction has had the stage to itself
@@ -6338,7 +6533,13 @@ export function createGame(canvas, hooks = {}) {
         const a = rigSwing();
         const len = (sh.y + piv.y) - ROPE_TOP;
         sh.rot = sh.baseRot + a;
-        sh.x = sh.anchorX + Math.sin(a) * len - (piv.x * Math.cos(a) - piv.y * Math.sin(a));
+        // -sin: the canvas matrix takes (0, len) to (-len·sin a, len·cos a) — see ropeSpan
+        sh.x = sh.anchorX - Math.sin(a) * len - (piv.x * Math.cos(a) - piv.y * Math.sin(a));
+        /* AND WHERE THE CUT LINE IS, published on the shape so the dashes, the idle
+           hand and the tutorial's hand all read one number instead of each deriving
+           its own (see cutGuide). It moves with the sway, so it is per frame; the
+           HEIGHT is the row's (L.guideY, set below), so the marks line up. */
+        sh.guide = cutGuide(sh);
       } else if (sh.state === 'falling') {
         sh.fallT += dt;
         updateL1Piece(L, sh, dt);
@@ -7000,7 +7201,12 @@ export function createGame(canvas, hooks = {}) {
       if (G.idleHand > CFG.hint.idleMs / 1000 && L.shapes.length) {
         const mid = L.shapes.find(s => s.state === 'hang' && L.unfilled && L.unfilled.includes(s.kind))
                  || L.shapes[Math.floor(L.shapes.length / 2)];
-        G.handHint = { x: mid.anchorX, y: (L1.rigY + mid.y - (mid.h || SHAPE_H) / 2) / 2 };
+        /* ON THE DASHES. It used to be the rope's MIDPOINT — `(rigY + block top) / 2`,
+           which on a three-option row is about 180px above the marching dashes and at
+           the anchor's x rather than on the swaying cord. So the game marked one place
+           to cut and demonstrated in another. Both now read cutGuide. */
+        const gd = mid.guide || cutGuide(mid);
+        G.handHint = gd ? { x: gd.x, y: gd.y } : null;
       } else {
         G.handHint = null;
       }
@@ -7308,10 +7514,9 @@ export function createGame(canvas, hooks = {}) {
           const plan = runs.length ? runs[Math.min(Math.max(0, stretch), runs.length - 1)] : null;
           const count = plan ? plan.room.length + 1 : clamp(2 + Math.max(0, stretch), 2, L1.maxRocks || 4);
           obstacles.spawn(G.worldX, 2150, count, plan);
-          G.jumpPulse = true;
         }
         const clear = !obstacles.list.length || obstacles.list.every(o => o.passed);
-        if (G.st > dur && clear) { G.jumpPulse = false; setState('GLACIER_BREAK_1'); }
+        if (G.st > dur && clear) { setState('GLACIER_BREAK_1'); }
         break;
       }
       case 'COMPLETE': {
@@ -7414,7 +7619,6 @@ export function createGame(canvas, hooks = {}) {
     // set these themselves — they inherit them from the run state — so restore them
     // here or the world stays frozen and the obstacle can never be passed.
     G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
-    G.jumpPulse = true;               // re-teach the control on the retry
     G.invincibleT = CFG.juice.respawnBlinkS || 1.0;   // blink, and no hit, for the first moment back
     mammoth.setState('RUN');
     G.retryRun = true;                // the stretch is retried at once: PHASE_RUN keeps the short lead
@@ -7632,6 +7836,47 @@ export function createGame(canvas, hooks = {}) {
     return Math.sin(G.t * CM.swayHz * 6.2832) * CM.swayRad;
   }
 
+  /** How much this rope bends, in stage px. IT HAS NO CLOCK. That is the whole point.
+   *
+   * The bend has now been wrong in two different ways and both were MOTION:
+   *
+   *   1. its own frequency (0.35Hz) and a random phase per rope, against a rig swaying at
+   *      0.22Hz — two unrelated sine waves, so a block leaning one way was routinely
+   *      carried by a cord bending the other. Reported as moving in opposite directions.
+   *   2. driven by the swing's own velocity, which is honest physics — a rope really does
+   *      trail what it carries — but velocity is 90 degrees out of phase with position, so
+   *      the cord's middle was still travelling on a different schedule from the block on
+   *      its end. Reported as the two waving differently and reading as detached.
+   *
+   * A rope and the thing tied to it are ONE object, and the only way that is certain on
+   * screen is for them to share one transform and nothing else. So the bend is a constant:
+   * the rope's own slight natural curve, deterministic per rope from its seed so the row
+   * does not look stamped out, and rotated with the rig exactly as the block is. The whole
+   * assembly — cord, knot and ice — now moves as one piece, because it is one piece.
+   */
+  function ropeBow(sh) {
+    if (reduced) return 0;
+    const CM = CFG.comedy, R = CFG.rope || {};
+    /* THE ROPE'S OWN CURVE: fixed for the life of this rope, deterministic from its seed so
+       the row is not stamped out of one shape. This part never moves. */
+    const own = ((R.bow || 7) * 0.55) * (iceHash(sh.seed || sh.anchorX || 1, 91) * 2 - 1);
+    /* AND THE PART THAT MOVES, IN PHASE WITH THE BLOCK. Not the swing's velocity — that is
+       what had the cord's middle travelling on a different schedule from the ice on its end,
+       reported as the two waving differently. Locked to the swing's POSITION instead, the
+       cord is at its most curved exactly where the block is at its furthest: both extremes
+       land on the same frame, so a glance at either tells you the same thing. It leans INTO
+       the swing (same sign), which is a rope being carried rather than dragged. */
+    const lean = CM.swayRad > 0 ? (rigSwing() / CM.swayRad) : 0;
+    return own + (R.bowSwing || 9) * lean;
+  }
+  /** Where that bend has pushed the cord sideways, `d` px up from the attachment. */
+  function ropeBowAt(sh, d, vis) {
+    return ropeBow(sh) * Math.sin(Math.PI * clamp(d / Math.max(1, vis), 0, 1));
+  }
+  /** How much of this rope is on screen, measured from the block up. The bow is spread
+      across exactly this, so the curve is widest halfway up what the player can see. */
+  function ropeVis(span) { return Math.max(200, span.y1 + 40); }
+
   /* Where the rope attaches: the TOP CENTRE of the chunk's rotated silhouette.
      Attaching to the highest VERTEX is what a real rope would do, but a vertex sits
      off to one side on most of these shapes, so each chunk hung from a different
@@ -7673,8 +7918,92 @@ export function createGame(canvas, hooks = {}) {
     const len = (sh.y + piv.y) - ROPE_TOP;
     return {
       x0: sh.anchorX, y0: ROPE_TOP,
-      x1: sh.anchorX + Math.sin(a) * len,
+      /* MINUS sin, because that is what the block is drawn with. The block's transform is
+         ctx.rotate(a) followed by a step of `len` down the rope, and the canvas matrix
+         takes (0, len) to (-len·sin a, len·cos a): a positive swing carries the block to
+         the LEFT. This was +sin — the rope's end swung RIGHT by the same amount, and every
+         hanging block and its own rope leaned to opposite sides of the anchor, up to 30px
+         apart at the end of the arc. Reported four times as "the rope and the shape move
+         in opposite directions", and it was literally that. Every fix before this one
+         tuned the cord's BEND and measured this model against itself, which is why each of
+         them looked right in numbers and wrong on screen. */
+      x1: sh.anchorX - Math.sin(a) * len,
       y1: ROPE_TOP + Math.cos(a) * len
+    };
+  }
+
+  /** WHERE THE CUT LINE IS ON ONE ROPE — the single source of that position.
+   *
+   * Three things point at this stretch of rope: the marching dashes (drawCutGuide),
+   * the idle hand hint (updateHints) and the tutorial's sweep hand (Tutorial.ropeBox).
+   * They each used to work it out for themselves and they each got a different answer:
+   * the dashes interpolate along the SWAYING rope at 60px above the block, the idle
+   * hint sat at the rope's midpoint (hundreds of pixels higher), and the tutorial's
+   * hand sat at the anchor's x — the rope's top end, not the point the dashes are drawn
+   * at. Reported as the hand not being on the dashed line, and all three readings were
+   * right about their own formula.
+   *
+   * So it is computed once, here, and published on the shape (see updateL1) where the
+   * HUD and the tutorial can both read it. A hand and its dashes cannot disagree if
+   * there is only one number.
+   *
+   * Returns null while the rope is still off the top of the frame — there is nothing
+   * to mark and nowhere to put a hand.
+   */
+  /** ONE HEIGHT FOR THE WHOLE ROW, and it is the middle of the rope.
+   *
+   * Two faults, reported together as "the dashes are low and they do not line up".
+   *
+   * THEY DID NOT LINE UP because the height was worked out per block, 60px above its own
+   * top edge — and the blocks are not the same height. A phase's shapes are fitted
+   * uniformly into one box, so a triangle and a hexagon of the same width have tops up to
+   * forty pixels apart, and the three cut lines stepped up and down across the row. They
+   * are one instruction repeated three times; they have to read as one line.
+   *
+   * THEY WERE LOW because 60px above the block is the BOTTOM of the rope, right where it
+   * disappears into the ice. The rope's whole visible length is the thing being cut, so
+   * the mark belongs across the middle of it — which is also the easiest place to reach
+   * with a finger, well clear of the block below and of the fog above.
+   *
+   * Clamped at both ends so a very short rope cannot put the mark in the fog, and a very
+   * long one cannot put it on top of the block. Null while the row is still coming down.
+   */
+  function rowGuideY() {
+    const L = G.l1;
+    if (!L) return null;
+    let low = -1e9;                       // the LOWEST top edge: the shortest rope in the row
+    for (const sh of L.shapes) if (sh.state === 'hang') low = Math.max(low, sh.y - (sh.h || SHAPE_H) / 2);
+    if (low < 120) return null;           // nothing has arrived yet
+    /* THE MIDDLE OF WHAT IS ON SCREEN, not the middle of the world.
+       The puzzle pushes in (zoomK 1.24 about viewFocus), and the push-in crops the TOP of
+       the world — so the rope's world middle, y 171, came out at a fifth of the way down
+       the visible rope and the marks sat up under the frame edge. Measured at zoom 1.24
+       with the focus at y 560: the frame's top edge is world y 109, so the visible rope
+       runs 109..366 and its middle is 237. Solving the view transform for the top edge is
+       what makes this the middle of the picture at any zoom, including none. */
+    const k = G.zoom || 1;
+    const viewTop = k > 1.0005 ? G.zoomVY * (1 - 1 / k) : 0;
+    const top = Math.max(ROPE_TOP, viewTop);
+    return clamp((top + low) / 2, top + 60, low - 40);
+  }
+
+  function cutGuide(sh) {
+    const y = G.l1 ? G.l1.guideY : null;
+    if (!(y > 0)) return null;
+    const s = ropeSpan(sh);
+    /* x INTERPOLATED ALONG THE ROPE at that height, not the span midpoint: the rope
+       sways, and the midpoint is only on it when the mark is halfway down. */
+    const tt = (y - ROPE_TOP) / Math.max(1, s.y1 - ROPE_TOP);
+    const a = rigSwing();
+    /* PLUS THE BEND. The line above is the rope's straight centreline; the cord is DRAWN
+       with a slight curve (ropeBow), widest halfway up the visible length — which is
+       exactly where this mark goes. Ignoring it put the dashes up to 7px off the cord
+       they are marking, and on the one place where the gap is at its widest. */
+    const d = (s.y1 - y) / Math.max(0.2, Math.cos(a));
+    return {
+      x: s.x0 + (s.x1 - s.x0) * tt + Math.cos(a) * ropeBowAt(sh, d, ropeVis(s)), y,
+      ang: Math.atan2(s.y1 - ROPE_TOP, s.x1 - s.x0) + Math.PI / 2,   // across the rope
+      half: Math.max(64, (sh.w || SHAPE_W) * 0.36)                   // half the dash line's length
     };
   }
 
@@ -7909,15 +8238,15 @@ export function createGame(canvas, hooks = {}) {
     if (img && CFG.rope) {
       /* TIED, NOT STUCK ON. The knot sits on the block's top edge with its frayed tail over
          the face (the block is drawn after the ropes, so the tail tucks under its edge), and
-         the cord runs up from the knot's top. The bow is a slight sideways bend across the
-         visible length, swaying on its own phase per rope so the three never move as one;
-         it is drawing only — the cut test still runs along ropeSpan's straight line, and the
-         bend never leaves its 30px reach. Off under reduced motion. */
-      const k = ropeK(w), R = CFG.rope;
+         the cord runs up from the knot's top. The bow is the rope's own slight curve and it
+         does not move (see ropeBow): the ONLY motion here is the rig's rotation, which the
+         block shares, so the cord and the ice it carries can never travel differently. It is
+         drawing only — the cut test still runs along ropeSpan's straight line, and the bend
+         never leaves its 30px reach. */
+      const k = ropeK(w);
       const d0 = ropeKnot(ctx, img, w);                                  // the cord starts above the knot
-      const VIS = Math.max(200, s.y1 + 40);                              // the visible length, attachment to frame top
-      const amp = reduced ? 0 : (R.bow || 7) * Math.sin(G.t * (R.swayHz || 0.35) * 6.2832 + (sh.phase || 0));
-      drawRopeCord(ctx, img, w, d0, UP, d => amp * Math.sin(Math.PI * clamp(d / VIS, 0, 1)));
+      const VIS = ropeVis(s);                                            // attachment up to the frame top
+      drawRopeCord(ctx, img, w, d0, UP, d => ropeBowAt(sh, d, VIS));
       void overlap; void k;
     }
     else if (img) ctx.drawImage(img, Math.round(-w / 2), Math.round(-UP), Math.round(w), Math.round(UP + overlap));
@@ -7930,8 +8259,12 @@ export function createGame(canvas, hooks = {}) {
   function drawRopeStub(ctx, st) {
     const img = images.rope;
     const e = clamp(st.t / 0.9, 0, 1);
-    // snaps up as the tension goes, then keeps a visible dangling length
-    const len = lerp(st.len, st.len * 0.42, easeOut(clamp(st.t / 0.22, 0, 1)));
+    /* Snaps up as the tension goes, then keeps a visible dangling length. 0.78, not
+       0.42: the stub's length is now WHERE THE CUT WAS (see cutShape), and taking away
+       three fifths of it threw that information away again — a low cut and a high cut
+       ended up nearly the same length on the rig. A rope does recoil when it parts, but
+       it recoils by a fraction of itself; it does not lose most of its length. */
+    const len = lerp(st.len, st.len * 0.78, easeOut(clamp(st.t / 0.22, 0, 1)));
     const swing = Math.sin(st.t * 13) * 0.22 * (1 - e);
     const w = Math.max(11, st.w * 0.055);
     /* It still SWINGS about the rig line — pivoting from the top of the screen would
@@ -8142,23 +8475,16 @@ export function createGame(canvas, hooks = {}) {
     const breathe = 0.5 + 0.28 * Math.sin(G.t * 3.6);
     for (const sh of L.shapes) {
       if (sh.state !== 'hang') continue;
-      const s = ropeSpan(sh);
-      /* 60px ABOVE THE BLOCK, which is EXACTLY where the tutorial puts its hand
-         (Tutorial.ropeBox) — so the hand sweeps along this line rather than somewhere
-         else on the same rope. This is also the most reachable stretch of rope and the
-         clearest — the fog is above it and the block below. */
-      const top = sh.y - (sh.h || SHAPE_H) / 2;
-      if (top < 60) continue;                // rope still off the top: nothing to mark
-      const cy = Math.max(ROPE_TOP + 70, top - 60);
-      /* x INTERPOLATED ALONG THE ROPE at that height, not the span midpoint: the rope
-         sways, and the midpoint is only on it when the mark is halfway down. */
-      const tt = (cy - ROPE_TOP) / Math.max(1, s.y1 - ROPE_TOP);
-      const cx = s.x0 + (s.x1 - s.x0) * tt;
-      const perp = Math.atan2(s.y1 - ROPE_TOP, s.x1 - s.x0) + Math.PI / 2;
-      const half = Math.max(64, (sh.w || SHAPE_W) * 0.36);
+      /* ONE SOURCE FOR THIS POSITION (cutGuide): the same point the idle hand and the
+         tutorial's sweep hand are placed on, so the hand is always ON the dashes rather
+         than near them. `sh.guide` is published every frame by updateL1; recomputed here
+         only for a frame drawn before the first update. */
+      const gd = sh.guide || cutGuide(sh);
+      if (!gd) continue;                     // rope still off the top: nothing to mark
+      const half = gd.half;
       ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(perp);
+      ctx.translate(gd.x, gd.y);
+      ctx.rotate(gd.ang);
       ctx.globalAlpha = breathe;
       ctx.lineCap = 'butt';
       ctx.setLineDash(DASH);
@@ -8204,8 +8530,13 @@ export function createGame(canvas, hooks = {}) {
        being reminded, not the answer being given. */
     const want = L.shapes.find(s => s.state === 'hang' && L.unfilled && L.unfilled.includes(s.kind));
     const mid = want || L.shapes[Math.floor(L.shapes.length / 2)];
-    const cx = mid.anchorX;
-    const cy = (L1.rigY + L1.optionY - (mid.h || SHAPE_H) / 2) / 2;
+    /* ON THE DASHES, like every other thing that points at a cut (see cutGuide). This was
+       the third place that worked the position out for itself — the rope's midpoint at the
+       anchor's x — so the game marked one stretch of rope and then demonstrated the stroke
+       about 180px above it, on a line that is not even on the swaying rope. */
+    const gd = mid.guide || cutGuide(mid);
+    const cx = gd ? gd.x : mid.anchorX;
+    const cy = gd ? gd.y : (L1.rigY + L1.optionY - (mid.h || SHAPE_H) / 2) / 2;
     const cycle = 0.95, u = (L.demo.t % cycle) / cycle;
     const fade = clamp(Math.sin(Math.min(u, 1) * Math.PI) * 1.6, 0, 1) * clamp(2 - L.demo.t / 1.1, 0, 1);
     if (fade <= 0.01) return;
@@ -8608,7 +8939,7 @@ export function createGame(canvas, hooks = {}) {
     }
     if (duo > 0) drawDuo(ctx, duo);
     drawDazeStars(ctx);
-    atmos.drawFront(ctx, G.worldX, G.t, reduced);
+    atmos.drawFront(ctx, G.worldX, G.t, reduced, !!G.l1);   // no snow over an open question
 
     particles.draw(ctx);
     drawHitFx(ctx);
@@ -8643,7 +8974,7 @@ export function createGame(canvas, hooks = {}) {
   function resetAll() {
     G.state = 'BOOT'; G.st = 0; G.worldX = 0; G.dist = 0; G.progress = 0; G.t = 0;
     G.speedFactor = 1; G.shake = 0; G.shakeT = 0; G.moving = true;
-    G.instruction = ''; G.jumpEnabled = false; G.jumpPulse = false;
+    G.instruction = ''; G.jumpEnabled = false;
     G.complete = false; G.l1 = null; G.attempts = 0; G.idle = 0;
     G.phase = 0; G.phasesDone = 0; G.gapsThisPhase = null; G.phaseLayout = null; G.phaseJumped = false;
     G.oops = false; G.hitFx = 0; G.hitObstacle = null; G.hitReturn = null; G.hitCount = 0;
@@ -8816,6 +9147,27 @@ export function createGame(canvas, hooks = {}) {
        instead of waiting for an impact to happen and hoping to catch the frame. */
     /* The decoded sfx table, so tools/bake-onsets.mjs can read the hit times the
        waveform analysis found and write them into the config — see that file. */
+    /* THE RIG. `swing` is the one angle every option hangs at; `bows` is how far each
+       rope's cord curves. The property worth holding is that the bows never change while
+       the swing does: the rope's bend having any clock of its own is what made a cord
+       appear to move differently from the block tied to it. */
+    _rig: () => ({
+      swing: rigSwing(), swayRad: CFG.comedy.swayRad,
+      bows: ((G.l1 && G.l1.shapes) || []).filter(s => s.state === 'hang').map(s => ropeBow(s))
+    }),
+    /* Where a rope is marked to be cut, for the one shape given. The dashes, the idle
+       hand and the tutorial's hand all read this same point (see cutGuide). */
+    _cutGuide: i => { const L = G.l1; const sh = L && L.shapes[i]; return sh ? cutGuide(sh) : null; },
+    /* THE SNOWFALL, for the test that holds it visible: how many flakes there are in each
+       layer, how big and how solid the front ones are drawn, and whether the sprite was
+       actually built (a null sprite means they fell back to dots). */
+    _snow: () => ({
+      far: atmos.far.length, mid: atmos.mid.length, near: atmos.near.length,
+      sprite: !!Atmosphere.flake(),
+      drawnPx: atmos.near.map(f => +(f.r * Atmosphere.FLAKE_K).toFixed(1)),
+      alpha: atmos.near.map(f => +f.a.toFixed(2)),
+      spins: atmos.near.map(f => +f.spin.toFixed(3))
+    }),
     _sfxTable: () => audio.sfx,
     _hitStop: ms => hitStop(ms),
     _punch: (amp, ms, x, y) => punch(amp, ms, x, y),

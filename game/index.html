@@ -34,7 +34,7 @@
       <div class="hud">
         <!-- The hint / sound / pause cluster that used to sit top-right has been
              removed on request. Nothing replaces it: the stage is now entirely
-             gameplay apart from the instruction card and the jump button.
+             gameplay apart from the instruction card.
 
              What went with it, so it is on the record: there is no in-game mute, no
              pause, and no way to bring the instruction back. Sound and motion can
@@ -53,9 +53,17 @@
           </div>
         </div>
 
-        <button class="btn-jump" id="btn-jump" type="button" aria-label="Jump" hidden>
-          <span class="btn-jump-face"><span class="btn-jump-label">JUMP</span></span>
-        </button>
+        <!-- NO JUMP BUTTON. A tap anywhere on the stage already jumped (engine.js:
+             onDown), so the button was a second way to do one thing — and on a phone it
+             was a target in the corner competing with the one instruction that matters,
+             which is "touch the screen". Removed on request: the whole stage is the
+             control now, the tutorial's fourth line teaches it with a tapping hand in
+             open sky, and Space / ArrowUp / W still jump for a keyboard.
+
+             What went with it: the pressed-art swap, the tap ring, the pulse that
+             re-taught the control after a crash, and hud.flashJump(). The engine's own
+             touch ring answers a tap wherever it lands, in every state, which is the
+             feedback the button's ring used to give in one corner. -->
 
         <!-- TEMPORARY review control: jumps to the ending so it can be checked without
              playing seven phases. Not part of the game; remove with game.skipToEnd(). -->
@@ -207,7 +215,15 @@
         <!-- Cover: the supplied FROZEN RUSH banner, with drifting snow and a PLAY button -->
         <div class="screen cover" id="cover" hidden>
           <div class="cover-art" aria-hidden="true"></div>
-          <div class="cover-snow" aria-hidden="true"></div>
+          <!-- FALLING FLAKES OVER THE BANNER. Fourteen empty spans, because a flake has to
+               TURN as it falls and a background layer cannot rotate: each one is its own
+               element with its own column, size, speed and spin, all set from :nth-child in
+               screens.css so the markup stays this. The flake itself is a data-URI SVG in
+               the stylesheet — the layer still costs no asset and no request. -->
+          <div class="cover-snow" aria-hidden="true"
+            ><i></i><i></i><i></i><i></i><i></i><i></i><i></i
+            ><i></i><i></i><i></i><i></i><i></i><i></i><i></i
+          ></div>
           <!-- NOT a .btn-chunky. It used to carry that class to inherit the button
                family's rim and gloss, and then override all of it — but the family's
                HOVER rule (`.btn-chunky:hover`, specificity 0-2-0) outranks a plain

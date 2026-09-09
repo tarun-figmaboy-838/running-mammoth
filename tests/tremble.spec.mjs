@@ -238,4 +238,126 @@ test.describe('the tremble, the stop and the crash', () => {
     // and the idle is moving from its first frame, not waiting out the dissolve
     expect(new Set(idle.filter(x => x.t < idle[0].t + 0.5).map(x => x.f)).size, 'the idle steps straight away').toBeGreaterThan(2);
   });
+
+  test('the rope moves with the block it carries: in phase, never against it, and visibly', async ({ page }) => {
+    /* The history of this one property, because each fix was reviewed and sent back:
+         - the cord's bend had its own clock (a random phase per rope): opposite directions
+         - the bend followed the swing's VELOCITY: honest physics, 90 degrees out of phase,
+           reviewed as "waving differently"
+         - proved rigid, and still read as detached, because a solid block moving 12px is
+           visible and a thin cord moving 12px is not
+         - switched off: reviewed as dead, "add minor evident motion but keep it in sync"
+       What ships: the cord's bend is locked to the swing's POSITION (ropeBow), so the rope is
+       at its most curved on the very frame the block is at its furthest. Both extremes land
+       together, which is what "moving together" looks like on a thin line. This holds it as
+       a number: over six seconds, every rope's bend rises and falls WITH the swing — a
+       correlation near +1 — and the swing itself is alive. */
+    await boot(page, { fast: 2 });
+    await force(page, 'GLACIER_BREAK_1');
+    await waitState(page, 'PHASE_ACTIVE', 40_000);
+    /* SAMPLED ON A BUDGET, and the budget is reported rather than assumed. A rAF loop with
+       a fixed frame count is at the mercy of a throttled or occluded tab: it simply never
+       returns, the evaluate hangs, and what the runner reports is the test's own timeout
+       with no clue which line was waiting. This stops on the wall clock whatever the frames
+       do, and says whether it got what it came for. */
+    const r = await page.evaluate(async (budgetMs) => {
+      const g = window.iceAgeGame, rows = [];
+      const t0 = performance.now();
+      while (performance.now() - t0 < budgetMs && rows.length < 240) {
+        await new Promise(res => setTimeout(res, 16));
+        const rig = g._rig();
+        rig.t = g.debug().t;
+        rows.push(rig);
+      }
+      const L = g.debug().l1;
+      const moved = new Set(rows.map(x => x.t)).size;
+      return { rows, moved, phases: L.shapes.map(s => s.phase), swayRad: rows[0].swayRad };
+    }, 6000);
+    // the clock really advanced, so what follows is a waveform and not one frame repeated
+    expect(r.moved, 'the game clock advanced across the samples').toBeGreaterThan(30);
+    const swings = r.rows.map(x => x.swing);
+    // ALIVE: the motion was asked back after a still rig read as dead
+    expect(Math.max(...swings) - Math.min(...swings), 'the rig swings').toBeGreaterThan(r.swayRad * 0.5);
+    // IN PHASE: every cord's bend tracks the swing's position, never its velocity, never against it
+    const bows = r.rows.map(x => x.bows);
+    expect(bows[0].length, 'the row is hanging').toBeGreaterThan(2);
+    const corr = (a, b) => {
+      const ma = a.reduce((s, v) => s + v, 0) / a.length, mb = b.reduce((s, v) => s + v, 0) / b.length;
+      let sab = 0, saa = 0, sbb = 0;
+      for (let i = 0; i < a.length; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) ** 2; sbb += (b[i] - mb) ** 2; }
+      return sab / Math.sqrt(saa * sbb || 1);
+    };
+    for (let i = 0; i < bows[0].length; i++) {
+      const series = bows.map(b => b[i]);
+      expect(Math.max(...series) - Math.min(...series), `rope ${i}: its bend visibly moves`).toBeGreaterThan(4);
+      expect(corr(series, swings), `rope ${i}: and moves WITH the swing, on the same frames`).toBeGreaterThan(0.95);
+    }
+    // nothing per-rope is left that could give one its own timing
+    expect(r.phases.every(p => p === undefined), 'no per-rope phase survives').toBe(true);
+  });
+
+  test('where the rope is cut is where it parts, and both halves show it', async ({ page }) => {
+    /* Both lengths used to be constants — a 34px snippet went down with the block and 72% of
+       the rope stayed on the rig — so a swipe under the fog and a swipe just above the block
+       produced the same picture. They are measured from the crossing point now. */
+    await boot(page, { fast: 2 });
+    await force(page, 'GLACIER_BREAK_1');
+    await waitState(page, 'PHASE_ACTIVE', 40_000);
+    await page.waitForFunction(() => {
+      const L = window.iceAgeGame.debug().l1;
+      return L && L.shapes.filter(s => s.state === 'hang' && s.y > 400).length >= 3;
+    }, null, { timeout: 20_000 });
+    await page.waitForTimeout(300);
+
+    const r = await page.evaluate(async () => {
+      const g = window.iceAgeGame;
+      /* The swipe is aimed through the puzzle's own view transform, so it crosses the rope
+         where it is DRAWN rather than where it would be unzoomed. */
+      const swipe = (worldX, worldY, id) => {
+        const G = g.debug(), k = G.zoom || 1;
+        const vx = w => (k > 1.0005 ? G.zoomVX + (w - G.zoomVX) * k : w);
+        const vy = w => (k > 1.0005 ? G.zoomVY + (w - G.zoomVY) * k : w);
+        const st = document.getElementById('stage').getBoundingClientRect();
+        const css = (x, y) => ({ x: st.left + vx(x) / 1920 * st.width, y: st.top + vy(y) / 1080 * st.height });
+        const c = document.getElementById('game-canvas');
+        const a = css(worldX - 100, worldY), b = css(worldX + 100, worldY);
+        c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: a.x, clientY: a.y, pointerId: id, pointerType: 'touch', isPrimary: true }));
+        for (let i = 1; i <= 8; i++) c.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: a.x + (b.x - a.x) * i / 8, clientY: a.y, pointerId: id, pointerType: 'touch', isPrimary: true }));
+        c.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: b.x, clientY: b.y, pointerId: id, pointerType: 'touch', isPrimary: true }));
+      };
+      const L = () => g.debug().l1;
+      const wrongOne = () => L().shapes.find(s => s.state === 'hang' && !L().unfilled.includes(s.kind));
+      const wait = async n => { for (let i = 0; i < n; i++) await new Promise(res => requestAnimationFrame(res)); };
+      const active = async () => { for (let i = 0; i < 400 && g.state() !== 'PHASE_ACTIVE'; i++) await new Promise(res => setTimeout(res, 25)); };
+
+      // 1. cut HIGH, just under the fog
+      const hi = wrongOne();
+      swipe(hi.anchorX, 150, 21);
+      await wait(6);
+      const hiStub = L().stubs[L().stubs.length - 1];
+      const high = { cut: !!hi.cut, tail: hi.tail, stub: hiStub ? hiStub.len : -1 };
+
+      /* A wrong cut opens PHASE_WRONG for a beat, and the hit test only runs in PHASE_ACTIVE —
+         swiping through the feedback is how this test silently cut nothing the first time. */
+      await active();
+
+      // 2. cut LOW, just above the block
+      const lo = wrongOne();
+      const loTop = lo.y - lo.h / 2;
+      swipe(lo.anchorX, loTop - 40, 22);
+      await wait(6);
+      const loStub = L().stubs[L().stubs.length - 1];
+      const low = { cut: !!lo.cut, tail: lo.tail, stub: loStub ? loStub.len : -1, aimedAt: loTop - 40 };
+      return { high, low, stubs: L().stubs.length };
+    });
+
+    expect(r.high.cut, 'the high swipe cut its rope').toBe(true);
+    expect(r.low.cut, 'and so did the low one').toBe(true);
+    expect(r.stubs, 'two ropes are parted').toBe(2);
+    // cut high: most of the rope goes down with the block, almost nothing is left hanging
+    expect(r.high.tail, 'a high cut sends a long tail down with the ice').toBeGreaterThan(120);
+    // cut low: the block keeps a short tail and a long stub is left swinging from the fog
+    expect(r.low.tail, 'a low cut sends a short one').toBeLessThan(r.high.tail * 0.5);
+    expect(r.low.stub, 'and leaves the rest hanging on the rig').toBeGreaterThan(r.high.stub + 80);
+  });
 });

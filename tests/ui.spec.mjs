@@ -274,6 +274,49 @@ test.describe('ui', () => {
     expect(marked, 'the hint must not point at an answer').toBe(0);
   });
 
+  test('the snow is fairy flakes: evident one at a time, and few of them', async ({ page }) => {
+    /* Two asks, and they pull against each other. Real snowflakes instead of round dots, big
+       enough to be noticed — and then FEWER of them, because a crowd of flakes crossing the
+       play area is weather competing with the thing the player is reading. What settles it
+       is that a flake reads by its shape and its size, not by how many there are: each one
+       stays big and solid, and there are half as many. The banner is where a real snowfall
+       belongs and it has one (.cover-snow).
+
+       The flakes are one sprite drawn once and blitted (Atmosphere.flake), so a null sprite
+       — which silently falls back to dots — has to fail here too. */
+    await boot(page);
+    const s = await page.evaluate(() => window.iceAgeGame._snow());
+    expect(s.sprite, 'the flake sprite is built, so nothing is falling back to dots').toBe(true);
+    expect(Math.min(...s.drawnPx), 'a flake is big enough to see').toBeGreaterThanOrEqual(20);
+    expect(Math.max(...s.drawnPx), 'and not so big it competes with the ice blocks').toBeLessThan(40);
+    expect(Math.min(...s.alpha), 'and solid enough to see').toBeGreaterThanOrEqual(0.45);
+    expect(s.spins.every(v => Math.abs(v) > 0.05), 'each one turns as it falls').toBe(true);
+    expect(new Set(s.spins.map(Math.sign)).size, 'and not all the same way').toBe(2);
+    // FEW. This is the number that was asked to come down; it is the whole point of the test.
+    expect(s.near + s.mid, 'the flake layers stay sparse').toBeLessThanOrEqual(16);
+    expect(s.near, 'and the layer that crosses the play area is the sparsest').toBeLessThanOrEqual(5);
+    expect(s.near + s.mid, 'without switching the weather off').toBeGreaterThanOrEqual(8);
+  });
+
+  test('nothing falls in front of an open question', async ({ page }) => {
+    /* The near layer is the only snow drawn OVER the ice blocks. A 30px flake tumbling
+       across the shape a child is counting the sides of is the distraction that was asked
+       to go, so that layer stops for as long as a crossing is open — and starts again with
+       the run. The two layers behind it never stop, so the weather does not blink off. */
+    await boot(page, { fast: 2 });
+    const front = () => page.evaluate(() => {
+      const g = window.iceAgeGame, before = g._particles().list.length;
+      // drawFront is called from render(); read the decision the same way it does
+      return { quiet: !!g.debug().l1, state: g.state(), before };
+    });
+    const run = await front();
+    expect(run.quiet, 'during a run the front snow falls').toBe(false);
+    await force(page, 'GLACIER_BREAK_1');
+    await waitState(page, 'PHASE_ACTIVE', 40_000);
+    const puzzle = await front();
+    expect(puzzle.quiet, 'and with a question up it does not').toBe(true);
+  });
+
   test('gameplay stays the dominant thing on screen', async ({ page }) => {
     /* Every panel and control together must stay a small fraction of the stage, or
        the interface has started to overpower the game it is supporting. */
@@ -284,7 +327,7 @@ test.describe('ui', () => {
       const stage = document.getElementById('stage').getBoundingClientRect();
       const area = stage.width * stage.height;
       let used = 0;
-      for (const sel of ['#instruction-pill', '.hud-controls', '#btn-jump']) {
+      for (const sel of ['#instruction-pill', '.hud-controls']) {
         const el = document.querySelector(sel);
         if (!el || el.hidden || el.closest('[hidden]')) continue;
         const r = el.getBoundingClientRect();

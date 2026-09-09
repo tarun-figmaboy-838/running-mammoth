@@ -6,8 +6,8 @@
  * node tools/build-bundle.mjs whenever anything under game/assets changes; tests/bundle.spec
  * fails if this is out of date. */
 export const ASSET_V = {
-  "assets/art/Bubble.svg": "523bce06",
-  "assets/art/cover.webp": "2854fd0e",
+  "assets/art/Bubble.svg": "5f1ee1ef",
+  "assets/art/cover.webp": "e9ed7c85",
   "assets/audio/bgm-ice-hunt.mp3": "045fc178",
   "assets/audio/dragon-studio-cartoon-blinking-372481.mp3": "e1ba0c6b",
   "assets/audio/dragon-studio-heavy-boulder-thud-515257.mp3": "97c6bfa5",
@@ -71,18 +71,18 @@ export const ASSET_V = {
   "assets/sky/07-dusk.webp": "d511553c",
   "assets/sky/08-night.webp": "fdbec669",
   "assets/ui/btn-normal.webp": "ad490138",
-  "assets/ui/btn-play-pressed.webp": "9a8a1105",
-  "assets/ui/btn-play.webp": "722ee46e",
+  "assets/ui/btn-play-pressed.webp": "ee743b30",
+  "assets/ui/btn-play.webp": "240067f7",
   "assets/ui/btn-pressed.webp": "4636e1dd",
   "assets/ui/btn-tryagain.webp": "f17bd92f",
-  "assets/ui/icons/hint.svg": "9ceb8f16",
-  "assets/ui/icons/pause.svg": "660fcd36",
-  "assets/ui/icons/play.svg": "573fd2b0",
-  "assets/ui/icons/restart.svg": "0133f671",
-  "assets/ui/icons/sound-off.svg": "9d167e38",
-  "assets/ui/icons/sound-on.svg": "a375910d",
+  "assets/ui/icons/hint.svg": "2eb235fd",
+  "assets/ui/icons/pause.svg": "7d4d26a9",
+  "assets/ui/icons/play.svg": "058a4e07",
+  "assets/ui/icons/restart.svg": "34740a8f",
+  "assets/ui/icons/sound-off.svg": "4c1711d1",
+  "assets/ui/icons/sound-on.svg": "53f86786",
   "assets/ui/icons/touch.png": "d05ff66d",
-  "assets/ui/sign-l.webp": "6268bc50",
-  "assets/ui/sign-m.webp": "6ab3b619",
-  "assets/ui/sign-r.webp": "f07286b3"
+  "assets/ui/plank-l.webp": "ee04d9d5",
+  "assets/ui/plank-m.webp": "8e38817a",
+  "assets/ui/plank-r.webp": "1bfb3779"
 };

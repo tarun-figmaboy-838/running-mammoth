@@ -58,8 +58,9 @@ game/
     ├── char/mammoth-jump.webp             10-frame jump arc (420×320 cells)
     ├── char/mammoth-skid.webp             36-frame skid to a halt (420×320 cells)
     ├── option-shape/*.webp                one painted ice block per named shape
-    ├── ui/sign.webp                       the instruction plank
-    ├── ui/btn-play*.webp, btn-normal/pressed.webp   the picture buttons
+    ├── ui/plank-l/m/r.webp                the hanging instruction plank, in three
+    │                                      slices so it grows with its sentence
+    ├── ui/btn-play*.webp                   the picture buttons
     └── audio/*.mp3                        one music bed, six recorded cues
 ```
 
@@ -91,7 +92,7 @@ inside the `createGame()` closure.
 | Input | Action |
 | --- | --- |
 | `Space` / `↑` / `W` | jump |
-| Jump button (bottom-right) | jump |
+| Tap / click anywhere on the stage | jump — there is no button, the stage is the control |
 | Click-drag / swipe across a rope | cut it — the only puzzle input |
 | Tap the mammoth | he toots and bounces. Changes nothing. |
 

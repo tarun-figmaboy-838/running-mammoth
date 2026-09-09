@@ -5,10 +5,12 @@
  *
  * WHY IT IS A DOM LAYER AND NOT DRAWN ON THE CANVAS. The engine never touches the DOM
  * and the HUD never touches the canvas; that separation is what keeps the renderer
- * testable. The tutorial has to point at BOTH kinds of thing — the mammoth and the
- * crevasse are canvas pixels, the JUMP button is an element — so it lives on the DOM
- * side and addresses canvas targets in stage coordinates, converted to percentages of
- * the stage exactly as the verdict mark and the hand hint already do.
+ * testable. The speech box, the blur sheet and the hand are text and pictures laid over
+ * the game rather than parts of it, so they live on the DOM side; every subject they
+ * point at is canvas, addressed in stage coordinates and converted to percentages of the
+ * stage exactly as the hand hint already does. (It used to have to point at a DOM control
+ * as well — the JUMP button — which is what domSpot and .tut-lift were for. Both are gone
+ * with the button: a tap anywhere jumps.)
  *
  * THE RULES IT FOLLOWS, all of which are load-bearing:
  *
@@ -112,10 +114,16 @@ export class Tutorial {
          1 This is Momo. He needs to find his friend.       describing, frozen, Momo lit
          2 Help Momo cross the Frozen Pass!                 describing, frozen, Momo lit
          3 Watch out!                                       describing, frozen, obstacle lit
-         4 Tap to jump over obstacles.                      ASKING: frozen 1.2s to read (a tap then is armed), tap hand on JUMP, waits for the jump
+         4 Tap to jump over obstacles.                      ASKING: frozen 1.2s to read (a tap then is armed), the box alone in the middle of the stage, no hand, waits for the jump
          5 Oh no! The path is broken.                       describing, frozen, gap lit
          6 Use the right ice piece to fix the path.         ASKING: sweep hand on the right rope, waits for the cut
          7 Perfect fit! Keep going!                         describing, game running, self-advances
+
+       EACH LINE IS DELIVERED A SENTENCE AT A TIME (see beats): 1 arrives as "This is
+       Momo." and then "He needs to find his friend.", 5 as "Oh no!" and then "The path is
+       broken.", 7 as "Perfect fit!" and then "Keep going!". The text here is the whole
+       line because that is what is recorded and what docs/VO-SCRIPT.md lists — the
+       splitting happens on the way to the screen, so the three cannot drift apart.
 
        The pauses are what keep it fair: the obstacle is frozen on screen while 3 is read
        and is jumpable the moment 4 starts; the gap and the blocks are frozen while 5 is
@@ -161,13 +169,29 @@ export class Tutorial {
         advance: 0, pause: true
       },
       {
-        /* One ask instead of a description and an ask: the hand on the button says WHERE,
-           the sentence says WHAT and WHEN. A tap anywhere jumps too, and counts. */
+        /* THE CONTROL IS THE WHOLE SCREEN, and this step says so in words alone, from the
+           MIDDLE of it.
+
+           There used to be a JUMP button in the bottom-right corner and this step pointed a
+           tapping hand at it. The button is gone (index.html), and so is the hand: a hand
+           tapping one spot is the one thing that must NOT be said here, because it teaches
+           that the spot is the control when the whole stage is. The box was then put on
+           Momo, and moved again on request to the centre of the stage — which is the right
+           place for it: "Tap to jump" is an instruction about the whole screen, not a line
+           Momo is saying, and a box in the middle of the sky says "anywhere" the way a box
+           parked on one character cannot. The tail still leans toward him (aimX), so it is
+           plain who does the jumping.
+
+           The spot is a wide, low oval in the open sky above the ice — y 560 is under the
+           rope line and above the rock's top (656) — so the box lands in the middle band of
+           the picture. The gate is the jump being available at all, not a rock being in
+           range: the rock keeps coming while the sentence is read, so a gate on its distance
+           would drop the box just as the player needs it. */
         id: 'jump',
-        at: () => this.domSpot('#btn-jump', 40) !== null,
-        spot: () => this.domSpot('#btn-jump', 40, 'bottom'),
+        at: g => !!g.jumpEnabled,
+        spot: () => ({ x: 960, y: 560, rx: 260, ry: 40, aimX: 620, world: true }),
         text: 'Tap to jump over obstacles.',
-        advance: 'jumped', pause: 1.2, hand: 'tap'
+        advance: 'jumped', pause: 1.2
       },
       {
         id: 'gap',
@@ -273,7 +297,16 @@ export class Tutorial {
     const mid = hang.find(s => s.kind === want) || sorted[Math.floor(sorted.length / 2)];
     const topOfBlock = mid.y - (mid.h || 200) / 2;
     if (topOfBlock < 60) return null;                 // rope still off the top
-    const ropeY = Math.max(70, topOfBlock - 60);
+    /* ON THE DASHES, NOT NEAR THEM. `guide` is the engine's own cut-line point for this
+       rope (engine.js: cutGuide), published on the shape every frame — the very point
+       the marching dashes are drawn at. This used to re-derive the height with a copy of
+       the engine's formula and take x from the ANCHOR, which is where the rope leaves
+       the fog, not where it is at the height of the dashes: with the rig swaying, the
+       hand sat beside the line it was supposed to be sweeping along. Reading the one
+       published number means the hand and the dashes cannot drift apart. */
+    const gd = mid.guide || null;
+    const ropeY = gd ? gd.y : Math.max(70, topOfBlock - 60);
+    const ropeX = gd ? gd.x : (mid.anchorX !== undefined ? mid.anchorX : mid.x);
     /* THE ZONE TO KEEP CLEAR IS THE ROPES AND THE BLOCKS, not the rope alone. With a
        90px box around the rope, a phone's taller bubble could not fit above it and was
        placed "below" — squarely over the blocks, hiding the very block the sentence
@@ -291,9 +324,12 @@ export class Tutorial {
        to be clamped onto the top edge with its tail pointing at nothing. So when above does not
        fit, the box goes UNDER THE PIECES (the row's bottom edge) rather than half over them,
        and the tail lands on the piece it names. Either way it never covers the answer. */
-    return { x: mid.anchorX !== undefined ? mid.anchorX : mid.x, y: ropeY, rx: 120, ry: 34,
-             aimX: mid.anchorX !== undefined ? mid.anchorX : mid.x, belowY: bottom,
-             handY: ropeY, world: true };
+    /* The BOX is aimed at the block's anchor (a bubble hanging off the rope's own line
+       reads as belonging to that rope), while the HAND is on the cut line itself. */
+    const anchor = mid.anchorX !== undefined ? mid.anchorX : mid.x;
+    return { x: anchor, y: ropeY, rx: 120, ry: 34,
+             aimX: anchor, belowY: bottom,
+             handX: ropeX, handY: ropeY, world: true };
   }
 
   /** A box around every hanging block, in stage coordinates. */
@@ -317,31 +353,11 @@ export class Tutorial {
     };
   }
 
-  /** A DOM element's box, in stage coordinates, so one code path places every spot. */
-  domSpot(sel, pad = 40, handAt) {
-    const stage = this.root.getElementById('stage');
-    const el = this.root.querySelector(sel);
-    if (!stage || !el) return null;
-    const s = stage.getBoundingClientRect(), b = el.getBoundingClientRect();
-    if (!b.width || !b.height) return null;         // hidden: nothing to point at
-    const x = (b.x + b.width / 2 - s.x) / s.width * W, y = (b.y + b.height / 2 - s.y) / s.height * H;
-    const hh = b.height / s.height * H / 2;
-    return {
-      x, y,
-      /* THE HAND TOUCHES THE BUTTON FROM BELOW. Centred on the button it was the size of
-         the button and hid it; asked for: small, upright, fingertip a little inside the
-         lower edge. The hand's centre goes just under the edge, so its fingertip (the top
-         of the icon) reaches ~25 stage px into the button and the rest hangs clear. */
-      handX: handAt === 'bottom' ? x + 12 : undefined,
-      handY: handAt === 'bottom' ? y + hh + 24 : undefined,
-      r: Math.max(b.width / s.width * W, b.height / s.height * H) / 2 + pad,
-      /* A DOM TARGET IS RAISED ABOVE THE SHEET. Canvas subjects are re-drawn by the
-         engine onto the focus canvas; the JUMP button is not on the canvas, it is an
-         element, so it names its selector and is lifted in the stacking order instead —
-         where the stylesheet gives it the same gold outline glow (.tut-lift). */
-      dom: sel
-    };
-  }
+  /* NO domSpot, AND NO LIFTED DOM TARGET. This measured an element's rect and returned
+     it as a stage-space spot, so a step could point at a control; the JUMP button was the
+     only caller, and with the button gone every subject the tutorial has is drawn on the
+     canvas and is highlighted by re-rendering it alone (showFocus). The '.tut-lift'
+     stacking trick that went with it is gone from the stylesheet too. */
 
   /* ---- lifecycle ---- */
 
@@ -365,19 +381,76 @@ export class Tutorial {
     this.t = 0;
   }
 
-  /* HOW LONG A SENTENCE STAYS UP, from the sentence rather than a constant.
+  /* ---- ONE SENTENCE AT A TIME ----
+   *
+   * A step's line is a SEQUENCE OF SHORT SENTENCES, shown one after another in the same
+   * box, not a paragraph delivered in one go.
+   *
+   * "This is Momo. He needs to find his friend." arrived as a single two-line block of
+   * text, and a block of text is the one thing a five-year-old will not read: it is a
+   * paragraph in a speech bubble, which is what a worksheet looks like. A comic gives one
+   * thought per panel. So a line is split at its own full stops and each sentence takes
+   * the box in turn — "This is Momo." lands, is read, pops out, and "He needs to find his
+   * friend." pops in behind it. Each sentence gets its own pop, its own hug to the words
+   * and its own beat, which is what makes it read as someone SPEAKING rather than as a
+   * caption appearing.
+   *
+   * THE WORDS THEMSELVES ARE NOT REWRITTEN HERE, and that is deliberate. Every line is
+   * recorded in the owner's voice-over as one take (CFG.vo.lines) and listed verbatim in
+   * docs/VO-SCRIPT.md; changing a sentence in this file would silently desynchronise the
+   * three and a test would rightly fail. Splitting at display time gives the shorter,
+   * simpler delivery that was asked for while the script, the recording and the doc stay
+   * one thing. A line that has to be genuinely shorter is shortened in the script above,
+   * re-recorded, and moved in the doc — all three together.
+   *
+   * The sentences share the clip when there is a voice, in proportion to their length, so
+   * what is on screen is what is being said at that moment.
+   */
+  beats(text) {
+    const key = (text || '') + '|' + (this.voDur || 0);
+    if (this._beatKey === key) return this._beatPlan;
+    /* Split on the punctuation and KEEP it: "Oh no!" is a beat BECAUSE of the "!", and a
+       sentence that arrives without its full stop reads as unfinished. */
+    const parts = String(text || '').match(/[^.!?]+[.!?]*/g) || [];
+    const lines = parts.map(t => t.trim()).filter(Boolean);
+    let plan;
+    if (!lines.length) plan = [];
+    else if (this.voDur > 0) {
+      /* SPOKEN: the clip is shared out by length, so the sentence on screen is the one
+         being said. The last keeps the tail of the clip plus a beat, so the box never
+         leaves on the final word. */
+      const total = lines.reduce((a, t) => a + t.length, 0) || 1;
+      plan = lines.map(t => ({ text: t, dur: Math.max(0.7, this.voDur * t.length / total) }));
+      plan[plan.length - 1].dur += 0.45;
+    } else {
+      /* SILENT: the reading estimate the script was written to, per sentence — a beat to
+         look at it plus ~55ms a character, floored so a two-word beat is not a flash and
+         capped so none of them outstays its welcome. */
+      plan = lines.map(t => ({ text: t, dur: clampN(1.0 + t.length * 0.055, 1.55, 3.6) }));
+    }
+    this._beatKey = key; this._beatPlan = plan;
+    return plan;
+  }
 
-     A fixed hold is either too short for the longest line or too slow for the shortest
-     one. 1.5s of looking-at-it plus ~55ms a character puts "This is your mammoth. He
-     runs all by himself!" at about 3.9s and the shortest line at the 2.6s floor, which
-     is a comfortable read for a child rather than a glance for an adult. Clamped at
-     both ends so no line can rush past or outstay its welcome. */
+  /** Which sentence is showing at t seconds into the step, and how long it has. */
+  beatAt(text, t) {
+    const plan = this.beats(text);
+    if (!plan.length) return { text: '', dur: 0 };
+    let acc = 0;
+    for (let i = 0; i < plan.length; i++) {
+      acc += plan[i].dur;
+      if (t < acc || i === plan.length - 1) return plan[i];
+    }
+    return plan[plan.length - 1];
+  }
+
+  /* HOW LONG THE WHOLE LINE STAYS UP: its sentences, added up. A describing step holds for
+     that and then moves on by itself, so splitting a line lengthens the step rather than
+     squeezing its sentences into the old hold. With a voice it can never be shorter than
+     the clip plus a beat, so a line is never taken off the screen mid-word. */
   readTime(text) {
-    /* THE VOICE DECIDES, when there is one: a describing step holds for the line plus a beat, so
-       the sentence is never cut off mid-word. Without the voice it is the reading estimate the
-       script was written to. */
-    const read = clampN(1.5 + (text || '').length * 0.055, 2.6, 5.2);
-    return this.voDur > 0 ? Math.max(read, this.voDur + 0.45) : read;
+    const total = this.beats(text).reduce((a, b) => a + b.dur, 0);
+    return this.voDur > 0 ? Math.max(total, this.voDur + 0.45) : total;
   }
 
   /* NO TAP-TO-ADVANCE. A describing step moves on by itself and a tap does nothing.
@@ -410,11 +483,6 @@ export class Tutorial {
     if (this.done) return;
     this.done = true;
     this.resume();
-    if (this._lifted) {
-      const el = this.root.querySelector(this._lifted);
-      if (el) el.classList.remove('tut-lift');
-      this._lifted = null;
-    }
     this.hideFocus();
     if (this.el.layer) this.el.layer.hidden = true;
     this._bubbleKey = null;
@@ -527,14 +595,21 @@ export class Tutorial {
     /* DESCRIBING or ASKING — a number of seconds means the former. The veil and the
        frozen copy belong to describing steps; the hand belongs to asking ones. */
     const describing = typeof s.advance === 'number';
-    const text = this.follow || (typeof s.text === 'function' ? s.text(g) : s.text);
+    const line = this.follow || (typeof s.text === 'function' ? s.text(g) : s.text);
     /* THE LINE IS SPOKEN AS IT APPEARS, once per step, and the words are revealed in step with
        it (see setWords). The voice's length also sets how long a describing step holds, so a
        line is never taken off the screen mid-sentence. */
-    if (!this.spoke && text) {
+    if (!this.spoke && line) {
       this.spoke = true;
       this.voDur = (this.game.say && this.game.say(VO[s.id] || '')) || 0;
     }
+    /* ONE SENTENCE AT A TIME (see beats). `text` from here down is the sentence showing
+       NOW rather than the whole line, and show() pops the box afresh for each one. The plank
+       is the exception: a sign step hands its whole line over below, because the plank is a
+       written question and not someone speaking. */
+    const beat = this.beatAt(line, this.t);
+    const text = beat.text;
+    this._beatDur = beat.dur;
 
     /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
 
@@ -566,7 +641,7 @@ export class Tutorial {
     }
     const onSign = typeof s.sign === 'number';
     if (onSign) {
-      this.game.saySign(this.t < s.sign ? text : '', this.voDur);
+      this.game.saySign(this.t < s.sign ? line : '', this.voDur);
       if (this.el.bubble) this.el.bubble.hidden = true;
       this.showFocus(s.focus || null);            // the row stays lit for as long as the step does
       this.show(null, '', false, s.hand || null, false, null, true);
@@ -574,14 +649,19 @@ export class Tutorial {
          update(), so without this line the plank kept the teaching sentence for the rest of the
          phase: the question never arrived and the panel never left the screen. The sentence holds
          for as long as it is spoken (readTime follows the voice), then next() hands the plank back. */
-      if (describing && this.t >= this.readTime(text)) this.next();
+      if (describing && this.t >= this.readTime(line)) this.next();
       return;
     }
-    const keepBox = describing || this.t < Math.min(2.4, this.readTime(text));
+    /* MEASURED ON THE WHOLE LINE, not on the sentence showing: an ask's box has to
+       survive long enough for every one of its sentences. 3.2s is the cap on that — long
+       enough for two short beats, short enough to be out of the way before anyone is
+       ready to act. A describing step keeps its box for its whole life, because the box
+       IS the step. */
+    const keepBox = describing || this.t < Math.min(3.2, this.readTime(line));
     this.show(this.toView(box, g), text, describing, s.hand || null, keepBox, s.focus || null, s.pause === false);
 
-    // and a describing step moves on once it has been up long enough to read
-    if (describing && this.t >= this.readTime(text)) this.next();
+    // and a describing step moves on once every sentence has been up long enough to read
+    if (describing && this.t >= this.readTime(line)) this.next();
   }
 
   /* THE VIEW TRANSFORM, applied to canvas-space targets only.
@@ -607,6 +687,13 @@ export class Tutorial {
     if (box.r !== undefined) out.r = box.r * k;
     if (box.aimX !== undefined) out.aimX = fx + (box.aimX - fx) * k;
     if (box.belowY !== undefined) out.belowY = fy + (box.belowY - fy) * k;
+    /* AND THE HAND'S OWN SPOT. It was DROPPED here — the mapped box was rebuilt field by
+       field and handX/handY were not among them — so a spot that placed its hand
+       somewhere other than the box's centre lost that placement the moment the puzzle
+       zoomed, which is every moment the rope hand is ever shown. The hand fell back to
+       the box's centre: the block's anchor, not the cut line. */
+    if (box.handX !== undefined) out.handX = fx + (box.handX - fx) * k;
+    if (box.handY !== undefined) out.handY = fy + (box.handY - fy) * k;
     if (box.rx !== undefined) out.rx = box.rx * k;
     if (box.ry !== undefined) out.ry = box.ry * k;
     return out;
@@ -627,22 +714,41 @@ export class Tutorial {
        whole reveal is spread across the clip (a beat per word, never faster than 55 ms or slower
        than 210 ms) so the text keeps pace with what is being said. Silent, it is the old 55 ms. */
     const words = (text || '').trim().split(/\s+/).filter(Boolean).length || 1;
-    /* ACROSS THE WHOLE LINE. The step is measured against the LAST word's delay, not the word
-       count, and spread over 82% of the clip — so the sentence finishes arriving just as the
-       voice finishes saying it. Divided by the count and capped at 0.21 s it always hit the cap,
-       and every word was up by the middle of the line. */
-    this._wordStep = this.voDur > 0 ? clampN((this.voDur * 0.82) / Math.max(1, words - 1), 0.055, 0.55) : 0.055;
+    /* ACROSS THIS SENTENCE'S SHARE OF THE CLIP. The reveal is measured against the LAST
+       word's delay, not the word count, and spread over 82% of the span — so the sentence
+       finishes arriving just as the voice finishes saying it. It used to spread across the
+       WHOLE line's clip, which was right while the whole line sat in the box at once; now
+       that the sentences arrive one at a time (see beats), each has to keep pace with its
+       own share of the recording or the second one crawls in after the voice has left it. */
+    const span = this.voDur > 0 ? (this._beatDur || this.voDur) : 0;
+    this._wordStep = span > 0 ? clampN((span * 0.82) / Math.max(1, words - 1), 0.055, 0.55) : 0.055;
     const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
+    /* THE FALLBACK, and it is needed BECAUSE the sentences arrive one at a time. A line
+       used to be in the box whole, so its one key word was always somewhere in it. Split
+       at its full stops, a sentence can have none: "This is Momo." carries the verb of
+       the line in its second half, and it arrived with nothing picked out at all — a flat
+       grey sentence where every other one has a word in orange.
+       So a sentence with no verb of its own accents the NAME instead, which is the right
+       word to lean on the first time a child meets him. Tried second, never first, so
+       "Help Momo cross the Frozen Pass!" still leans on `cross` — the owner's list of key
+       words is unchanged, this only fills a gap it never had to cover before. */
+    const NAME = /^(momo|frozen)[!.,?]*$/i;
     const parts = (text || '').split(/(\s+)/);
-    let i = 0, powed = false;
+    const list = parts.filter(p => p && !/^\s+$/.test(p));       // the words alone, without the gaps
+    const loudAt = w => (w.length > 2 && w === w.toUpperCase() && /[A-Z]/.test(w)) || KEY.test(w);
+    /* Decided BEFORE anything is written, because the fallback has to know whether a real
+       key word turns up later in the sentence — marking as it went would accent the name
+       and then find the verb two words further on. */
+    let pow = list.findIndex(loudAt);
+    if (pow < 0) pow = list.findIndex(w => NAME.test(w));
+    let i = 0, n = 0;
     el.textContent = '';
     for (const p of parts) {
       if (!p) continue;
       if (/^\s+$/.test(p)) { el.appendChild(document.createTextNode(p)); continue; }
       const w = document.createElement('span');
-      const loud = !powed && ((p.length > 2 && p === p.toUpperCase() && /[A-Z]/.test(p)) || KEY.test(p));
-      w.className = loud ? 'w pow' : 'w';
-      if (loud) powed = true;
+      w.className = n === pow ? 'w pow' : 'w';
+      n++;
       w.style.setProperty('--i', i++);
       if (this._wordStep) w.style.setProperty('--wd', this._wordStep.toFixed(3) + 's');
       w.textContent = p;
@@ -793,7 +899,7 @@ export class Tutorial {
        the whole moving scene (asked: "why does this stage look blurred?"). A veil belongs
        only to a step that has stopped the game to explain something. */
     if (this.el.veil) this.el.veil.hidden = !describing || !!running;
-    if (!describing || box.dom) this.hideFocus();
+    if (!describing) this.hideFocus();
 
     const pc = (v, of) => (v / of * 100).toFixed(2) + '%';
     /* Each axis as a percentage of ITS OWN axis, which is the only way a percentage
@@ -816,21 +922,7 @@ export class Tutorial {
      * rock's, the row's — and no background comes with it, because none was drawn.
      *
      * Once per step, not per frame: every step that shows this has frozen the game. */
-    /* Lift a DOM target above the sheet for as long as it is the focus, and put it back
-       afterwards. Tracked so exactly one element is ever lifted. */
-    const wantLift = describing && box.dom ? box.dom : null;
-    if (this._lifted !== wantLift) {
-      if (this._lifted) {
-        const prev = this.root.querySelector(this._lifted);
-        if (prev) prev.classList.remove('tut-lift');
-      }
-      if (wantLift) {
-        const el = this.root.querySelector(wantLift);
-        if (el) el.classList.add('tut-lift');
-      }
-      this._lifted = wantLift;
-    }
-    if (describing && focus && !box.dom) this.showFocus(focus);
+    if (describing && focus) this.showFocus(focus);
     const b = this.el.bubble;
     /* THE WORDS GO IN FIRST, because the box cannot be placed until its height is
        known and its height depends on how many lines the sentence wraps to. It used to
@@ -998,7 +1090,7 @@ export class Tutorial {
         hd.hidden = false;
         hd.dataset.gesture = gesture;      // CSS picks tap or sweep off this
         hd.style.left = pc(box.handX !== undefined ? box.handX : box.x, W);
-        // a spot may keep a taller zone clear than where the hand belongs (see ropeBox, domSpot)
+        // a spot may keep a taller zone clear than where the hand belongs (see ropeBox)
         hd.style.top = pc(box.handY !== undefined ? box.handY : box.y, H);
       } else if (!hd.hidden) hd.hidden = true;
     }

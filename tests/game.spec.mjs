@@ -581,13 +581,72 @@ test.describe('layout', () => {
     expect(m.overflowY).toBe(false);
   });
 
-  test('the jump button is a comfortable tap target', async ({ page }) => {
+  test('the leap travels forward and lands ahead, without moving the collider', async ({ page }) => {
+    /* The character's world position is fixed and the ground scrolls, so a jump used to
+       be a pure vertical — he came down on the pixel he left. The drawn character now
+       carries a forward offset through the flight (CFG.jumpLead) and the frame eases back
+       to him afterwards. Two things are held here: that the arc really travels, and that
+       ONLY the drawing does — mammothX is the collider and it may never move. */
     await boot(page);
     await waitState(page, 'RUN_SEGMENT_1');
     await page.waitForFunction('window.iceAgeGame.debug().jumpEnabled === true');
-    const b = await page.locator('#btn-jump').boundingBox();
-    expect(b.width).toBeGreaterThanOrEqual(44);
-    expect(b.height).toBeGreaterThanOrEqual(44);
+    const arc = await page.evaluate(async () => {
+      const g = window.iceAgeGame, p = g._player();
+      const mammothX = p.drawX;                     // grounded: the collider's own x
+      g.jump();
+      const seen = [];
+      for (let i = 0; i < 200; i++) {
+        await new Promise(res => requestAnimationFrame(res));
+        seen.push({ dx: p.drawX - mammothX, y: p.y, air: p.airborne });
+        if (seen.length > 4 && !p.airborne) break;
+      }
+      const air = seen.filter(s => s.air);
+      const landed = seen[seen.length - 1];
+      return {
+        rose: Math.min(...air.map(s => s.y)),
+        takeoff: air.length ? air[0].dx : 0,
+        peakDx: Math.max(...seen.map(s => s.dx)),
+        landedDx: landed.dx,
+        monotonic: air.every((s, i) => i === 0 || s.dx >= air[i - 1].dx - 0.5),
+        colliderX: mammothX
+      };
+    });
+    expect(arc.rose, 'he actually left the ground').toBeLessThan(-100);
+    expect(arc.takeoff, 'the arc starts where he stood').toBeLessThan(12);
+    expect(arc.peakDx, 'and travels a real distance forward').toBeGreaterThan(60);
+    expect(arc.landedDx, 'so the touchdown is ahead of the take-off').toBeGreaterThan(40);
+    expect(arc.monotonic, 'forward the whole way, never backwards mid-air').toBe(true);
+
+    // and the frame catches up: after a stride of running he is back on his own mark
+    await page.waitForFunction('window.iceAgeGame._player().dx < 1', null, { timeout: 10_000 });
+    const back = await page.evaluate(() => {
+      const p = window.iceAgeGame._player();
+      return { dx: p.dx, drawX: p.drawX };
+    });
+    expect(Math.abs(back.dx), 'the offset is spent').toBeLessThan(1);
+    // ...to within the same pixel the wait above stopped at: this is the ease arriving, not a snap
+    expect(Math.abs(back.drawX - arc.colliderX), 'and he is drawn on the collider again').toBeLessThan(1.2);
+  });
+
+  test('the tap target is the whole stage, and it is thumb-sized by definition', async ({ page }) => {
+    /* This used to measure the JUMP button against the 44px floor. There is no button:
+       the target is the stage itself, so what is worth holding is that the stage really
+       does take the tap — nothing invisible is laid over it swallowing pointer events. */
+    await boot(page);
+    await waitState(page, 'RUN_SEGMENT_1');
+    await page.waitForFunction('window.iceAgeGame.debug().jumpEnabled === true');
+    const r = await page.evaluate(() => {
+      const st = document.getElementById('stage').getBoundingClientRect();
+      // what the browser says is on top at four places well inside the stage
+      const at = (fx, fy) => {
+        const el = document.elementFromPoint(st.left + st.width * fx, st.top + st.height * fy);
+        return el ? (el.id || el.className || el.tagName) : 'none';
+      };
+      return { w: st.width, h: st.height, hits: [at(0.2, 0.25), at(0.5, 0.4), at(0.8, 0.3), at(0.5, 0.75)] };
+    });
+    expect(r.w).toBeGreaterThanOrEqual(44);
+    expect(r.h).toBeGreaterThanOrEqual(44);
+    for (const hit of r.hits) expect(hit, 'the canvas takes the tap').toBe('game-canvas');
   });
 });
 

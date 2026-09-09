@@ -14,12 +14,19 @@ for the whole question, so a line that runs long is not cut off but does hold th
 These play once, on the first crossing. Lines 1, 2, 3 and 5 freeze the game while they are
 read; 4 and 6 wait for the player to act; 7 runs over the celebration.
 
+**A line is SHOWN one sentence at a time** — "This is Momo." lands, is read, and then "He
+needs to find his friend." replaces it in the same box (`Tutorial.beats`). The recording is
+still one continuous take per line, and the sentences share its length in proportion to
+their own, so the words on screen are the words being said. That is why the lines are
+written here whole: change the wording and the recording, this table and
+`game/js/tutorial.js` all move together, and a test fails if they do not.
+
 | id | line | moment |
 |---|---|---|
 | tut-1-meet | This is Momo. He needs to find his friend. | The run starts; Momo is lit. |
 | tut-2-goal | Help Momo cross the Frozen Pass! | Still at the start. |
 | tut-3-watch | Watch out! | A rock is right in his path. |
-| tut-4-jump | Tap to jump over obstacles. | The hand points at the JUMP button. |
+| tut-4-jump | Tap to jump over obstacles. | The box alone, in the middle of the stage; no hand — the whole stage is the control. |
 | tut-5-broken | Oh no! The path is broken. | He has stopped and trembled; the hole is lit. |
 | tut-6-use | Use the right ice piece to fix the path. | The hand sweeps across the answer's rope. |
 | tut-7-fit | Perfect fit! Keep going! | The piece has landed and the run resumes. |

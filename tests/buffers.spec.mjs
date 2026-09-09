@@ -83,10 +83,18 @@ test.describe('the pointer, the buffers and the voice', () => {
       const st = document.getElementById('stage').getBoundingClientRect();
       const el = document.getElementById('instruction'); el.hidden = false; el.classList.remove('leaving');
       document.getElementById('instruction-text').textContent = 'Cut the TRIANGLE.';
-      const pill = document.getElementById('instruction-pill').getBoundingClientRect();
-      const jump = document.getElementById('btn-jump').getBoundingClientRect();
+      /* LAYOUT, NOT THE PAINTED BOX. The sign drops in on its ropes and the drop rotates it
+         a couple of degrees; a rotated box's client rect is its bounding box, which is up to
+         10% taller than the panel is. Measured mid-drop at one size and settled at the other,
+         that alone read as the interface being a different share of the stage. offsetHeight
+         is the laid-out height and no transform can touch it — the same reason Tutorial.hugWords
+         measures words that way. */
+      const pillEl = document.getElementById('instruction-pill');
+      const pill = { height: pillEl.offsetHeight, width: pillEl.offsetWidth };
       const txt = parseFloat(getComputedStyle(document.getElementById('instruction-text')).fontSize);
-      return { signH: pill.height / st.height, textH: txt / st.height, jumpW: jump.width / st.width, jumpPx: jump.width, stage: st.width };
+      /* No jump button to measure any more: the stage IS the control, so the sign is the
+         whole of the in-play interface and the share it takes is the whole of this check. */
+      return { signH: pill.height / st.height, textH: txt / st.height, stage: st.width };
     });
     await page.setViewportSize({ width: 1920, height: 1080 });
     await boot(page);
@@ -97,9 +105,7 @@ test.describe('the pointer, the buffers and the voice', () => {
     expect(b.stage, 'the stage really doubled').toBeGreaterThan(a.stage * 1.9);
     expect(Math.abs(b.textH - a.textH), `text share ${a.textH.toFixed(4)} vs ${b.textH.toFixed(4)}`).toBeLessThan(0.004);
     expect(Math.abs(b.signH - a.signH), 'sign share').toBeLessThan(0.01);
-    expect(Math.abs(b.jumpW - a.jumpW), 'jump share').toBeLessThan(0.01);
     expect(a.textH, 'readable against the stage').toBeGreaterThan(0.03);
-    expect(a.jumpPx, 'a thumb-sized target').toBeGreaterThanOrEqual(44);
   });
 
   test('the voice is one recording cut into sixteen windows, none overlapping', async ({ page }) => {

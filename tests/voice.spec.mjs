@@ -41,18 +41,27 @@ test.describe('the voice and the crossing order', () => {
     expect((await page.evaluate(() => window.iceAgeGame._voice())).lines).toBe(16);
     const r = await page.evaluate(async () => {
       const m = await import('/js/engine.js');
-      const want = 'This is Momo. He needs to find his friend.';
+      /* THE SECOND SENTENCE, not the whole line. The box shows one sentence at a time now
+         (Tutorial.beats), so the whole line is never in it; this used to wait for the whole
+         line and timed out. The second sentence is the one worth measuring: it carries the
+         line's key word and most of its clip, and its words have to arrive across ITS share
+         of the recording — the tail of the clip — not be up before the voice reaches them. */
+      const want = 'He needs to find his friend.';
       const t0 = Date.now();
       while (Date.now() - t0 < 120000 && document.getElementById('tut-text').textContent.trim() !== want) await new Promise(res => setTimeout(res, 80));
       await new Promise(res => setTimeout(res, 200));
       const ws = [...document.querySelectorAll('#tut-text .w')];
       const last = ws.length ? parseFloat(getComputedStyle(ws[ws.length - 1]).animationDelay) : -1;
-      return { words: ws.length, last, clip: m.CFG.vo.lines['tut-1-meet'][1] };
+      const clip = m.CFG.vo.lines['tut-1-meet'][1];
+      // the sentence's share of the clip, by length, plus the beat the last sentence keeps (Tutorial.beats)
+      const share = clip * (want.length / ('This is Momo.'.length + want.length)) + 0.45;
+      return { words: ws.length, last, clip, share, shown: document.getElementById('tut-text').textContent.trim() };
     });
-    expect(r.words, 'the line is set word by word').toBeGreaterThan(5);
-    // the last word arrives in the second half of the clip and not after it
-    expect(r.last).toBeGreaterThan(r.clip * 0.45);
-    expect(r.last).toBeLessThan(r.clip + 0.4);
+    expect(r.shown, 'the second sentence is up on its own').toBe('He needs to find his friend.');
+    expect(r.words, 'the sentence is set word by word').toBe(6);
+    // the last word arrives in the second half of this sentence's share of the clip, and not after it
+    expect(r.last).toBeGreaterThan(r.share * 0.45);
+    expect(r.last).toBeLessThan(r.share + 0.4);
   });
 
   test('a phase question is spoken once, and its id comes from its own sentence', async ({ page }) => {
@@ -134,7 +143,12 @@ test.describe('the voice and the crossing order', () => {
        0.6 s of one plus the whole of the other. */
     await boot(page, { sound: true });
     await page.evaluate(() => window.iceAgeGame.sfx("ui"));
-    await page.waitForFunction(() => window.iceAgeGame._voice().ready, null, { timeout: 60_000 });
+    /* READY *AND* RUNNING. ctx.resume() is asynchronous, and `ready` can already be true from
+       the bytes having decoded — so a say() issued the instant `ready` turned true could land
+       while the context was still suspended and be logged as "tut-6-use:ctx-suspended". That
+       is a race in this harness, not the thing the test is about (two lines close together,
+       both heard whole), so the context is waited for like everything else. */
+    await page.waitForFunction(() => { const v = window.iceAgeGame._voice(); return v.ready && v.ctx === "running"; }, null, { timeout: 60_000 });
     const r = await page.evaluate(async () => {
       const g = window.iceAgeGame; const m = await import("/js/engine.js");
       const marks = []; let was = false; const t0 = performance.now();

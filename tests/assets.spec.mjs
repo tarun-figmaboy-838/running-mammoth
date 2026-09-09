@@ -155,7 +155,8 @@ test.describe('assets', () => {
          carry their own rim, gloss and lettering, and their pressed state is drawn
          rather than restyled. A vector version of one of those is not a thing that
          exists. Everything else under assets/ui stays SVG. */
-      const RASTER_OK = ['assets/ui/icons/touch.png', 'assets/ui/sign-l.webp', 'assets/ui/sign-m.webp', 'assets/ui/sign-r.webp',
+      const RASTER_OK = ['assets/ui/icons/touch.png',
+                         'assets/ui/plank-l.webp', 'assets/ui/plank-m.webp', 'assets/ui/plank-r.webp',
                          'assets/ui/btn-normal.webp', 'assets/ui/btn-pressed.webp',
                          'assets/ui/btn-play.webp', 'assets/ui/btn-play-pressed.webp',
                          'assets/ui/btn-tryagain.webp'];

@@ -87,7 +87,7 @@ const wantScale = () => {
 if (document.fonts && document.fonts.load) {
   for (const w of [600, 700, 800, 900]) document.fonts.load(w + ' 20px "Baloo 2"').catch(() => {});
 }
-for (const src of ['assets/ui/btn-play-pressed.webp', 'assets/ui/btn-pressed.webp']) { const i = new Image(); i.src = assetUrl(src); }
+for (const src of ['assets/ui/btn-play-pressed.webp']) { const i = new Image(); i.src = assetUrl(src); }
 
 /* THE HD CHARACTER SET IS FOR TABLETS AND LAPTOPS, NOT PHONES. A 3x phone's stage is dense
    enough to qualify by scale alone, and that is exactly where six 3780x2880 sheets are a
@@ -113,8 +113,6 @@ const game = createGame(canvas, {
      skips PAINTING while this holds; the simulation keeps running (see the frame loop). */
   hidden: () => { const el = document.getElementById('rotate'); return !!(el && !el.hidden); },
   hdArt: wantHd(),
-  // a tap on the stage jumped: flash the button, so the tap and the button read as one control
-  onJumpInput: () => hud.flashJump(),
   renderScaleForced: params.has('rs'),   // a forced scale is a request; the fps guard leaves it alone
   onReady: () => {
     if (flag('skip', false)) { game.begin(); startTutorial(); return; }
@@ -231,7 +229,6 @@ if (window.Juice) {
 }
 
 hud.bind({
-  onJump: () => game.jump(),
   onPause: paused => game.setPaused(paused),
   onReplay: () => game.restart(),
   // TEMPORARY review control: end the tutorial if it is up, then jump to the ending
@@ -242,12 +239,9 @@ hud.bind({
   onHint: () => game.replayInstruction()
 });
 
-// A keyboard jump should depress the on-screen button too, so the control reads as
-// the same thing whether it is tapped or keyed.
-window.addEventListener('keydown', e => {
-  if (e.repeat) return;
-  if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') hud.flashJump();
-});
+/* No keydown listener here any more. It existed to flash the JUMP button so a keyed
+   jump looked like a pressed control; with the button gone the engine's own key
+   handler (Space / ArrowUp / W) is the whole of it. */
 
 /* Auto-pause when the tab loses focus so the character is never mid-jump on return.
 

@@ -25,7 +25,9 @@ export class Hud {
       resume: root.getElementById('btn-resume'),
       paused: root.getElementById('paused'),
       hand: root.getElementById('hand-hint'),
-      jump: root.getElementById('btn-jump'),
+      /* No jump button any more (see index.html): the stage is the control. The lookup
+         is gone with it rather than kept guarded — a lookup with no user is how a dead
+         element gets wired back up by the next person reading this file. */
       skipEnd: root.getElementById('btn-skip-end'),   // TEMPORARY review control
       instruction: root.getElementById('instruction'),
       pill: root.getElementById('instruction-pill'),
@@ -42,7 +44,6 @@ export class Hud {
     };
     this.paused = false;
     this.lastMessage = null;
-    this.lastPulse = false;
     this._onResize = () => this.checkOrientation();
   }
 
@@ -151,7 +152,7 @@ export class Hud {
     word(m[4], 'iw', false);                                  // the sentence keeps its full stop
   }
 
-  /** @param {{onJump:Function,onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
+  /** @param {{onPause:Function,onReplay:Function,onStamp?:Function}} handlers */
   bind(handlers) {
     this.handlers = handlers;
 
@@ -160,41 +161,10 @@ export class Hud {
     // pressed look has to be driven by a class or the button never appears to move.
     // TEMPORARY review control: jump to the ending. Guarded like every other lookup.
     if (this.el.skipEnd && handlers.onSkipEnd) this.el.skipEnd.addEventListener('click', () => handlers.onSkipEnd());
-    this.el.jump.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      /* Removed and re-added so the tap ring's animation restarts. A class that is
-         already present does not re-run its keyframes, so a second tap in quick
-         succession would show no ring at all. */
-      this.el.jump.classList.remove('pressed');
-      void this.el.jump.offsetWidth;
-      this.el.jump.classList.add('pressed');
-      /* A PRESS, NOT A HOP. The button used to hop with the character (Juice.hop): it rose
-         24px and swelled 7px over 620ms, a quarter of its own height on a phone, so the
-         control left the finger that was on it and a second tap landed on sky. A pressed
-         button compresses where it is: a 160ms squash, no travel. The art swap and the
-         tap ring above carry the rest. */
-      if (this.el.jump.animate) {
-        try {
-          this.el.jump.animate([
-            { transform: 'scale(1)' }, { transform: 'scale(0.93)', offset: 0.35 }, { transform: 'scale(1)' }
-          ], { duration: 160, easing: 'ease-out' });
-        } catch (e) { /* no WAAPI */ }
-      }
-      handlers.onJump();
-    });
-    const release = () => this.el.jump.classList.remove('pressed');
-    this.el.jump.addEventListener('pointerup', release);
-    this.el.jump.addEventListener('pointercancel', release);
-    this.el.jump.addEventListener('pointerleave', release);
-    window.addEventListener('pointerup', release);
-    // keyboard jumps should flash the button too, so the control feels connected
-    this._flashJump = () => {
-      this.el.jump.classList.add('pressed');
-      clearTimeout(this._flashT);
-      this._flashT = setTimeout(release, 110);
-    };
-    // keep the button from swallowing focus rings on touch
-    this.el.jump.addEventListener('contextmenu', e => e.preventDefault());
+
+    /* NOTHING HERE BINDS A JUMP. The jump is a tap on the stage, which the engine reads
+       off the canvas itself — there is no DOM control to press, to swap art on, to
+       restart a ring on, or to keep in step with the keyboard. */
 
     // every icon button gets the same press feedback, so the whole cluster behaves
     // as one family
@@ -319,15 +289,8 @@ export class Hud {
     // the hint asks for attention only once the learner has been stuck a while
     if (this.el.hint) this.el.hint.classList.toggle('nudge', !!h.hintNudge);
 
-    const showJump = h.jumpEnabled && !h.complete;
-    if (this.el.jump.hidden === showJump) this.el.jump.hidden = !showJump;
     // TEMPORARY review control: up whenever the game is playable and not yet complete
     if (this.el.skipEnd) { const show = !!h.skippable; if (this.el.skipEnd.hidden === show) this.el.skipEnd.hidden = !show; }
-
-    if (h.jumpPulse !== this.lastPulse) {
-      this.lastPulse = h.jumpPulse;
-      this.el.jump.classList.toggle('pulse', h.jumpPulse);
-    }
 
     if (this.el.complete.hidden === h.complete) {
       this.el.complete.hidden = !h.complete;
@@ -339,9 +302,6 @@ export class Hud {
        gone with the card: a crash plays out and the run resumes at the nearest
        checkpoint by itself, so there is nothing to open and nothing to focus. */
   }
-
-  /** Flash the pressed look, for jumps that came from the keyboard. */
-  flashJump() { if (this._flashJump) this._flashJump(); }
 
   destroy() {
     clearTimeout(this._leaveT);

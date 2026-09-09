@@ -1,42 +1,39 @@
 /* THE CONTROLS UNDER A FINGER, and the launch furniture.
  *
  * Found on the deployment: a JUMP button that hopped 24px on every press, a blank page while
- * the art loaded, a preload warning on every load, and no icon. These hold the fixes. */
+ * the art loaded, a preload warning on every load, and no icon. These hold the fixes — and
+ * the button itself is gone now, so the first of them holds THAT instead. */
 import { test, expect } from '@playwright/test';
-import { boot, READY, force } from './helpers.mjs';
+import { boot, READY, force, waitState } from './helpers.mjs';
 
 test.describe('controls', () => {
   test.setTimeout(90_000);
 
-  test('the JUMP button presses in place — it does not travel under the finger', async ({ page }) => {
+  test('there is no JUMP button: the whole stage is the control', async ({ page }) => {
+    /* The button was removed on request — a tap anywhere already jumped, so it was a
+       second way to do one thing and a corner target competing with the instruction that
+       matters. This holds the removal from every side it could come back from: the
+       markup, the stylesheet, and the code that used to press it. */
     await boot(page);
-    await page.waitForSelector('#btn-jump:not([hidden])');
-    const trace = await page.evaluate(() => new Promise(done => {
-      const el = document.getElementById('btn-jump');
-      const r0 = el.getBoundingClientRect();
-      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', isPrimary: true }));
-      /* WHAT the press animates is read off the animation itself, not sampled: a 160ms
-         squash can finish between two frames of a loaded headless runner. The keyframes
-         must scale about the centre and never translate. */
-      const anims = el.getAnimations ? el.getAnimations() : [];
-      const frames = anims.flatMap(a => a.effect && a.effect.getKeyframes ? a.effect.getKeyframes() : []);
-      const transforms = frames.map(f => f.transform || '').filter(Boolean);
-      let rise = 0, swell = 0;
-      const t0 = performance.now();
-      const tick = () => {
-        const r = el.getBoundingClientRect();
-        rise = Math.max(rise, Math.abs(r.top + r.height / 2 - (r0.top + r0.height / 2)));   // the centre must stay put
-        swell = Math.max(swell, r.width - r0.width);
-        if (performance.now() - t0 < 700) requestAnimationFrame(tick); else done({ rise, swell, animations: anims.length, transforms });
+    await waitState(page, 'RUN_SEGMENT_1');
+    await page.waitForFunction('window.iceAgeGame.debug().jumpEnabled === true');
+    const gone = await page.evaluate(async () => {
+      const css = await (await fetch('/css/style.css')).text();
+      const hud = await (await fetch('/js/hud.js')).text();
+      return {
+        inMarkup: !!document.getElementById('btn-jump') || !!document.querySelector('.btn-jump'),
+        inCss: /\.btn-jump/.test(css),
+        inHud: /btn-jump|flashJump/.test(hud)
       };
-      requestAnimationFrame(tick);
-    }));
-    // a squash about the centre is fine; travel is not, and growth is not
-    expect(trace.rise, 'centre travel px').toBeLessThan(2);
-    expect(trace.swell, 'growth px').toBeLessThan(2);
-    expect(trace.animations, 'the press is animated').toBeGreaterThan(0);
-    expect(trace.transforms.some(t => /scale\(0\.9/.test(t)), 'it squashes').toBe(true);
-    expect(trace.transforms.some(t => /translate/.test(t)), 'it never travels').toBe(false);
+    });
+    expect(gone.inMarkup, 'no button in the markup').toBe(false);
+    expect(gone.inCss, 'no rules left behind for one').toBe(false);
+    expect(gone.inHud, 'and nothing in the HUD still looking for it').toBe(false);
+
+    // and the control that replaced it works from anywhere on the stage
+    const box = await page.locator('#stage').boundingBox();
+    await page.mouse.click(box.x + box.width * 0.18, box.y + box.height * 0.22);   // a corner of empty sky
+    await page.waitForFunction('window.iceAgeGame.mammothState() !== "RUN"', null, { timeout: 20_000 });
   });
 
   test('a tap on a block answers: its halo flashes and the hand shows how', async ({ page }) => {
@@ -57,13 +54,23 @@ test.describe('controls', () => {
     const after = await page.evaluate(() => {
       const G = window.iceAgeGame.debug();
       const want = G.l1.shapes.find(s => s.state === 'hang' && G.l1.unfilled.includes(s.kind));
+      /* ON THE ANSWER'S OWN CUT LINE. It used to be measured against the block's anchorX,
+         which is where the rope leaves the fog — the hand belongs where the marching
+         dashes are, and with the rig swaying that is up to a dozen pixels off the anchor.
+         Both now come from the one published point (engine.js: cutGuide -> sh.guide), so
+         this holds the thing that actually matters: the hand is on the right rope, at the
+         place that rope is marked to be cut. */
+      const gd = want.guide;
       return { flashed: G.l1.shapes.filter(s => (s.flash || 0) > 0.1).map(s => s.kind), hand: !!G.handHint,
-               handOnAnswer: !!G.handHint && Math.abs(G.handHint.x - want.anchorX) < 2, state: G.state, attempts: G.attempts };
+               handOnAnswer: !!G.handHint && !!gd && Math.abs(G.handHint.x - gd.x) < 0.5 && Math.abs(G.handHint.y - gd.y) < 0.5,
+               handNearRope: !!G.handHint && Math.abs(G.handHint.x - want.anchorX) < 30,
+               state: G.state, attempts: G.attempts };
     });
     // light, not movement: the options hold still while they are read, so the answer is the halo
     expect(after.flashed, 'the tapped block flashes').toContain(at.kind);
     expect(after.hand, 'the demonstration hand comes forward').toBe(true);
-    expect(after.handOnAnswer, 'and it is on the rope of the answer, never a wrong one').toBe(true);
+    expect(after.handOnAnswer, 'and it is on the cut line of the answer, never a wrong one').toBe(true);
+    expect(after.handNearRope, 'which is the answer\'s own rope').toBe(true);
     expect(after.state).toBe('PHASE_ACTIVE');         // a tap is not a cut
     expect(after.attempts).toBe(0);
   });

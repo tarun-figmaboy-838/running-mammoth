@@ -45,6 +45,12 @@ const BUTTONS = {
     outNormal: 'game/assets/ui/btn-tryagain.webp',
     outW: 760
   },
+  /* THE JUMP PAIR IS NO LONGER SHIPPED. The button was removed on request — a tap
+     anywhere jumps, so the stage is the control — and nothing in the game fetches
+     btn-normal/btn-pressed any more. The entry stays because the delivered art stays: if
+     a control ever comes back this is how it is built, and deleting the recipe would
+     leave two raw PNGs in art-source with nothing that knows what they are for. Running
+     this writes files the site does not use; that is the cost of keeping the recipe. */
   jump: {
     normal: 'art-source/btn-jump-normal-raw.png',
     pressed: 'art-source/btn-jump-pressed-raw.png',
