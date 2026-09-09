@@ -25,7 +25,7 @@
  * fails if this is out of date. */
 const ASSET_V = {
   "assets/art/Bubble.svg": "5f1ee1ef",
-  "assets/art/cover.webp": "e9ed7c85",
+  "assets/art/cover.webp": "e0c7a5db",
   "assets/audio/bgm-ice-hunt.mp3": "045fc178",
   "assets/audio/dragon-studio-cartoon-blinking-372481.mp3": "e1ba0c6b",
   "assets/audio/dragon-studio-heavy-boulder-thud-515257.mp3": "97c6bfa5",
