@@ -251,10 +251,26 @@ for (const [id, file] of Object.entries(MAP)) {
   const scale = Math.min(1, OUT_MAX / Math.max(bw, bh));
   const outName = id + '.webp';
   if (!CHECK) {
+    /* LOSSY, NOT NEAR-LOSSLESS — the same lesson tools/slice-char.mjs already learned for
+       the character sheets, which this tool never got. Near-lossless was costing 122-283kB
+       PER BLOCK and 2.9MB for the set; all fourteen are fetched on every load (the engine
+       preloads the whole of optionShapes), so it was the single largest blocking download
+       in the game, three times the size of the entire character set a phone pulls.
+
+       It buys nothing here, and the reason is specific rather than a judgement call: the
+       SILHOUETTE — the thing the learner counts the sides of — is not carried by this file
+       at all. paintGlacierChunk traces the ring from option-shapes.js and CLIPS to it, so
+       the countable outline is vector geometry and cannot be touched by an encoder. What
+       this file carries is the ice texture INSIDE that outline, and it is only ever drawn
+       downscaled: a 560px block renders at ~273 stage px at most (three options, the widest
+       case), which is a 2x reduction before a pixel reaches the screen even at renderScale 1.
+
+       q86 measured across the set: 2.9MB -> ~1.0MB, with alphaQuality kept at 100 because
+       the 2% over-draw in paintGlacierChunk reads the alpha edge. */
     await sharp(src)
       .extract({ left: x0, top: y0, width: bw, height: bh })
       .resize(Math.round(bw * scale), Math.round(bh * scale), { kernel: 'lanczos3' })
-      .webp({ nearLossless: true, quality: 90, effort: 5, alphaQuality: 100 })
+      .webp({ quality: 86, effort: 6, alphaQuality: 100 })
       .toFile(join(DIR, outName));
   }
 

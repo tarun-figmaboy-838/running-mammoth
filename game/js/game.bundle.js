@@ -66,20 +66,20 @@ const ASSET_V = {
   "assets/env/rock-tall.webp": "760283f8",
   "assets/env/rock-wide.webp": "6247692d",
   "assets/env/rope-tied.webp": "f9b3e721",
-  "assets/option-shape/concaveHeptagon.webp": "29723c85",
-  "assets/option-shape/concaveHexagon.webp": "e6b4772e",
-  "assets/option-shape/concavePentagon.webp": "21995454",
-  "assets/option-shape/irregularConvexHexagon.webp": "14a3f74b",
-  "assets/option-shape/irregularConvexOctagon.webp": "0e5ed5a5",
-  "assets/option-shape/irregularConvexPentagon.webp": "ec4cc8e3",
-  "assets/option-shape/irregularHexagon.webp": "e316a47a",
-  "assets/option-shape/irregularPentagon.webp": "c67075eb",
-  "assets/option-shape/regularHeptagon.webp": "2d60716e",
-  "assets/option-shape/regularHexagon.webp": "185e234e",
-  "assets/option-shape/regularOctagon.webp": "1b319c7e",
-  "assets/option-shape/regularPentagon.webp": "919d464a",
-  "assets/option-shape/regularQuadrilateral.webp": "1535a73f",
-  "assets/option-shape/regularTriangle.webp": "ca44c6bc",
+  "assets/option-shape/concaveHeptagon.webp": "d943871c",
+  "assets/option-shape/concaveHexagon.webp": "38aae90c",
+  "assets/option-shape/concavePentagon.webp": "25cd2560",
+  "assets/option-shape/irregularConvexHexagon.webp": "34026be0",
+  "assets/option-shape/irregularConvexOctagon.webp": "c9da4f1e",
+  "assets/option-shape/irregularConvexPentagon.webp": "9d83d4f8",
+  "assets/option-shape/irregularHexagon.webp": "ea10089e",
+  "assets/option-shape/irregularPentagon.webp": "143d86fb",
+  "assets/option-shape/regularHeptagon.webp": "f75c1fcd",
+  "assets/option-shape/regularHexagon.webp": "6e7f28e5",
+  "assets/option-shape/regularOctagon.webp": "33794981",
+  "assets/option-shape/regularPentagon.webp": "04a3a89a",
+  "assets/option-shape/regularQuadrilateral.webp": "63fa2bf0",
+  "assets/option-shape/regularTriangle.webp": "b16acb47",
   "assets/sky/01-dawn.webp": "7dbf9fd1",
   "assets/sky/02-early-morning.webp": "08988173",
   "assets/sky/03-morning.webp": "aae081ec",
@@ -9913,8 +9913,6 @@ class Hud {
       complete: root.getElementById('complete'),
       winBubble: root.getElementById('win-bubble'),
       winShape: root.getElementById('win-shape'),
-      winCount: root.getElementById('win-count'),
-      winTotal: root.getElementById('win-total'),
       replay: root.getElementById('btn-replay'),
       /* oops and retry are gone from the markup: a crash recovers by itself now and
          there is no failure panel. The lookups are not kept "just in case" — every
@@ -10121,22 +10119,13 @@ class Hud {
       handlers.onReplay();
     });
 
-    // "Try Again" retries the obstacle the mammoth walked into — it never
-    // restarts the journey, so no repaired bridge or progress is ever lost.
-    if (this.el.retry) {
-      this.el.retry.addEventListener('click', () => handlers.onRetry && handlers.onRetry());
-    }
-
-    /* WHICH INPUT IS IN USE. Only a keyboard player benefits from the Ouch card
-       focusing Try Again on open, and for everyone else that focus is what put a
-       visible focus indicator around the button unasked. Two listeners settle it:
-       any key press means a keyboard is in play, any pointer press means it is not.
-       Capture phase, so the flag is already right by the time anything reads it. */
-    this._kbd = false;
-    this._onKey = () => { this._kbd = true; };
-    this._onPtr = () => { this._kbd = false; };
-    window.addEventListener('keydown', this._onKey, true);
-    window.addEventListener('pointerdown', this._onPtr, true);
+    /* NO "TRY AGAIN" BINDING, and no keyboard/pointer tracking behind it. Both belonged
+       to the Ouch card: the binding to its button, and the two capture-phase listeners to
+       a `_kbd` flag that decided whether opening the card should focus that button. The
+       card is gone (a crash plays out and the run resumes on its own — see OBSTACLE_HIT),
+       so the button has no element, the flag had no reader, and the listeners ran on every
+       key and pointer press for the whole session to maintain it. The engine's
+       retryObstacle() is untouched: it is called by the engine itself, not from here. */
 
     // the banner's drawn shape follows its box when the window changes
     window.addEventListener('resize', () => { if (this._winFit && this.el.complete && !this.el.complete.hidden) this._winFit(); });
@@ -10239,9 +10228,6 @@ class Hud {
     clearTimeout(this._flashT);
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('orientationchange', this._onResize);
-
-    if (this._onKey) window.removeEventListener('keydown', this._onKey, true);
-    if (this._onPtr) window.removeEventListener('pointerdown', this._onPtr, true);
   }
 }
 
@@ -10267,14 +10253,10 @@ class Frontend {
     this.el = {
       cover: root.getElementById('cover'),
       play: root.getElementById('btn-play'),
-      loadingNote: root.getElementById('cover-loading'),
-      /* oopsHero is gone with the Ouch card — see index.html. The win panel has a hero
-         of its own, filled by showWin() below from the character's own sheet. */
-      winHero: root.getElementById('win-hero')
+      loadingNote: root.getElementById('cover-loading')
     };
     this.state = 'ENTERING';
     this._timers = [];
-    this._hurt = null;
   }
 
   /** @param {{onStart:Function}} handlers */
@@ -10337,51 +10319,22 @@ class Frontend {
     });
   }
 
-  /* ---- the Ouch panel's hero ---- */
-
-  /** One cell of a sprite strip, as a DOM background. */
-  frameAt(elem, sheet, f) {
-    if (!sheet) return;
-    elem.style.backgroundImage = 'url("' + sheet.src + '")';
-    elem.style.backgroundSize = (sheet.frames * 100) + '% 100%';
-    const pct = sheet.frames > 1 ? (f / (sheet.frames - 1)) * 100 : 0;
-    elem.style.backgroundPositionX = pct + '%';
-  }
-
-  /* THE WIN PANEL'S CHARACTER, on ONE frame rather than a loop.
-
-     The Ouch card used to run a setInterval stepping frames onto its hero at 140ms —
-     a second animation, outside the renderer, of a beat the canvas was already
-     animating. This does not repeat that: the character on the CANVAS behind the
-     panel is already celebrating, so a second animated copy of him on the panel would
-     be two performances of one moment. One still, held, is enough to say who did it.
-
-     It reads the idle sheet, which is the one delivered sheet with a settled standing
-     pose and is otherwise unused (see CFG.characters.sheets) — so the art is already
-     built and this costs nothing new. Falls through to run, then jump, so a missing
-     sheet leaves the panel without a picture rather than without a panel. */
-  showWin() {
-    if (!this.el.winHero) return;
-    const id = this.game.character();
-    const sheet = this.game.sheetFor(id, 'idle') ||
-                  this.game.sheetFor(id, 'run') ||
-                  this.game.sheetFor(id, 'jump');
-    if (!sheet) return;
-    this.frameAt(this.el.winHero, sheet, 0);
-  }
-
-  /* showHurt/hideHurt are gone. They ran a setInterval that stepped the last few
-     frames of a sheet onto the Ouch card's hero element at 140ms — a second, DOM-side
-     animation of a beat the canvas is already animating. The card went (a crash
-     recovers by itself now) and with it the reason for a frame pump outside the
-     renderer: the delivered 36-frame knockout plays on the canvas, where the rest of
-     the character animation lives. */
+  /* NO PANEL HERO, AND NO FRAME PUMP FOR ONE. Two of these lived here and both are gone
+     with the panels they filled: showHurt/hideHurt stepped sheet frames onto the Ouch
+     card's hero on a setInterval, and showWin held one idle frame on the ending card's.
+     The Ouch card went (a crash plays out and recovers by itself), and the ending card
+     has no hero either — the real character is on the CANVAS behind it, celebrating next
+     to the friend who was waiting, and a second still copy of him on the panel competed
+     with that as well as covering the pair of them. `frameAt`, the sprite-strip-as-DOM-
+     background helper both used, went with them: nothing outside the renderer animates
+     the character any more, which is where that job belongs. */
 
   wait(ms, fn) { const t = setTimeout(fn, ms); this._timers.push(t); return t; }
 
   destroy() {
+    // only wait() fills _timers, and only ever with setTimeout ids — the second sweep
+    // with clearInterval was for the frame pumps above, which are gone
     this._timers.forEach(clearTimeout);
-    this._timers.forEach(clearInterval);
     window.removeEventListener('keydown', this._onKey);
   }
 }
@@ -11639,7 +11592,6 @@ hud.bind({
   onReplay: () => game.restart(),
   // TEMPORARY review control: end the tutorial if it is up, then jump to the ending
   onSkipEnd: () => { if (tut) { tut.finish(); tut = null; } game.skipToEnd(); },
-  onRetry: () => game.retryObstacle(),
   // returns the new state so the HUD can swap the glyph without asking again
   onSound: () => game.toggleSound(),
   // re-states the objective; it never reveals which chunk is the answer

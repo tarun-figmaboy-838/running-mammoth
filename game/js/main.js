@@ -236,7 +236,6 @@ hud.bind({
   onReplay: () => game.restart(),
   // TEMPORARY review control: end the tutorial if it is up, then jump to the ending
   onSkipEnd: () => { if (tut) { tut.finish(); tut = null; } game.skipToEnd(); },
-  onRetry: () => game.retryObstacle(),
   // returns the new state so the HUD can swap the glyph without asking again
   onSound: () => game.toggleSound(),
   // re-states the objective; it never reveals which chunk is the answer

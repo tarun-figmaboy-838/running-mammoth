@@ -1,7 +1,6 @@
 /* HUD controller — owns every DOM element outside the canvas and mirrors the
    engine's HUD state onto it. The engine never touches the DOM itself. */
 
-import { shapeRing } from './option-shapes.js';
 import { fitBubble } from './bubble.js';
 
 export class Hud {
@@ -34,8 +33,6 @@ export class Hud {
       complete: root.getElementById('complete'),
       winBubble: root.getElementById('win-bubble'),
       winShape: root.getElementById('win-shape'),
-      winCount: root.getElementById('win-count'),
-      winTotal: root.getElementById('win-total'),
       replay: root.getElementById('btn-replay'),
       /* oops and retry are gone from the markup: a crash recovers by itself now and
          there is no failure panel. The lookups are not kept "just in case" — every
@@ -242,22 +239,13 @@ export class Hud {
       handlers.onReplay();
     });
 
-    // "Try Again" retries the obstacle the mammoth walked into — it never
-    // restarts the journey, so no repaired bridge or progress is ever lost.
-    if (this.el.retry) {
-      this.el.retry.addEventListener('click', () => handlers.onRetry && handlers.onRetry());
-    }
-
-    /* WHICH INPUT IS IN USE. Only a keyboard player benefits from the Ouch card
-       focusing Try Again on open, and for everyone else that focus is what put a
-       visible focus indicator around the button unasked. Two listeners settle it:
-       any key press means a keyboard is in play, any pointer press means it is not.
-       Capture phase, so the flag is already right by the time anything reads it. */
-    this._kbd = false;
-    this._onKey = () => { this._kbd = true; };
-    this._onPtr = () => { this._kbd = false; };
-    window.addEventListener('keydown', this._onKey, true);
-    window.addEventListener('pointerdown', this._onPtr, true);
+    /* NO "TRY AGAIN" BINDING, and no keyboard/pointer tracking behind it. Both belonged
+       to the Ouch card: the binding to its button, and the two capture-phase listeners to
+       a `_kbd` flag that decided whether opening the card should focus that button. The
+       card is gone (a crash plays out and the run resumes on its own — see OBSTACLE_HIT),
+       so the button has no element, the flag had no reader, and the listeners ran on every
+       key and pointer press for the whole session to maintain it. The engine's
+       retryObstacle() is untouched: it is called by the engine itself, not from here. */
 
     // the banner's drawn shape follows its box when the window changes
     window.addEventListener('resize', () => { if (this._winFit && this.el.complete && !this.el.complete.hidden) this._winFit(); });
@@ -360,8 +348,5 @@ export class Hud {
     clearTimeout(this._flashT);
     window.removeEventListener('resize', this._onResize);
     window.removeEventListener('orientationchange', this._onResize);
-
-    if (this._onKey) window.removeEventListener('keydown', this._onKey, true);
-    if (this._onPtr) window.removeEventListener('pointerdown', this._onPtr, true);
   }
 }
