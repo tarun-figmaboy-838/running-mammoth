@@ -1470,6 +1470,30 @@ Test note: tremble.spec "the last tutorial line" waited for "Use the right ice p
 speech bubble long after that line moved to the plank; it now waits on `#instruction-text` and
 measures the pill. Strips: `qa-report/startle-strip2.png`, `qa-report/hop-strip4.png`.
 
+### The animation timing, measured
+
+Every state walked frame by frame on a hand-driven clock, recording how long each pose is
+actually held. What the owner reported as "the gifs feel slow, the transitions lag" was three
+measurable things:
+
+| | before | after |
+|---|---|---|
+| idle pose hold (12 poses) | 167 ms, 2.0 s loop | 111 ms, 1.33 s loop (`idleFps` 6 → 9) |
+| startle held on the alert pose | 808 ms | 500 ms (`CFG.sprite.startle`) |
+| ending: first idle pose after the settle | 383 ms stall | 111 ms, steps immediately |
+
+The stall was self-inflicted: the idle clock had been delayed until the settle→idle dissolve
+finished, so the first pose was held for the dissolve *plus* a full step. The idle runs on its
+own clock from the moment it starts and the settle fades out over a moving idle instead.
+
+Three dissolves are now told apart on the player, because conflating them cost a test its
+meaning: `lastBlend` is a dissolve **within** a sheet (the idle crossfade, a flight pose into
+the next), `lastCross` is a dissolve **from another sheet** over this one (the settle into the
+idle), `lastUnder` is the pose being handed over **from**, fading out underneath.
+
+Cost: the whole dissolve layer is **0.4 ms** of the median frame (32.7 ms with, 32.3 ms without,
+same nine seconds of a crossing at DPR 2) — it is two or three extra blits of one 420×320 cell.
+
 ### The camera move is eased at both ends
 
 The push-in and the pull-out ran on an exponential approach — a fixed share of the remaining
