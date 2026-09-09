@@ -188,18 +188,23 @@ test.describe('the tremble, the stop and the crash', () => {
       const wait = [0.3, 1, 5, 30].map(t => at('LOOK_DOWN', t).frame);
       // a wrong drop: the startle comes in over the wait, passes, and the wait comes back
       const S = window.__SP.startle, H = window.__SP.handover;
-      const startIn = at('SURPRISED', 0.02), alert = at('SURPRISED', S * 0.5),
-            recover = at('SURPRISED', S + H * 0.4), recovered = at('SURPRISED', S + H + 0.1);
+      const startIn = at('SURPRISED', 0.01), midIn = at('SURPRISED', H * 0.5), doneIn = at('SURPRISED', H + 0.02),
+            alert = at('SURPRISED', S * 0.5),
+            recover = at('SURPRISED', S + H * 0.2), recovered = at('SURPRISED', S + H + 0.05);
       p.setState('LOOK_DOWN'); p.t = 0.02; g._renderOnce();
       const back = { frame: p.lastSheet + ':' + p.lastFrame, under: +(p.lastUnder || 0).toFixed(2) };
-      return { wait, startIn, alert, recover, recovered, back };
+      return { wait, startIn, midIn, doneIn, alert, recover, recovered, back };
     });
     expect(new Set(r.wait).size, 'one pose for the whole wait: ' + r.wait.join(' ')).toBe(1);
     expect(r.wait[0], 'and it is the settle the tremble ends on').toBe('tremble:11');
-    expect(r.startIn.under, 'the startle dissolves in over the wait').toBeGreaterThan(0.6);
+    /* The shape of the dissolve, not one opacity on it: present as the change starts, lower
+       part-way through, gone by the end of the span. */
+    expect(r.startIn.under, 'the startle dissolves in over the wait').toBeGreaterThan(0.25);
+    expect(r.midIn.under, 'and it is falling').toBeLessThan(r.startIn.under);
+    expect(r.doneIn.under, 'and finished by the end of its span').toBe(0);
     expect(r.alert.frame, 'the alert pose').toBe('jump:9');
     expect(r.recover.frame, 'then he comes back down to the settle').toBe('tremble:11');
-    expect(r.recover.blend, 'by a dissolve').toBeGreaterThan(0.3);
+    expect(r.recover.blend, 'by a dissolve').toBeGreaterThan(0.25);
     expect(r.recovered.blend, 'which finishes').toBe(0);
     expect(r.back.frame, 'the wait re-enters on the same frame').toBe('tremble:11');
     expect(r.back.under, 'so there is nothing to dissolve and nothing to replay').toBe(0);
@@ -228,7 +233,7 @@ test.describe('the tremble, the stop and the crash', () => {
     /* The dissolve to watch here is the CROSS-SHEET one — the settle fading over the idle. The
        idle's own crossfade (blend) runs for ever by design, so asserting on it measured the
        wrong thing entirely. */
-    expect(idle[0].cross, 'entered through a dissolve from the settle').toBeGreaterThan(0.85);
+    expect(idle[0].cross, 'entered through a dissolve from the settle').toBeGreaterThan(0.25);
     expect(idle.find(x => x.t > idle[0].t + r.H.toIdle + 0.02 && x.cross > 0.01), 'which finishes').toBeUndefined();
     // and the idle is moving from its first frame, not waiting out the dissolve
     expect(new Set(idle.filter(x => x.t < idle[0].t + 0.5).map(x => x.f)).size, 'the idle steps straight away').toBeGreaterThan(2);

@@ -1470,6 +1470,30 @@ Test note: tremble.spec "the last tutorial line" waited for "Use the right ice p
 speech bubble long after that line moved to the plank; it now waits on `#instruction-text` and
 measures the pill. Strips: `qa-report/startle-strip2.png`, `qa-report/hop-strip4.png`.
 
+### The three transitions the owner named
+
+| | before | after |
+|---|---|---|
+| jump to run: the landing state | 180 ms, last 90 ms a held crouch | 120 ms, absorb dissolves into the run |
+| tremble to normal: the recovery tail | 1140 ms | 790 ms |
+| a right answer to any reaction | 1.2-3.2 s of standing still | a bob in 2 ms |
+
+The tremble's shake (steps 4-18, asked for "slower and more evident") and its approach are
+untouched; only the tail tightened — it was the slowest stretch of the performance, sitting
+exactly where the eye has had the joke and is waiting to get on. The whole performance is now
+2.96 s: 800 ms approach, 1370 ms shake, 790 ms recovery.
+
+The wait before the happy jump is real and stays: a repair completes when the bridge closes
+over, and the ice has to fall and seat first. What was missing was any answer in the meantime,
+so a right cut now gets an immediate bob (`hop` 15, a 1.05 stretch, both decaying, the collider
+reads neither) the way a wrong one gets the startle. The hop still lands on the finished bridge.
+
+The run picked up off a jump pose uses the quick hand-over (`handoverFast`), not the settle one.
+
+Test note: the two hand-over tests pinned specific opacities, which only held for one dissolve
+curve; they now hold the shape — present as the change starts, falling, gone by the end of the
+span — so a curve change is not a test change.
+
 ### A hand-over leaves fast (the curve, not the length)
 
 The owner: "the first gif to the second looks slow and unnatural." The dissolve was shaped like

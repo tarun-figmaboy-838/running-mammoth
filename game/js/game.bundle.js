@@ -1149,8 +1149,13 @@ const CFG = {
         [0, 200], [1, 180], [2, 220], [3, 200],
         [4, 110], [5, 95], [6, 85],
         [4, 90], [5, 90], [6, 90], [5, 90], [4, 90], [5, 90], [6, 90], [5, 90], [4, 90], [5, 90], [6, 90], [5, 90],
-        [7, 200], [8, 220], [9, 200],
-        [10, 220], [11, 300]
+        /* THE RECOVERY, tightened from 1140 ms to 790 ms. This tail is the slowest stretch of
+           the performance and it sits exactly where the eye has already had the joke and is
+           waiting to get on — the owner's note on tremble-to-normal. The shake above it (the
+           4-5-6-5 oscillation, asked for slower and more evident) is untouched, and so is the
+           approach; the settle is still held long enough to read as a settle. */
+        [7, 150], [8, 150], [9, 140],
+        [10, 150], [11, 200]
       ],
       strong: [7, 18],
       shakeX: 7, shakeY: 3, shakeRot: 0.035, squash: 0.04
@@ -4036,7 +4041,10 @@ class PlayerController {
     } else {
       if (this.bufferedJump > 0 && now - this.bufferedJump < CFG.bufferMs &&
         (this.state === 'RUN' || this.state === 'LAND')) { this.bufferedJump = -1; this.doJump(); }
-      if (this.state === 'LAND' && this.t > 0.18) this.setState(moving ? 'RUN' : 'IDLE_LOOK');
+      /* 0.12, not 0.18: the last 90 ms of a 180 ms landing was the absorb pose held still, which
+         is a stand rather than a landing — the owner's note on jump-to-run. The absorb still
+         reads (it fills 60 ms and dissolves into the run), the weight is still in the squash. */
+      if (this.state === 'LAND' && this.t > 0.12) this.setState(moving ? 'RUN' : 'IDLE_LOOK');
     }
     /* Footfalls are fired by the CYCLE, not by a timer. On a timer the crunch and the
        snow puff drift out of phase with the legs, which is most of why a run reads as
@@ -4299,7 +4307,7 @@ class PlayerController {
       }
       case 'LAND':
         f = this.t < 0.09 ? J.land : J.absorb;
-        if (this.t > 0.054 && this.t < 0.09) { blendF = J.absorb; blendU = (this.t - 0.054) / 0.036; }
+        if (this.t > 0.05 && this.t < 0.09) { blendF = J.absorb; blendU = (this.t - 0.05) / 0.04; }
         break;
       case 'SKID_STOP':
         if (this.skidSheet) { sheet = this.skidSheet; f = Math.min(F.skid - 1, Math.floor(this.skidP * F.skid)); }
@@ -4460,7 +4468,9 @@ class PlayerController {
        so the second blit lands on the same feet. Keyed off this.t, which setState zeroes. */
     let underSheet = null, underF = -1, underA = 0;
     const FAST = this.state === 'JUMP_START' || this.state === 'JUMP_AIR' || this.state === 'LAND' ||
-                 this.state === 'SKID_STOP';
+                 this.state === 'SKID_STOP' ||
+                 // the run picked up off a jump pose is a quick change, not a settle
+                 (this.state === 'RUN' && this.fromSheet === this.jumpSheet);
     const SOFT = this.state === 'LOOK_DOWN' || this.state === 'IDLE_LOOK' ||
                  this.state === 'SHAKE' || this.state === 'SURPRISED' || FAST ||
                  // the run taken up from any other sheet (a landing, the wait, the title) dissolves in
@@ -6842,7 +6852,16 @@ function createGame(canvas, hooks = {}) {
          the immediate answer; the splash below keeps the body jolt, not a second startle. */
       mammoth.setState('SURPRISED');
     }
-    else if (!reduced) particles.confetti(CFG.W, 64);   // a shower across the stage, as asked
+    else {
+      if (!reduced) particles.confetti(CFG.W, 64);        // a shower across the stage, as asked
+      /* AND HE ANSWERS AT ONCE. A repair only completes when the bridge closes over, and the ice
+         has to fall and seat first — measured at 1.2 s to 3.2 s during which the character stood
+         perfectly still, which is the lag the owner felt before the happy jump. A quick bob here
+         (it decays by itself, no state change, the collider reads none of it) acknowledges the
+         answer the instant it is given; the hop still lands on the finished bridge. */
+      mammoth.hop = Math.max(mammoth.hop, 15);
+      mammoth.squash = 1.05;
+    }
     sh.from = { x: sh.x, y: sh.y };
     sh.rest = { y: restOnPath(sh), wedge: restWedged(sh) };
     sh.socket = target ? slotCenter(target, sh) : nearestOpenWater(sh.x, sh);
@@ -8109,7 +8128,7 @@ function createGame(canvas, hooks = {}) {
         // ice before it reached the hole.
         const bridged = G.l1.filled &&
           (G.gapsThisPhase || []).every(g => !g.repaired || g.bridge >= 1);
-        if ((bridged && G.st > 400) || G.st > 6000) {
+        if ((bridged && G.st > 250) || G.st > 6000) {
           // more crevasses in this phase: straight back to play. The wedged chunk has
           // already left the shape list, so nothing is culled here.
           setState(G.l1.unfilled.length ? 'PHASE_ACTIVE' : 'PHASE_DONE');
