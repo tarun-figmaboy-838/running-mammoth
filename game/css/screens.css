@@ -815,6 +815,19 @@
   .win-bubble, .win-title span, .win-spark, .btn-replay, .tut-bubble { animation: none; }
 }
 @media (prefers-reduced-motion: reduce) { .btn-replay { animation: none; translate: -50% 0; } }
+/* AND PLAY STOPS PULSING, BUT DOES NOT GO DARK. Switching the animation off would leave
+   the button on its 0% frame, which is the dimmest one — the control the whole cover points
+   at would end up the least lit thing on it. So the pulse is replaced by its bright frame,
+   held still: the same 'this is the button' reading, with nothing moving. */
+@media (prefers-reduced-motion: reduce) {
+  .btn-play-face {
+    animation: none;
+    scale: 1;
+    filter: drop-shadow(0 0 clamp(6px, calc(0.56 * var(--u)), 13px) rgba(255, 228, 158, 0.9))
+            drop-shadow(0 0 clamp(20px, calc(2 * var(--u)), 44px) rgba(255, 196, 62, 0.9))
+            brightness(1.1);
+  }
+}
 
 /* AMBER, NOT GREEN. It carries .btn-chunky for the rim-and-face construction the
    button family uses, and then overrides the face colour: the family's own face is
@@ -966,7 +979,9 @@
      stone-rimmed pair before it was 1764 x 621). Getting this wrong letterboxes the art
      inside its own element and the button stops matching its hit area. */
   aspect-ratio: 1048 / 1101;
-  background-image: url("../assets/ui/btn-play.webp?v=18279ab0");
+  /* THE ART IS PAINTED BY ::before, NOT HERE — see the pulse below. It has to live on a
+     layer of its own so that layer can be SCALED while this element's box, and therefore
+     the hit area, stays exactly where it is. */
   /* NO PERPETUAL BOB, and this is load-bearing rather than taste: an infinitely animating
      button is a target that has moved by the time a finger lands on it, and Playwright
      refuses to click one at all ("element is not stable"), which is why no test caught the
@@ -990,20 +1005,56 @@
    refuses to click one at all ("element is not stable"), and the press has to keep exactly
    the outer dimensions the resting state has. This is the same call the ending's Play again
    makes for the same reason — it glows without moving. */
-.btn-play {
-  animation: cardPop 520ms cubic-bezier(.2, 1.6, .35, 1) both,
-             playPulse 2.2s ease-in-out 520ms infinite;
+.btn-play { animation: cardPop 520ms cubic-bezier(.2, 1.6, .35, 1) both; }
+
+/* THE 'PRESS ME' PULSE — the button swells and brightens, settles, and does it again.
+
+   IT SCALES A LAYER, NOT THE ELEMENT, and not the background either. Three mechanisms were
+   tried and only this one is both smooth and safe:
+
+     scale on .btn-play        moves the target. A control that grows under a thumb has
+                               moved by the time the finger lands, Playwright refuses to
+                               click one at all ("element is not stable"), and the press
+                               must keep exactly the resting outer dimensions.
+     background-size %         SHAKES. The image is re-rasterised at a new pixel size every
+                               frame and a centred background rounds to whole pixels, so the
+                               art twitched a pixel left and right as it grew. Reported as
+                               "why shake button?" and it was real.
+     scale on ::before         what is here. A transform on a composited layer is resampled,
+                               not re-rasterised, so it is smooth at any size, and the
+                               element that owns the box and the hit area never moves.
+
+   ONE RISE AND ONE FALL. It was written as a heartbeat (rise, dip, smaller rise, fall) and
+   it stuttered: easing is applied to EVERY segment between keyframes, so each extra stop is
+   a point where the motion stops dead and starts again. Two stops on a sine-shaped curve —
+   cubic-bezier(.45, 0, .55, 1) — never stop moving in between, which is what makes a loop
+   read as breathing rather than ticking.
+
+   Every frame carries the SAME two drop-shadows plus brightness, in the same order: a
+   filter list that changes length between keyframes does not interpolate, it cuts. The
+   button's contact shadow is NOT here — it stays on .btn-play, so the shadow on the ice
+   holds still while the button above it breathes. */
+.btn-play-face {
+  position: absolute;
+  inset: 0;
+  z-index: 0;                      /* under the tap ring and the sparks, which are the pseudos */
+  background: url("../assets/ui/btn-play.webp?v=18279ab0") center / contain no-repeat;
+  pointer-events: none;
+  will-change: transform, filter;
+  animation: playPulse 2s cubic-bezier(.45, 0, .55, 1) 520ms infinite;
 }
 @keyframes playPulse {
   0%, 100% {
-    filter: drop-shadow(0 clamp(5px, calc(0.52 * var(--u)), 20px) clamp(10px, calc(1 * var(--u)), 40px) rgba(46, 12, 4, 0.5))
-            drop-shadow(0 0 clamp(6px, calc(0.6 * var(--u)), 14px) rgba(255, 176, 40, 0.35))
+    scale: 1;
+    filter: drop-shadow(0 0 clamp(2px, calc(0.2 * var(--u)), 6px) rgba(255, 218, 130, 0.28))
+            drop-shadow(0 0 clamp(7px, calc(0.7 * var(--u)), 16px) rgba(255, 176, 40, 0.28))
             brightness(1);
   }
   50% {
-    filter: drop-shadow(0 clamp(5px, calc(0.52 * var(--u)), 20px) clamp(10px, calc(1 * var(--u)), 40px) rgba(46, 12, 4, 0.5))
-            drop-shadow(0 0 clamp(18px, calc(1.9 * var(--u)), 40px) rgba(255, 196, 62, 0.95))
-            brightness(1.09);
+    scale: 1.045;
+    filter: drop-shadow(0 0 clamp(6px, calc(0.62 * var(--u)), 14px) rgba(255, 228, 158, 1))
+            drop-shadow(0 0 clamp(24px, calc(2.4 * var(--u)), 52px) rgba(255, 196, 62, 1))
+            brightness(1.16);
   }
 }
 
@@ -1016,8 +1067,8 @@
 /* HOVER: brighter and hotter, and the same size. The button keeps ONE outer dimension in
    every state — resting, hovered and pressed — so nothing on the cover shifts under a
    pointer and the press cannot be mistaken for the button changing shape. */
+.btn-play:hover .btn-play-face { animation-play-state: paused; }   /* the pulse yields to a pointer */
 .btn-play:hover {
-  animation-play-state: running, paused;      /* the pop may finish; the pulse yields to hover */
   filter: drop-shadow(0 clamp(6px, 0.63vw, 13px) clamp(12px, 1.2vw, 26px) rgba(46, 12, 4, 0.5))
           drop-shadow(0 0 clamp(18px, 1.9vw, 38px) rgba(255, 196, 62, 1))
           brightness(1.07);
@@ -1034,6 +1085,8 @@
    is gone — the requirement is that the pressed state keeps the resting state's outer
    dimensions exactly, with no layout shift, and a darkening is also what survives a thumb
    covering the control (the rule the round in-game buttons follow). */
+.btn-play:active .btn-play-face,
+.btn-play.pressed .btn-play-face { animation: none; scale: 1; filter: none; }
 .btn-play:active,
 .btn-play.pressed {
   animation: none;
@@ -1064,6 +1117,7 @@
 .btn-play::before {
   content: "";
   position: absolute;
+  z-index: 1;                      /* above .btn-play-face, which carries the art */
   inset: 6% 2%;
   border-radius: 999px;
   border: clamp(3px, 0.31vw, 6px) solid rgba(255, 198, 92, 0.95);
@@ -1081,6 +1135,7 @@
 .btn-play::after {
   content: "";
   position: absolute;
+  z-index: 1;                      /* above .btn-play-face, which carries the art */
   left: 50%; top: 50%;
   width: clamp(7px, 0.73vw, 14px);
   aspect-ratio: 1;

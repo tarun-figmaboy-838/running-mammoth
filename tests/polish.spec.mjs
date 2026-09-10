@@ -26,7 +26,16 @@ const box = (page, sel) => page.evaluate(s => {
     w: Math.round(r.width), h: Math.round(r.height),
     position: cs.position, opacity: cs.opacity, visibility: cs.visibility,
     filter: cs.filter,                       // the press is a filter now, not a second picture
-    bg: cs.backgroundImage.replace(/^.*\//, '').slice(0, 40)
+    /* WHEREVER THE ART IS PAINTED. PLAY's picture moved onto a child span so that layer can
+       be scaled by the pulse without moving the element's box — and onto a span rather than
+       a pseudo-element because ::before is the tap ring and ::after is the press sparks,
+       both already taken. Read the child when the element has no picture of its own. */
+    bg: (() => {
+      const face = el.querySelector('.btn-play-face');
+      const src = cs.backgroundImage !== 'none' || !face ? cs.backgroundImage
+                : getComputedStyle(face).backgroundImage;
+      return src;
+    })().replace(/^.*\//, '').slice(0, 40)
   };
 }, sel);
 
@@ -423,7 +432,97 @@ test('the cover and its PLAY button', async ({ page }, info) => {
   const stage = await box(page, '#stage');
   console.log(info.project.name, 'PLAY', JSON.stringify(b), 'stage', stage.w + 'x' + stage.h);
   expect(b.bg, 'the supplied art').toContain('btn-play');
-  expect(b.w).toBeGreaterThan(120);
+  /* BIG ENOUGH TO BE THE THING YOU LOOK AT — held as a share of the stage, not in pixels.
+     A flat >120px was a desktop number: the stage letterboxes, so at 844x390 it is 693px
+     wide and the same 13.5% button measures 94px. That read as a shrunken button and was
+     nothing of the kind. Measured: 259/1920 = 13.5% and 94/693 = 13.6% — the same button.
+     The pixel floor that does matter on a phone is the tap target, so that is what is kept. */
+  expect(b.w / stage.w, 'PLAY is the same share of the stage at every size').toBeGreaterThan(0.12);
+  expect(b.w, 'and never smaller than a thumb').toBeGreaterThan(44);
+
+  /* AND IT IS ACTUALLY ON THE SCREEN.
+
+     This is here because the button vanished and every other check still passed. The art
+     had been moved onto a layer of its own so the pulse could scale it, and that layer was
+     ::before — which is already the tap ring, declared later in screens.css with opacity 0.
+     The later rule won. The picture was loaded, the pulse was running, the box was the
+     right size in the right place, and the cover had no button on it. Measuring where the
+     art IS PAINTED, rather than only what it is set to, is the check that catches that. */
+  const face = await page.evaluate(() => {
+    const f = document.querySelector('#btn-play .btn-play-face');
+    if (!f) return { missing: true };
+    const cs = getComputedStyle(f);
+    return {
+      opacity: +cs.opacity, visibility: cs.visibility, display: cs.display,
+      /* offsetWidth/Height, not the client rect. The layer is mid-pulse whenever this is
+         read and a rect carries the scale with it — 259 measures 268 at the top of the
+         swell. Layout size is what "fills the button" means, and a transform never
+         touches it. */
+      w: f.offsetWidth, h: f.offsetHeight,
+      hasArt: cs.backgroundImage !== 'none'
+    };
+  });
+  console.log(info.project.name, 'FACE', JSON.stringify(face));
+  expect(face.missing, 'the layer that carries the art exists').toBeFalsy();
+  expect(face.hasArt, 'and it carries the art').toBe(true);
+  expect(face.opacity, 'and it is not invisible').toBeGreaterThan(0.99);
+  expect(face.visibility, 'nor hidden').toBe('visible');
+  expect(face.display, 'nor removed').not.toBe('none');
+  expect(face.w, 'and it fills the button').toBe(b.w);
+  expect(face.h, 'in both axes').toBe(b.h);
+
+  /* IT LOOKS ALIVE, AND IT LOOKS SMOOTH — measured on the painted layer, not assumed.
+
+     Read off .btn-play-face across a whole cycle, because none of it can be trusted from
+     the stylesheet: a filter list of a different length between keyframes parses fine and
+     then sits dead on one frame, and a scale that fails to interpolate does the same.
+
+     AND NOTHING JUMPS. The pulse stuttered when it was written with four keyframes —
+     easing applies to every segment, so each extra stop is a full stop — and it visibly
+     shook when the swell was done with background-size, which re-rasterises the image at a
+     new pixel size every frame. Both faults show up the same way: the change from one
+     position to the next stops being even. So the largest step is compared against the
+     average. On a sine-shaped ease that ratio is about pi/2; a curve with a stall in it,
+     or one built from four keyframes, runs well past it. */
+  const pulse = await page.evaluate(() => {
+    const face = document.querySelector('#btn-play .btn-play-face');
+    const anim = face.getAnimations().find(a => /pulse/i.test(a.animationName || ''));
+    if (!anim) return { missing: true };
+    /* SCRUBBED, NOT WATCHED. Sampling this on a timer measured the RUNNER, not the button:
+       a loaded headless box delivers frames 20ms apart and then 90ms apart, so the position
+       deltas came out uneven and a perfectly smooth curve failed the evenness check. Pausing
+       the animation and stepping its own timeline in equal slices takes wall clock out of it
+       entirely — what is left is the shape of the curve, which is the thing being judged. */
+    anim.pause();
+    const ct = anim.effect.getComputedTiming();
+    const delay = ct.delay || 0;
+    const span = ct.duration || 0;
+    const grow = [], blur = [], bright = [];
+    for (let i = 0; i <= 60; i++) {
+      anim.currentTime = delay + (span * i) / 60;
+      const cs = getComputedStyle(face);
+      const f = cs.filter;
+      grow.push(parseFloat(cs.scale) || 1);
+      blur.push(Math.max(0, ...[...f.matchAll(/([\d.]+)px/g)].map(m => parseFloat(m[1]))));
+      bright.push(parseFloat((f.match(/brightness\(([\d.]+)\)/) || [0, '1'])[1]));
+    }
+    anim.play();
+    const steps = grow.slice(1).map((v, i) => Math.abs(v - grow[i]));
+    return {
+      growMin: Math.min(...grow), growMax: Math.max(...grow),
+      blurMin: Math.min(...blur), blurMax: Math.max(...blur),
+      brightMax: Math.max(...bright),
+      stepMax: Math.max(...steps),
+      stepAvg: steps.reduce((a, b) => a + b, 0) / steps.length
+    };
+  });
+  console.log(info.project.name, 'PULSE', JSON.stringify(pulse));
+  expect(pulse.missing, 'the pulse is running on the art layer').toBeFalsy();
+  expect(pulse.growMax - pulse.growMin, 'the button itself swells').toBeGreaterThan(0.015);
+  expect(pulse.growMin, 'and is never smaller than the art as delivered').toBeGreaterThanOrEqual(0.999);
+  expect(pulse.blurMax - pulse.blurMin, 'the glow opens and closes').toBeGreaterThan(6);
+  expect(pulse.brightMax, 'and the face lifts at the peak').toBeGreaterThan(1.08);
+  expect(pulse.stepMax / pulse.stepAvg, 'and it travels evenly — no stall, no shake').toBeLessThan(2.6);
   /* RAISED, AND FULLY IN FRAME (asked for). It sat at 2.8% off the bottom, which on a phone
      in landscape is where the browser's own chrome and the gesture bar arrive; 7% of the
      stage is a comfortable margin of ice under it. Held as a share of the stage so it is the

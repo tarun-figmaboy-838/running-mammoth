@@ -145,15 +145,33 @@ test.describe('the staged intro, the sign and the script', () => {
     await boot(page, { fast: 2 });
     await force(page, 'GLACIER_BREAK_1');
     await waitState(page, 'PHASE_ACTIVE', 60_000);
+    /* SCRUBBED, NOT WATCHED. This used to sample once per animation frame for 1.4s and
+       require more than twelve samples. That is a frame-rate assertion wearing a
+       correctness costume: on a loaded machine the headless runner delivered exactly
+       twelve frames in that window — 8.6fps — and the test failed while the animation was
+       perfectly correct. Worse, at that rate the rebound can fall between two samples, so
+       the check that matters becomes a coin toss.
+
+       So the animation is paused and scrubbed through its own timeline instead. Sixty
+       evenly spaced positions across the active period, read back as computed style, which
+       is the same interpolation the browser paints — deterministic, frame-rate independent,
+       and it cannot miss a rebound that is really there. */
     const t = await page.evaluate(async () => {
       const p = document.getElementById('instruction-pill');
       p.style.animation = 'none'; void p.offsetWidth; p.style.animation = '';   // replay the arrival
-      const rows = []; const t0 = performance.now();
-      while (performance.now() - t0 < 1400) {
-        await new Promise(r => requestAnimationFrame(r));
+      const anim = p.getAnimations().find(a => /sign/i.test(a.animationName || '')) || p.getAnimations()[0];
+      if (!anim) return [];
+      anim.pause();
+      const ct = anim.effect.getComputedTiming();
+      const delay = ct.delay || 0;
+      const span = ct.activeDuration || ct.duration || 0;
+      const rows = [];
+      for (let i = 0; i <= 60; i++) {
+        anim.currentTime = delay + (span * i) / 60;
         const m = new DOMMatrixReadOnly(getComputedStyle(p).transform);
         rows.push({ dy: m.f, dx: m.e, rot: Math.atan2(m.b, m.a) * 180 / Math.PI, scale: Math.hypot(m.a, m.b) });
       }
+      anim.play();
       return rows;
     });
     expect(t.length, 'the arrival was sampled').toBeGreaterThan(12);
