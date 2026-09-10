@@ -49,12 +49,12 @@ coloured; say it with the same emphasis.
 | sign-pentagons | Cut all the pentagons. | 6 (two answers) |
 | sign-hexagons | Cut all the hexagons. | 7 (two answers) |
 
-## 3. The ending (the friend speaks)
+## 3. The ending — NO SPOKEN LINES
 
-| id | line | moment |
-|---|---|---|
-| win-title | You did it! | The banner, a letter at a time, as the two of them dance |
-| win-sub | Momo crossed the Frozen Pass! | Under the title; it answers the tutorial's second line |
+The ending used to open with a banner: **You did it!** over **Momo crossed the Frozen Pass!**,
+both spoken (`win-title`, `win-sub`). Both were removed on request, panel and voice together.
+The journey now finishes on the dance alone — the camera pushes in on Momo and his friend and
+nothing is drawn or said over the top. Do not record anything for this section.
 
 ## 4. Interface and screens
 

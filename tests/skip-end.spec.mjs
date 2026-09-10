@@ -27,17 +27,38 @@ test.describe('skip to ending (temporary)', () => {
     await expect(btn).toBeHidden();                 // gone once the ending is up
 
     await expect(page.locator('#complete')).toBeVisible();
-    /* THE WORDS ARE THE REWARD. The row of seven polygon coins was removed on request — a
-       scoreboard of shapes at the story's payoff — so what has to be there is the title and the
-       line saying what happened, in the game's own white-and-icy-blue speech. */
+    /* THE DANCE IS THE REWARD, and nothing is allowed to sit on top of it. First the row of
+       seven polygon coins went, then the banner that replaced them — "You did it!" over "Momo
+       crossed the Frozen Pass!", both spoken — because a card across the top third of the
+       stage with words moving in it is the eye's first stop, and the thing the child has just
+       earned is the two of them dancing underneath it. So what is held here is the absence:
+       no banner, no title, no ending speech. Only Play again. */
     await expect(page.locator('#win-stamps')).toHaveCount(0);
-    await expect(page.locator('#win-sub')).toBeVisible();
-    await expect(page.locator('#win-sub')).toContainText('Frozen Pass');
-    await expect(page.locator('.win-title')).toBeVisible();
-    const face = await page.evaluate(() => { const p = document.querySelector('.win-face'); const cs = getComputedStyle(p); return { fill: cs.fill, stroke: cs.stroke, d: (p.getAttribute('d') || '').length }; });
-    expect(face.fill, 'white inside').toBe('rgb(255, 255, 255)');
-    expect(face.stroke, 'a bright icy-blue keyline').toBe('rgb(63, 179, 232)');
-    expect(face.d, 'the speech shape was drawn for the words').toBeGreaterThan(40);
+    await expect(page.locator('#win-bubble')).toHaveCount(0);
+    await expect(page.locator('.win-title')).toHaveCount(0);
+    await expect(page.locator('#win-sub')).toHaveCount(0);
+    await expect(page.locator('#btn-replay')).toBeVisible();
+
+    /* AND THE CAMERA CLOSES ON THEM. At zoom 1 the pair are a small couple in a wide empty
+       stage. The push-in starts a beat after they arrive, so it is read after the settle
+       rather than at it, and it frames the pair with air around them. */
+    await page.waitForFunction(() => window.iceAgeGame.debug().zoom > 1.3, null, { timeout: 60_000 });
+    const shot = await page.evaluate(() => {
+      const G = window.iceAgeGame.debug();
+      const d = G.duoRect;
+      const k = G.zoom, vx = G.zoomVX, vy = G.zoomVY;
+      // the visible world rectangle at this zoom, about the focus point
+      const view = { x0: vx - vx / k, y0: vy - vy / k, x1: vx + (1920 - vx) / k, y1: vy + (1080 - vy) / k };
+      return { zoom: +k.toFixed(3), vx, vy, duo: d && { x: Math.round(d.x), y: Math.round(d.y), w: Math.round(d.w), h: Math.round(d.h) }, view };
+    });
+    console.log('ENDING FRAMING', JSON.stringify(shot));
+    expect(shot.zoom, 'the camera really pushed in').toBeGreaterThan(1.3);
+    expect(shot.duo, 'the pair are on screen').toBeTruthy();
+    // and the whole pair is inside the frame — a zoom that crops the dance is worse than none
+    expect(shot.duo.x, 'the dancers are not cut off on the left').toBeGreaterThanOrEqual(shot.view.x0);
+    expect(shot.duo.x + shot.duo.w, 'nor on the right').toBeLessThanOrEqual(shot.view.x1);
+    expect(shot.duo.y, 'nor at the top').toBeGreaterThanOrEqual(shot.view.y0);
+    expect(shot.duo.y + shot.duo.h, 'nor at the bottom').toBeLessThanOrEqual(shot.view.y1);
     const g = await page.evaluate(() => ({ complete: window.iceAgeGame.debug().complete, phases: window.iceAgeGame.debug().phasesDone }));
     expect(g.complete).toBe(true);
     expect(g.phases).toBe(7);

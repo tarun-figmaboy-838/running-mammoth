@@ -33,8 +33,6 @@ export class Hud {
       pill: root.getElementById('instruction-pill'),
       text: root.getElementById('instruction-text'),
       complete: root.getElementById('complete'),
-      winBubble: root.getElementById('win-bubble'),
-      winShape: root.getElementById('win-shape'),
       replay: root.getElementById('btn-replay'),
       /* oops and retry are gone from the markup: a crash recovers by itself now and
          there is no failure panel. The lookups are not kept "just in case" — every
@@ -105,10 +103,9 @@ export class Hud {
     /* The banner's shape is drawn for the box the words need — the same bubble as the
        tutorial's, without a tail (nobody in particular is saying it). Once now, and again
        after the pop-in has settled, because the box measures differently mid-bounce. */
-    const fit = () => { if (this.el.winShape && this.el.winBubble) fitBubble(this.el.winShape, this.el.winBubble, null); };
-    fit(); setTimeout(fit, 600); this._winFit = fit;
+    /* NO ENDING BANNER TO FIT. It was a drawn speech shape sized to its words; the whole
+       panel was removed so the dance is what the ending shows. */
     if (window.Juice) {
-      setTimeout(() => { try { Juice.tada(this.el.winBubble); } catch (e) { /* no juice */ } }, 700);
       clearInterval(this._nudge);
       this._nudge = setInterval(() => {
         if (!this.el.complete || this.el.complete.hidden) { clearInterval(this._nudge); return; }
@@ -218,7 +215,6 @@ export class Hud {
        retryObstacle() is untouched: it is called by the engine itself, not from here. */
 
     // the banner's drawn shape follows its box when the window changes
-    window.addEventListener('resize', () => { if (this._winFit && this.el.complete && !this.el.complete.hidden) this._winFit(); });
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
     this.checkOrientation();

@@ -179,23 +179,13 @@
              either: the real character is on the canvas behind, celebrating, and a
              second still picture of him on the panel was competing with that. -->
         <div class="overlay overlay-ending" id="complete" hidden>
-          <!-- THE END OF THE STORY, IN WORDS. It used to end on a row of gold coins, one per
-               crossing, each embossed with the polygon that mended it — a scoreboard of shapes
-               at the moment the story pays off. The shapes are gone on request: the banner now
-               says what happened ("Momo crossed the Frozen Pass!", answering the tutorial's
-               "Help Momo cross the Frozen Pass!"), the title waves a letter at a time, and the
-               two of them dance under it with the confetti. Same white-and-icy-blue speech as
-               the dialogue box, drawn by hud.js through fitBubble. -->
-          <div class="win-bubble" id="win-bubble" role="status" aria-live="polite">
-            <svg class="win-shape" id="win-shape" aria-hidden="true"><path class="win-face" d=""/></svg>
-            <div class="win-body">
-              <h1 class="win-title" aria-label="You did it!"><span style="--i:0">Y</span><span style="--i:1">o</span><span style="--i:2">u</span><span class="sp" style="--i:3">&nbsp;</span><span style="--i:4">d</span><span style="--i:5">i</span><span style="--i:6">d</span><span class="sp" style="--i:7">&nbsp;</span><span style="--i:8">i</span><span style="--i:9">t</span><span style="--i:10">!</span></h1>
-              <p class="win-sub" id="win-sub">Momo crossed the <b>Frozen Pass!</b></p>
-            </div>
-            <span class="win-spark s1" aria-hidden="true">✦</span>
-            <span class="win-spark s2" aria-hidden="true">✦</span>
-            <span class="win-spark s3" aria-hidden="true">✦</span>
-          </div>
+          <!-- NO PANEL HERE ANY MORE. The ending used to open with a banner across the top —
+               "You did it!" waving a letter at a time, "Momo crossed the Frozen Pass!" under it,
+               both spoken. It was removed on request, and the reason is the dance: the two of
+               them are the payoff, and a card over the top third of the stage with words moving
+               in it takes the eye off the thing the child has just earned. The camera pushes in
+               on them instead (engine.js, the COMPLETE case), and the only thing left on the
+               screen is Play again. -->
           <!-- Play again stands ON the ice to the right of the friends, like a signpost at
                the end of the road — the only thing to do, in the empty half of the stage. -->
           <button class="btn-chunky btn-replay" id="btn-replay" type="button">

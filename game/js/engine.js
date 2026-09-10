@@ -853,6 +853,20 @@ export const CFG = {
      block's position. Nothing about a hanging rope needs a second clock. */
   rope: { src: 'assets/env/rope-tied.webp', artW: 96, cordW: 35, cord: [96, 1216], seg: 280,
           knot: [1222, 1303], fray: [1262, 1303], bow: 7, bowSwing: 9 },
+  /* THE ENDING'S FRAMING. The journey finishes with Momo and his friend dancing, and the
+     camera closes on them so that is what the child is looking at.
+
+     1.42, measured against the art rather than chosen: the dance sheet draws the pair 875
+     wide and 459 tall, and at this zoom the visible stage is 1352 x 761 — the two of them
+     with a wide margin of ice and sky, and room for the confetti to keep falling around
+     them. Past about 1.6 the drizzle starts falling outside the frame and the friend's
+     shoulder reaches the edge.
+
+     1700ms, slower than the puzzle's 900: a puzzle zoom is the game getting on with it,
+     this one is the reward, and a push-in that takes its time is the difference between a
+     camera move and a snap. It runs alongside the pair's own 900ms glide to centre stage
+     so the two settle together. */
+  ending: { zoomK: 1.42, zoomMs: 1700 },
   /* THE VOICE-OVER. The owner recorded every line the learner is shown as ONE take (39 s), in
      the order of docs/VO-SCRIPT.md. One file is one download and one decode, so instead of
      sixteen files this names a WINDOW per line: [start, length] in seconds, measured off the
@@ -879,8 +893,11 @@ export const CFG = {
       'sign-heptagon':      [28.11, 1.50],
       'sign-pentagons':     [29.99, 2.01],
       'sign-hexagons':      [32.50, 2.00],
-      'win-title':    [34.87, 1.10],  // "You did it!"
-      'win-sub':      [36.12, 2.81]   // "Momo crossed the Frozen Pass!"
+      /* THE ENDING SPEAKS NO MORE. 'win-title' ("You did it!") and 'win-sub' ("Momo crossed
+         the Frozen Pass!") lived here and were cut with the banner that showed them: the
+         ending is the dance now, the camera pushes in on it, and a voice over the top was
+         the same interruption the card was. The take still holds those seconds of audio —
+         nothing asks for them. */
     }
   },
   music: { src: 'assets/audio/bgm-ice-hunt.mp3', gain: 0.17, duck: 0.35, fadeMs: 2200 },
@@ -5219,6 +5236,9 @@ export function createGame(canvas, hooks = {}) {
     zoom: 1, zoomWant: 1, zoomVX: 960, zoomVY: 540,
     // where the current camera move started, where it is going, and how far through it is
     zoomFrom: 1, zoomTo: 1, zoomP: 1, zoomMs: 900,
+    /* An optional override for the next move's duration, in ms, cleared once it is taken.
+       The puzzle's in and out times are the default; the ending wants a slower push. */
+    zoomMsWant: 0,
     punchAmp: 0, punchT: 0, punchLen: 0, punchAt: 0, punchX: 0, punchY: 0,
     instrHold: 0, instrLast: '',
     phase: 0, phasesDone: 0, gapsThisPhase: null, phaseLayout: null, phaseJumped: false
@@ -5466,7 +5486,7 @@ export function createGame(canvas, hooks = {}) {
         G.moving = false; G.jumpEnabled = false; G.oops = false;
         break;
       case 'GLACIER_BREAK_1': G.jumpEnabled = false; startBreak(); break;
-      case 'PHASE_RUN': G.zoomWant = 1;
+      case 'PHASE_RUN': G.zoomWant = 1; G.zoomMsWant = 0;
         /* PHASE_RUN is also where a retry lands, so it must NOT reset the strike
            count. It used to, which meant the three-strike valve could never fire:
            fail the jump, retry, land back here, counter cleared, fail again — an
@@ -5509,16 +5529,22 @@ export function createGame(canvas, hooks = {}) {
         break;
       // Level 2 is parked (drafts/level-2.draft.js), so the last repaired crossing
       // leads straight into the run home.
-      case 'FINAL_RUN': G.zoomWant = 1;
+      case 'FINAL_RUN': G.zoomWant = 1; G.zoomMsWant = 0;
         /* Far enough ahead that the run home is a run rather than a step, and close
            enough that it is not a trek: at CFG.runSpeed this is about four seconds. */
         G.bearAt = G.worldX + CFG.W + 1250;
         G.l1 = null; G.gapsThisPhase = null;
-        G.instruction = 'Run for home!';
+        /* AND NO SIGN OVER THE RUN HOME. 'Run for home!' hung on the plank for the whole
+           final stretch, and it is the one stretch with nothing to work out: the crossings are
+           mended, the friend is ahead, and the only thing left is to watch Momo go. An
+           instruction with nothing to instruct is a board in front of the ending. Removed on
+           request; the plank comes back for the next question, and there is no next one. */
+        G.instruction = '';
         G.moving = true; G.jumpEnabled = true; G.speedFactor = 1;
         audio.setDuck(1); mammoth.setState('RUN'); break;
       case 'COMPLETE':
         G.moving = false; G.complete = true; G.jumpEnabled = false; G.instruction = ''; G.drizzleAt = 0; G.duoFrame = -1;
+        G.zoomWant = 1; G.zoomMsWant = 0;   // the push-in starts a beat later, in the update
         mammoth.hopShort = false; mammoth.setState('CELEBRATE'); particles.poof(CFG.mammothX, CFG.surfaceY, 6, 1.1);
         /* CONFETTI, from above the whole stage rather than from the character. A burst
            thrown off one point reads as an impact; confetti has to fall on everything,
@@ -7253,7 +7279,8 @@ export function createGame(canvas, hooks = {}) {
         G.zoomTo = G.zoomWant;
         G.zoomFrom = G.zoom;
         G.zoomP = 0;
-        G.zoomMs = Math.max(1, G.zoomWant > G.zoom ? L1z.zoomInMs : L1z.zoomOutMs);
+        G.zoomMs = Math.max(1, G.zoomMsWant || (G.zoomWant > G.zoom ? L1z.zoomInMs : L1z.zoomOutMs));
+        G.zoomMsWant = 0;
       }
       if (G.zoom !== G.zoomWant) {
         G.zoomP = clamp((G.zoomP || 0) + dt * 1000 / G.zoomMs, 0, 1);
@@ -7538,12 +7565,26 @@ export function createGame(canvas, hooks = {}) {
         break;
       }
       case 'COMPLETE': {
-        /* The ending's two lines, in order: the title, then what happened. The second waits for
-           the first, so they are spoken rather than talked over. */
-        if (!G.saidWin) {
-          G.saidWin = true;
-          const t = audio.say('win-title');
-          setTimeout(() => audio.say('win-sub'), Math.max(600, t * 1000 + 220));
+        /* PUSH IN ON THE DANCE. The ending is the two of them dancing, and at zoom 1 they are
+           a small pair in the middle of a wide, empty stage — the payoff read as scenery. The
+           camera closes on them instead, which is what the rest of the game already does when
+           it wants the player looking at one thing (CFG.levelOne.zoomK does it for a puzzle).
+
+           AFTER A BEAT, NOT ON ARRIVAL. drawDuo fades the pair in where the run ended and
+           glides them to centre stage between 300ms and 1200ms. Starting the push at 500ms
+           lets the arrival read first and lands the two moves together, so it is one gesture
+           rather than a zoom fighting a glide.
+
+           The focus point is where they finish, not where they start: centre stage, at the
+           middle of their bodies. The frame is the pair plus air — at 1.42 the visible stage
+           is 1352 x 761 and they are 875 x 459, so nothing is cropped and there is room for
+           the confetti to fall around them. */
+        if (G.st > 500 && G.zoomWant === 1) {
+          const k = DUO.scale;
+          G.zoomVX = CFG.W / 2;
+          G.zoomVY = CFG.surfaceY - DUO.feet * k / 2;
+          G.zoomWant = CFG.ending.zoomK;
+          G.zoomMsWant = CFG.ending.zoomMs;
         }
         /* A LIGHT DRIZZLE OF CONFETTI for as long as the ending is up. The opening shower
            falls and is gone in three seconds, and the screen that stays is the one the
@@ -9003,7 +9044,7 @@ export function createGame(canvas, hooks = {}) {
     G.freeze = 0; G.punchAmp = 0; G.punchT = 0; G.punchLen = 0; G.punchAt = 0;
     G.bearAt = 0;                   // the friend is not placed until the run home
     G.retryRun = false; G.runLeadMs = 0;
-    slash = null; brk = null; taps.length = 0; G.saidWin = false; audio.stopSay();
+    slash = null; brk = null; taps.length = 0; audio.stopSay();
     ground.reset(); obstacles.reset(); particles.clear(); mammoth.reset(); bgm.reset();
     atmos.intensity = 0; atmos.flash = 0;
     audio.setDuck(1);

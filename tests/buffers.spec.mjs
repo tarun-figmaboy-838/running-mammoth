@@ -8,7 +8,7 @@
      the backbuffer stays inside what a mobile GPU allocates, and the quality guard can only
      lower it;
      the sky, wall-art and particle pools are bounded, so a long session cannot grow without end;
-     the voice is one recording cut into sixteen windows that do not overlap. */
+     the voice is one recording cut into fourteen windows that do not overlap. */
 import { test, expect } from '@playwright/test';
 import { boot, force, waitState } from './helpers.mjs';
 
@@ -108,7 +108,7 @@ test.describe('the pointer, the buffers and the voice', () => {
     expect(a.textH, 'readable against the stage').toBeGreaterThan(0.03);
   });
 
-  test('the voice is one recording cut into sixteen windows, none overlapping', async ({ page }) => {
+  test('the voice is one recording cut into fourteen windows, none overlapping', async ({ page }) => {
     await boot(page);
     const r = await page.evaluate(async () => {
       const m = await import('/js/engine.js');
@@ -127,7 +127,8 @@ test.describe('the pointer, the buffers and the voice', () => {
         .filter(id => !V.lines[id]);
       return { n: ord.length, bad, missing, status: res.status, last: ord[ord.length - 1][1][0] + ord[ord.length - 1][1][1] };
     });
-    expect(r.n, 'every line the learner is shown').toBe(16);
+    // 14, not 16: the ending's two lines were cut with the banner that showed them
+    expect(r.n, 'every line the learner is shown').toBe(14);
     expect(r.bad).toEqual([]);
     expect(r.missing, 'every question has a recorded line').toEqual([]);
     expect(r.status, 'the recording ships').toBe(200);

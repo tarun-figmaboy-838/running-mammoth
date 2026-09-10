@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 test.describe('the voice and the crossing order', () => {
   test.setTimeout(300_000);
 
-  test('sixteen windows, inside the take, none overlapping, one per scripted line', async ({ page }) => {
+  test('fourteen windows, inside the take, none overlapping, one per scripted line', async ({ page }) => {
     await boot(page);
     const r = await page.evaluate(async () => {
       const m = await import('/js/engine.js');
@@ -19,7 +19,10 @@ test.describe('the voice and the crossing order', () => {
       return { src: V.src, dur: +buf.duration.toFixed(2), lines: Object.entries(V.lines) };
     });
     expect(r.src).toBe('assets/audio/vo-lines.mp3');
-    expect(r.lines.length, 'sixteen lines').toBe(16);
+    /* FOURTEEN, not sixteen. 'win-title' and 'win-sub' were cut with the ending banner that
+       showed them — the ending is the dance and the camera pushes in on it, so nothing speaks
+       over the top. The seconds of audio are still in the take; no window points at them. */
+    expect(r.lines.length, 'fourteen lines').toBe(14);
     const ordered = r.lines.slice().sort((a, b) => a[1][0] - b[1][0]);
     let prevEnd = 0;
     for (const [id, [at, dur]] of ordered) {
@@ -38,7 +41,8 @@ test.describe('the voice and the crossing order', () => {
     await boot(page, { sound: true, tutorial: true, skipScreens: true });
     await page.evaluate(() => window.iceAgeGame.sfx('ui'));         // unlocks the context
     await page.waitForFunction(() => window.iceAgeGame._voice().ready, null, { timeout: 60_000 });
-    expect((await page.evaluate(() => window.iceAgeGame._voice())).lines).toBe(16);
+    // 14 since the ending stopped speaking: win-title and win-sub went with the banner
+    expect((await page.evaluate(() => window.iceAgeGame._voice())).lines).toBe(14);
     const r = await page.evaluate(async () => {
       const m = await import('/js/engine.js');
       /* THE SECOND SENTENCE, not the whole line. The box shows one sentence at a time now

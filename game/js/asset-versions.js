@@ -19,7 +19,7 @@ export const ASSET_V = {
   "assets/audio/universfield-sad-trumpet-278822.mp3": "318bbc84",
   "assets/audio/vo-lines.mp3": "5339eef9",
   "assets/char/bear.webp": "ac7771ee",
-  "assets/char/duo-celebrate.webp": "78df9a33",
+  "assets/char/duo-celebrate.webp": "7845cb0a",
   "assets/char/hd/bear.webp": "d257b5b8",
   "assets/char/hd/mammoth-hurt.webp": "c32cf9bc",
   "assets/char/hd/mammoth-idle.webp": "db0e5422",

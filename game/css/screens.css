@@ -699,10 +699,17 @@
   /* ON THE ICE, right of the two friends: standing on the snow like a signpost at the
      end of the road, in the half of the stage that was empty. Bottom edge on the
      walking line (26% up a 1080 stage), so it reads as a thing in the world. */
-  /* BOTTOM CENTRE, the one thing to do, where a thumb already rests — clear of the
-     dance in the middle and the banner on top. */
+  /* BOTTOM CENTRE, the one thing to do, where a thumb already rests.
+
+     LOWER NOW, at 1.4%. It used to be clear of the dance because the dance was a small pair
+     in the middle of a wide stage with a banner above them. The banner is gone and the camera
+     pushes in on the pair, so at 3.5% the button landed across their feet — the one control
+     on the screen sitting on top of the one thing worth looking at. Measured at the ending
+     zoom: their feet reach y 1006 of 1080, and at 1.4% the button top is at y 1010. It stands
+     on the ice below them instead of over them, and it is still a full thumb clear of the
+     bottom edge. */
   left: 50%;
-  bottom: 3.5%;
+  bottom: 1.4%;
   translate: -50% 0;
   pointer-events: auto;
   min-width: clamp(200px, calc(22 * var(--u)), 760px);
@@ -728,91 +735,8 @@
   50%      { filter: drop-shadow(0 0 clamp(10px, 1vw, 20px) rgba(255, 201, 77, 0.95)); }
 }
 
-/* ================== THE ENDING BUBBLE ==================
-   The same cartoon panel as the tutorial box — ice face, navy keyline, amber rim, snow
-   cap, gloss, outlined tail — because it is the same kind of object: someone speaking.
-   Here the speaker is the friend, and the tail sits on him. Top-anchored (the tutorial
-   box is centre-anchored), so it has its own arrival keyframes. */
-.win-bubble {
-  position: absolute;
-  /* A BANNER ACROSS THE TOP now, not a speech bubble off the bear: the two of them are
-     dancing in the middle of the stage and the words are the narrator's, so they sit
-     above the scene, centred, with no tail. */
-  /* Smaller and LEVEL. The card was a third of the stage and tilted, and it competed with
-     the dance; it now holds the title and the seven stamps and nothing else, sits square,
-     and leaves the middle of the screen to the two of them. */
-  left: 50%;
-  top: 1.5%;
-  width: min(calc(42 * var(--u)), 1440px);
-  translate: -50% 0;
-  rotate: 0deg;
-  pointer-events: none;
-  animation: winIn 520ms cubic-bezier(.2, 1.7, .35, 1) both;
-}
-@keyframes winIn {
-  0%   { scale: .6;  translate: -50% -40px; opacity: 0; }
-  60%  { scale: 1.06; translate: -50% 6px;  opacity: 1; }
-  100% { scale: 1;   translate: -50% 0;    opacity: 1; }
-}
-.win-shape {
-  position: absolute;
-  left: 0;
-  top: 0;
-  overflow: visible;
-  pointer-events: none;
-  filter: drop-shadow(clamp(5px, 0.53vw, 10px) clamp(7px, 0.74vw, 14px) 0 rgba(24, 88, 130, 0.30));
-}
-/* The same speech as the dialogue box: white inside, a bright icy-blue keyline. */
-.win-face { fill: #FFFFFF; stroke: #3FB3E8; stroke-width: 8; stroke-linejoin: round; }
-.win-body {
-  position: relative;
-  z-index: 1;
-  padding: clamp(14px, 1.5vw, 28px) clamp(24px, 2.6vw, 48px) clamp(12px, 1.3vw, 24px);
-  text-align: center;
-}
-/* THE TITLE bounces one letter at a time — a wave runs along the word, then it rests. */
-.win-title {
-  margin: 0;
-  font: 800 clamp(40px, calc(4.4 * var(--u)), 168px)/1 "Baloo 2", system-ui, sans-serif;
-  /* INK ON WHITE, not white with a navy outline: on the white banner the old fill was
-     invisible and only its stroke showed, so the letters read as hollow. */
-  color: #0C3352;
-  letter-spacing: .01em;
-  text-shadow: 0 clamp(3px, calc(0.3 * var(--u)), 12px) 0 rgba(63, 179, 232, 0.55);
-}
-.win-title span { display: inline-block; animation: winLetter 2.2s cubic-bezier(.4, 0, .3, 1) infinite; animation-delay: calc(var(--i) * 70ms); }
-.win-title .sp { width: .28em; }
-@keyframes winLetter {
-  0%, 30%, 100% { translate: 0 0; rotate: 0deg; }
-  10%           { translate: 0 -0.16em; rotate: -5deg; }
-  20%           { translate: 0 0.02em; rotate: 2deg; }
-}
-/* WHAT HAPPENED, in the friend's words — it answers the tutorial's "Help Momo cross the
-   Frozen Pass!", so the story closes where it opened. The place is amber: Momo's own colour. */
-.win-sub {
-  margin: clamp(4px, calc(0.5 * var(--u)), 20px) 0 0;
-  font: 800 clamp(19px, calc(2 * var(--u)), 76px)/1.25 "Baloo 2", system-ui, sans-serif;
-  color: #0C3352;
-}
-.win-sub b { color: #B4530F; }
-.win-spark {
-  position: absolute;
-  color: #FFE58A;
-  font-size: clamp(22px, calc(2.4 * var(--u)), 92px);
-  -webkit-text-stroke: 2px #0C3352;
-  paint-order: stroke fill;
-  pointer-events: none;
-  animation: winSpark 1.6s ease-in-out infinite;
-}
-.win-spark.s1 { left: -3%; top: -10%; }
-.win-spark.s2 { right: -2%; top: 16%; animation-delay: .5s; }
-.win-spark.s3 { left: 30%; bottom: -8%; animation-delay: 1s; }
-@keyframes winSpark {
-  0%, 100% { opacity: .25; scale: .6; rotate: 0deg; }
-  50%      { opacity: 1;   scale: 1.1; rotate: 25deg; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .win-bubble, .win-title span, .win-spark, .btn-replay, .tut-bubble { animation: none; }
+  .btn-replay, .tut-bubble { animation: none; }
 }
 @media (prefers-reduced-motion: reduce) { .btn-replay { animation: none; translate: -50% 0; } }
 /* AND PLAY STOPS PULSING, BUT DOES NOT GO DARK. Switching the animation off would leave
