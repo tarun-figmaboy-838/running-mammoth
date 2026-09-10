@@ -149,11 +149,31 @@ a:hover { color: var(--ice-pale); }
      to W - 60 — so everything from the left edge to x 770 of the 1920 stage is clear sky
      above the character's head, and 40% of the stage is exactly that band. Centred, the
      sign reached the leftmost rope; here it cannot. */
-  /* TOP OF THE STAGE, because the sign HANGS. The art carries its own ropes and they run
-     off the top of the frame exactly as the ice blocks' ropes do; parked a percent or two
-     down, the ropes ended in mid-air and the whole thing read as a card with decoration
-     drawn on it. Everything above the plank is transparent, so it covers nothing. */
-  top: 0;
+  /* THE BOARD IS PLACED BY ITS WOOD, not by the top of its picture.
+
+     The delivery before this one was a sign on two ropes that ran up out of the frame, so
+     the picture was mostly transparent rope and top:0 put the wood a third of the way down
+     the stage on its own. This board has no ropes going up — it is lashed at each end, in
+     the plane of the wood — so the same top:0 would have slammed the wood against the very
+     top edge, 90px higher than the composition that was approved.
+
+     So the wood's top edge is pinned where it has always been, 5.176 stage units down, and
+     whatever height of snow sits above it is subtracted. That holds at every stage size,
+     including the ones where --sign-h is clamped and no longer tracks --u.
+
+     NO ROPE IS DRAWN HERE. Whatever the board hangs by is in the picture. */
+  /* 4.3 units, raised from 5.176 on request: the board sits a little higher in the sky
+     band and leaves more of the leftmost rope visible while it is being cut. */
+  top: calc(4.3 * var(--u) - 51 * var(--k));
+  /* On .instruction and not on the pill, because its top above is in these units too.
+     Custom properties inherit, so the pill and the text still read them unchanged. */
+  /* 4.72 stage units of a 478-tall art is a 4.109-unit board — the same board, to the
+     pixel, that 9.4 units of the 652-tall rope art gave. The ceiling is the same number at
+     4K (4.72 x 38.4 = 181), so the panel is the same share of the stage there as at 1920,
+     which is what the interface-share test measures. The floor keeps the wood at the size
+     the old 86px floor gave it: 37.6px of wood is 44px of this art. */
+  --sign-h: clamp(44px, calc(4.72 * var(--u)), 182px);   /* rendered height of the trimmed art */
+  --k: calc(var(--sign-h) / 478);         /* art pixels -> screen */
   left: 1.6%;
   transform: none;
   max-width: 40%;
@@ -170,19 +190,19 @@ a:hover { color: var(--ice-pale); }
      art, its place and its clearance of the ropes, and the sentence stays on one line. */
   max-width: 46%;
 }
-.instruction.banner .instruction-text { font-size: calc(132 * var(--k) * 0.78); }
+.instruction.banner .instruction-text { font-size: calc(193 * var(--k) * 0.78); }
 /* AND IT IS LIT while it speaks (asked for): a soft icy glow around the plank, breathing, so the
    eye goes to the words being read out. It is the panel that glows, not the words. */
 .instruction.banner .instruction-pill {
-  filter: drop-shadow(0 0 calc(26 * var(--k)) rgba(120, 214, 255, 0.85))
-          drop-shadow(0 0 calc(70 * var(--k)) rgba(63, 179, 232, 0.5));
+  filter: drop-shadow(0 0 calc(38 * var(--k)) rgba(120, 214, 255, 0.85))
+          drop-shadow(0 0 calc(102 * var(--k)) rgba(63, 179, 232, 0.5));
   animation: signDrop 760ms linear both, signGlow 1.9s ease-in-out 760ms infinite;
 }
 @keyframes signGlow {
-  0%, 100% { filter: drop-shadow(0 0 calc(18 * var(--k)) rgba(120, 214, 255, 0.6))
-                     drop-shadow(0 0 calc(52 * var(--k)) rgba(63, 179, 232, 0.34)); }
-  50%      { filter: drop-shadow(0 0 calc(34 * var(--k)) rgba(150, 228, 255, 0.95))
-                     drop-shadow(0 0 calc(88 * var(--k)) rgba(63, 179, 232, 0.6)); }
+  0%, 100% { filter: drop-shadow(0 0 calc(26 * var(--k)) rgba(120, 214, 255, 0.6))
+                     drop-shadow(0 0 calc(76 * var(--k)) rgba(63, 179, 232, 0.34)); }
+  50%      { filter: drop-shadow(0 0 calc(50 * var(--k)) rgba(150, 228, 255, 0.95))
+                     drop-shadow(0 0 calc(128 * var(--k)) rgba(63, 179, 232, 0.6)); }
 }
 /* the polygon's name, set apart in the sentence: capitals, heavier, the key-word blue */
 /* THE SENTENCE EASES IN, A WORD AT A TIME (asked for). Smooth in and out, no overshoot —
@@ -197,7 +217,7 @@ a:hover { color: var(--ice-pale); }
   from { opacity: 0; transform: translateY(0.34em) scale(0.9); }
   to   { opacity: 1; transform: none; }
 }
-.instruction-text .key { color: #1E56C4; font-weight: 900; letter-spacing: 0.01em; -webkit-text-stroke: calc(9 * var(--k)) #FFFFFF; paint-order: stroke fill; }
+.instruction-text .key { color: #1E56C4; font-weight: 900; letter-spacing: 0.01em; -webkit-text-stroke: calc(13 * var(--k)) #FFFFFF; paint-order: stroke fill; }
 /* IT IS PULLED BACK UP, and the little dip first is what makes it read as a pull rather
    than a slide: a hanging thing gathers before it goes. Shorter than the drop, because by
    then the question is answered and the player wants the run back. It has to finish inside
@@ -212,7 +232,7 @@ a:hover { color: var(--ice-pale); }
 @keyframes signPullUp {
   0%   { transform: translateY(0); opacity: 1; }
   20%  { transform: translateY(0); opacity: 1; animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
-  100% { transform: translateY(-130%); opacity: 0; }
+  100% { transform: translateY(-230%); opacity: 0; }
 }
 
 /* THE ARRIVAL: a board lowered on two ropes, not a pendulum.
@@ -246,16 +266,16 @@ a:hover { color: var(--ice-pale); }
    ropes hold it level), no scaling, and nothing sideways: translateY is the only thing that
    changes, so there is nothing to jitter or snap. */
 @keyframes signDrop {
-  0%   { transform: translateY(-125%); opacity: 0; animation-timing-function: cubic-bezier(.5, 0, .85, .35); }
+  0%   { transform: translateY(-230%); opacity: 0; animation-timing-function: cubic-bezier(.5, 0, .85, .35); }
   10%  { opacity: 1; }
   /* the fall, accelerating, arriving on the mark */
   46%  { transform: translateY(0); animation-timing-function: cubic-bezier(.2, .5, .4, 1); }
   /* the rebound: up, and back down, twice, each smaller */
-  62%  { transform: translateY(-5.5%); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
+  62%  { transform: translateY(-11%); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
   76%  { transform: translateY(0); animation-timing-function: cubic-bezier(.3, .4, .5, 1); }
-  87%  { transform: translateY(-2%); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
+  87%  { transform: translateY(-4%); animation-timing-function: cubic-bezier(.4, 0, .55, 1); }
   95%  { transform: translateY(0); animation-timing-function: cubic-bezier(.3, .4, .5, 1); }
-  98%  { transform: translateY(-0.6%); }
+  98%  { transform: translateY(-1.2%); }
   100% { transform: translateY(0); opacity: 1; }
 }
 
@@ -300,10 +320,10 @@ a:hover { color: var(--ice-pale); }
      of the stage there than at 1920 — which is exactly what the interface-share test
      measures, and what a 340px cap failed by 2.5%. The old flat art's 292px cap was the
      same number for the same reason. */
-  --sign-h: clamp(86px, calc(9.4 * var(--u)), 362px);   /* rendered height of the trimmed art */
-  --k: calc(var(--sign-h) / 652);         /* art pixels -> screen */
-  /* THE SWING PIVOTS WHERE THE ROPES LEAVE THE FRAME, not in the middle of the plank. */
-  transform-origin: 50% -140%;
+  /* --sign-h and --k are declared on .instruction, which needs them for its own `top`. */
+  /* No transform-origin: there is no pivot to name. The drop has no rotation in it — the
+     board falls and settles straight down — and the old origin was 140% above the plank
+     because that is where the ropes used to leave the frame. */
 
   position: relative;
   display: inline-flex;
@@ -327,30 +347,27 @@ a:hover { color: var(--ice-pale); }
      no seam for a resampler to find. The caps keep their natural size (auto 100%) and
      only the middle stretches, exactly as before. */
   background:
-    url("../assets/ui/plank-l.webp?v=ee04d9d5") left center / auto 100% no-repeat,
-    url("../assets/ui/plank-r.webp?v=1bfb3779") right center / auto 100% no-repeat,
+    url("../assets/ui/plank-l.webp?v=1b2cb44b") left center / auto 100% no-repeat,
+    url("../assets/ui/plank-r.webp?v=553400cc") right center / auto 100% no-repeat,
     /* +24px, not +2: at a phone's fractional device pixels the middle's edge landed on a
        half-covered column and what was behind the plank showed through as a thin line at the
        seam ("the blue cut line"). Twelve pixels under each opaque cap leaves no column for a
        resampler to expose. */
-    url("../assets/ui/plank-m.webp?v=8e38817a") center center / calc(100% - 611 * var(--k) + 24px) 100% no-repeat;
+    url("../assets/ui/plank-m.webp?v=3b1338a9") center center / calc(100% - 626 * var(--k) + 24px) 100% no-repeat;
 
   /* CENTRED ON THE WOOD, both ways, and the padding is where that is done.
 
-     SIDEWAYS: the cap plus 56 art-px of clear wood on each side. The two caps came out
-     304 and 307 wide, so the paddings differ by the same 3px and the words sit on the
-     plank's true centre rather than the box's.
+     SIDEWAYS: EQUAL, and that is the point. Both caps are cut to the same 313 (see
+     make-sign.mjs), so the same 313 + 82 art-px of clear wood on each side centres the
+     sentence on the board and between the two rope ends at once. Unequal paddings put it
+     6.4px to one side, which is what "the words are not centred" was.
 
-     VERTICALLY: the wood runs y 359..643 and its centre is 501. A 132px line centred
-     there occupies 435..567, which leaves 50px of clear wood above the capitals and 62
-     below — the box is padded to put it exactly there rather than in the middle of an
-     element that is mostly rope. */
-  /* The words are centred in the box the padding leaves, and the wood's centre is at art
-     y 501 of 652 — below the middle of a picture that is mostly rope. Centring in a box
-     that is 350 art px lower at the top than at the bottom puts them there: 370 + (652 -
-     370 - 20)/2 = 501. */
-  padding: calc(370 * var(--k)) calc(363 * var(--k))
-           calc(20 * var(--k)) calc(360 * var(--k));
+     VERTICALLY: on the PALE PANEL, y 158..432, centre 295 — not on the plank band, whose
+     centre at 259 counts the snow-covered rows along the top and floated the sentence 36
+     art px above the timber it is printed on. Padding 158 above and 45 below puts the line
+     exactly there: 158 + (478 - 158 - 45)/2 = 295.5. */
+  padding: calc(158 * var(--k)) calc(395 * var(--k))
+           calc(45 * var(--k)) calc(395 * var(--k));
 
   /* IT DROPS IN ON ITS ROPES (asked for). The HUD restarts this animation for every new
      sentence and never for a re-assert, so the plank arrives once per question. */
@@ -369,10 +386,11 @@ a:hover { color: var(--ice-pale); }
      the snow reaches down to about 213, so a 132px line left 0.3px of clearance —
      within font-metric noise of touching the snow. 120 keeps the same centre and
      gives 7px of air. */
-  /* 132 art-px of a 652-tall art. Centred on the wood at y 501 it runs 435..567, clear of
-     the pale panel's own edges (385..629) by 50px above and 62 below — and against the new
-     art's scale that is the same size on screen as the old 126 of 473. */
-  font-size: calc(132 * var(--k));
+  /* 193 art-px of a 478-tall art — the same size on screen as the old 132 of 652. Centred
+     on the pale panel at y 295 it runs 199..392, which leaves 41 art px of clear timber
+     above the capitals and 40 below — clear of the snow along the top edge and of the dark
+     rim under the bottom. */
+  font-size: calc(193 * var(--k));
   line-height: 1;
   font-weight: 900;
   /* dark warm brown, which is what reads on pale timber; the old deep blue was chosen
@@ -381,13 +399,13 @@ a:hover { color: var(--ice-pale); }
   /* A CREAM STROKE around the letters (asked for: "strokes, to make it big and evident"): it
      lifts the words off the wood grain without a black outline. paint-order puts the stroke
      BEHIND the fill, so the letterforms keep their weight. */
-  -webkit-text-stroke: calc(9 * var(--k)) #FFF6E0;
+  -webkit-text-stroke: calc(13 * var(--k)) #FFF6E0;
   paint-order: stroke fill;
   letter-spacing: -0.005em;
   text-align: center;
   white-space: nowrap;
   /* a touch of relief, so the words look burnt into the plank rather than laid on it */
-  text-shadow: 0 calc(3 * var(--k)) 0 rgba(255, 246, 224, 0.55);
+  text-shadow: 0 calc(4 * var(--k)) 0 rgba(255, 246, 224, 0.55);
 }
 
 /* NO JUMP BUTTON — the stage is the control (see index.html). About ninety lines of
@@ -683,11 +701,13 @@ a:hover { color: var(--ice-pale); }
 /* On a phone-landscape stage everything still derives from --sign-h, so the sign only
    needs to be told to be a little taller relative to a much smaller stage. */
 @media (max-width: 1200px) {
-  .instruction { max-width: 44%; top: 1%; left: 1.2%; }
+  /* No top here: the shared rule places the board by its wood, which is what a phone
+     needs too. A flat 1% was for a picture whose top was empty rope. */
+  .instruction { max-width: 44%; left: 1.2%; }
   /* A phone stage is 1920 units wide too, but its plank is proportionally larger, so the
      banner sentence needs another step down to stay inside the band. Measured: 915 -> 830
      of 1920, against the leftmost rope at 883. */
-  .instruction.banner .instruction-text { font-size: calc(132 * var(--k) * 0.68); }
+  .instruction.banner .instruction-text { font-size: calc(193 * var(--k) * 0.68); }
   /* MUCH smaller on a phone, and the two numbers that set it are both measured:
      the hanging chunks start 122px down a 390px stage, so a card parked at 2.5% must
      be under ~112px tall to clear them; and the interface has to stay under 12% of
@@ -701,7 +721,13 @@ a:hover { color: var(--ice-pale); }
      on a short, wide phone and the plank ran back under the ropes. 16% of the stage's own
      height keeps the longest sentence ("Cut the QUADRILATERAL.") inside 840 of the 1920 stage
      units, clear of the leftmost rope (883 once the row moved in), on every phone shape. */
-  /* 0.185 of the stage's height, where the old art wanted 0.16: an art 1.38x taller
-     because of the rope above it, and then the same step down desktop took. */
-  .instruction-pill { --sign-h: max(52px, calc(min(100vh, 100vw * 0.5625) * 0.185)); }
+  /* 0.0929 of the stage's height, where the rope art wanted 0.185: that art was 652 tall
+     for 285 rows of wood and this one is 478 for 416, so half the picture height is the
+     same board. The floor moves by the same factor, 52 -> 26.
+
+     ON .instruction, NOT ON THE PILL. --sign-h and --k are declared together on the
+     container now, and overriding only one of them here gave the pill a 72px height with
+     44px padding and type — the board drawn half again as tall as everything measured for
+     it, on every phone. */
+  .instruction { --sign-h: max(26px, calc(min(100vh, 100vw * 0.5625) * 0.0929)); }
 }

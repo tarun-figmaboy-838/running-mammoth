@@ -109,9 +109,9 @@ const ASSET_V = {
   "assets/ui/icons/sound-off.svg": "4c1711d1",
   "assets/ui/icons/sound-on.svg": "53f86786",
   "assets/ui/icons/touch.png": "d05ff66d",
-  "assets/ui/plank-l.webp": "ee04d9d5",
-  "assets/ui/plank-m.webp": "8e38817a",
-  "assets/ui/plank-r.webp": "1bfb3779"
+  "assets/ui/plank-l.webp": "1b2cb44b",
+  "assets/ui/plank-m.webp": "3b1338a9",
+  "assets/ui/plank-r.webp": "553400cc"
 };
 
 
