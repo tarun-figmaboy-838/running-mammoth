@@ -68,6 +68,99 @@ test.describe('the voice and the crossing order', () => {
     expect(r.last).toBeLessThan(r.share + 0.4);
   });
 
+test('a word appears when it is spoken, and holds when the voice does', async ({ page }) => {
+    await boot(page, { sound: true, tutorial: true, skipScreens: true });
+    await page.evaluate(() => window.iceAgeGame.sfx('ui'));            // unlocks the context
+    await page.waitForFunction(() => window.iceAgeGame._voice().ready, null, { timeout: 60_000 });
+    await page.waitForFunction(() => document.querySelectorAll('.tut-text .w').length > 0, null, { timeout: 60_000 });
+
+    /* TWO CLOCKS, COMPARED. The recording reports where it is; the words are revealed by CSS
+       on wall clock. Nothing here reads the delays this code wrote — that would only prove
+       the assignment happened. What is counted is how many words the RECORDING has reached
+       against how many the SCREEN has started, which is the thing a player sees. */
+    const trail = await page.evaluate(async () => {
+      const g = window.iceAgeGame, id = 'tut-1-meet';
+      const all = g.voWords(id);
+      if (!all) return { noTimings: true };
+      const rows = [];
+      const t0 = Date.now();
+      while (Date.now() - t0 < 5000) {
+        const at = g.voAt(id);
+        const ws = [...document.querySelectorAll('.tut-text .w')];
+        if (at >= 0 && ws.length) {
+          const started = ws.filter(w => {
+            const a = w.getAnimations()[0];
+            if (!a) return true;
+            return (a.currentTime || 0) >= (a.effect.getComputedTiming().delay || 0);
+          }).length;
+          /* counted INSIDE the sentence on screen: w0 is which word of the line it starts at */
+          const w0 = +(document.querySelector('.tut-text').dataset.w0 || 0);
+          const spoken = all.slice(w0, w0 + ws.length).filter(v => v <= at + 0.001).length;
+          rows.push({ at, spoken, started, of: ws.length });
+        }
+        await new Promise(r => setTimeout(r, 60));
+      }
+      return { rows };
+    });
+    expect(trail.noTimings, 'the take has per-word timings baked').toBeFalsy();
+    expect(trail.rows.length, 'the line was sampled while it played').toBeGreaterThan(8);
+
+    /* The reveal may never RUN AHEAD of the voice: a word on screen that has not been said
+       is the fault this replaced (an even step outruns the long words). Behind is allowed by
+       at most one word — each word takes 460ms to arrive, so at any instant the newest one
+       is still landing. Counted within the sentence on screen, which is what the beat holds. */
+    let ahead = 0, behind = 0;
+    for (const r of trail.rows) {
+      const spokenHere = r.spoken;
+      if (r.started > spokenHere + 1) ahead++;
+      if (spokenHere - r.started > 1) behind++;
+    }
+    console.log('WORD SYNC samples=' + trail.rows.length + ' ahead=' + ahead + ' behind=' + behind);
+    expect(ahead, 'the text never gets ahead of the voice').toBe(0);
+    expect(behind / trail.rows.length, 'and rarely more than one word behind it').toBeLessThan(0.34);
+
+  });
+
+  test('a pause stops the words with the voice, and both go on together', async ({ page }) => {
+    await boot(page, { sound: true, tutorial: true, skipScreens: true });
+    await page.evaluate(() => window.iceAgeGame.sfx('ui'));
+    await page.waitForFunction(() => window.iceAgeGame._voice().ready, null, { timeout: 60_000 });
+    await page.waitForFunction(() => document.querySelectorAll('.tut-text .w').length > 0, null, { timeout: 60_000 });
+
+    /* PAUSED WHILE A LINE IS STILL BEING SPOKEN — the only moment this can be tested. The
+       words are revealed by CSS on wall clock and the voice by the audio clock, so a pause
+       that stops one and not the other lands the rest of the sentence out of step. The
+       reveal is parked from what the audio reports about itself, so this asks the audio
+       too: -1 means it is genuinely not running, not merely holding a stale position.
+
+       The SAME span is timed before and after. Sampling ':last-child' across a sentence
+       change measures two different elements and reports a drift that is really a swap. */
+    const held = await page.evaluate(async () => {
+      const g = window.iceAgeGame;
+      const span = document.querySelector('.tut-text .w:last-child');
+      const anim = span && span.getAnimations()[0];
+      if (!anim) return { noAnim: true };
+      g.setPaused(true); g.suspendAudio();
+      await new Promise(r => setTimeout(r, 400));       // long enough for a tick to park it
+      const a = anim.currentTime || 0;
+      const waiting = document.querySelector('.tut-text').classList.contains('waiting');
+      const voice = g.voAt(g.debug().tutVoId || 'tut-1-meet');
+      await new Promise(r => setTimeout(r, 800));
+      const b = anim.currentTime || 0;
+      g.setPaused(false); g.resumeAudio();
+      return { drift: b - a, waiting, voice };
+    });
+    console.log('PAUSED ' + JSON.stringify(held));
+    expect(held.noAnim, 'a word was animating to begin with').toBeFalsy();
+    expect(held.voice, 'the voice reports that it is not running').toBe(-1);
+    expect(held.waiting, 'so the reveal is parked').toBe(true);
+    expect(Math.abs(held.drift), 'and the words do not move during the pause').toBeLessThan(20);
+
+    // and it comes back
+    await page.waitForFunction(() => !document.querySelector('.tut-text').classList.contains('waiting'),
+      null, { timeout: 20_000 });
+  });
+
   test('a phase question is spoken once, and its id comes from its own sentence', async ({ page }) => {
     await boot(page, { sound: true, fast: 1 });
     const ids = await page.evaluate(async () => {

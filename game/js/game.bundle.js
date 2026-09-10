@@ -26,6 +26,7 @@
 const ASSET_V = {
   "assets/art/Bubble.svg": "5f1ee1ef",
   "assets/art/cover.webp": "e0c7a5db",
+  "assets/audio/ElevenLabs 2026 09 10T05 43 18 Kshitij Voice ivc sp70 s40 sb79 v3.mp3": "3ed9ee95",
   "assets/audio/bgm-ice-hunt.mp3": "045fc178",
   "assets/audio/dragon-studio-cartoon-blinking-372481.mp3": "e1ba0c6b",
   "assets/audio/dragon-studio-heavy-boulder-thud-515257.mp3": "97c6bfa5",
@@ -99,6 +100,7 @@ const ASSET_V = {
   "assets/ui/icons/sound-off.svg": "4c1711d1",
   "assets/ui/icons/sound-on.svg": "53f86786",
   "assets/ui/icons/touch.png": "d05ff66d",
+  "assets/ui/image.png": "a69b16dd",
   "assets/ui/plank-l.webp": "ee04d9d5",
   "assets/ui/plank-m.webp": "8e38817a",
   "assets/ui/plank-r.webp": "1bfb3779"
@@ -1745,20 +1747,20 @@ const CFG = {
   vo: {
     src: 'assets/audio/vo-lines.mp3', gain: 1,
     lines: {
-      'tut-1-meet':   [0.00, 3.99],   // "This is Momo. He needs to find his friend."
-      'tut-2-goal':   [4.38, 2.83],   // "Help Momo cross the Frozen Pass!"
-      'tut-3-watch':  [7.58, 0.91],   // "Watch out!"
-      'tut-4-jump':   [8.78, 2.33],   // "Tap to jump over obstacles."
-      'tut-5-broken': [11.47, 2.85],  // "Oh no! The path is broken."
-      'tut-6-use':    [14.57, 3.07],  // "Use the right ice piece to fix the path."
-      'tut-7-fit':    [18.13, 2.27],  // "Perfect fit! Keep going!"
-      'sign-triangle':      [20.75, 1.54],
-      'sign-quadrilateral': [22.65, 1.60],
-      'sign-pentagon':      [24.62, 1.35],
-      'sign-hexagon':       [26.33, 1.37],
-      'sign-heptagon':      [28.11, 1.50],
-      'sign-pentagons':     [29.99, 2.01],
-      'sign-hexagons':      [32.50, 2.00],
+      'tut-1-meet':   [0.00, 3.99, [0.04, 0.51, 0.78, 1.56, 1.75, 2.36, 2.46, 2.69, 3.37]],   // "This is Momo. He needs to find his friend."
+      'tut-2-goal':   [4.38, 2.83, [0.06, 0.34, 0.96, 1.41, 1.62, 2.16]],   // "Help Momo cross the Frozen Pass!"
+      'tut-3-watch':  [7.58, 0.91, [0.05, 0.70]],   // "Watch out!"
+      'tut-4-jump':   [8.78, 2.33, [0.05, 0.28, 0.93, 1.07, 1.67]],   // "Tap to jump over obstacles."
+      'tut-5-broken': [11.47, 2.85, [0.05, 1.11, 1.48, 1.88, 2.19, 2.45]],  // "Oh no! The path is broken."
+      'tut-6-use':    [14.57, 3.07, [0.05, 0.51, 0.98, 1.13, 1.47, 1.82, 2.23, 2.42, 2.57]],  // "Use the right ice piece to fix the path."
+      'tut-7-fit':    [18.13, 2.27, [0.05, 0.51, 0.84, 1.66]],  // "Perfect fit! Keep going!"
+      'sign-triangle':      [20.75, 1.54, [0.05, 0.31, 0.56]],
+      'sign-quadrilateral': [22.65, 1.60, [0.06, 0.26, 0.50]],
+      'sign-pentagon':      [24.62, 1.35, [0.06, 0.27, 0.52]],
+      'sign-hexagon':       [26.33, 1.37, [0.05, 0.34, 0.73]],
+      'sign-heptagon':      [28.11, 1.50, [0.05, 0.31, 0.81]],
+      'sign-pentagons':     [29.99, 2.01, [0.05, 0.40, 0.48, 1.11]],
+      'sign-hexagons':      [32.50, 2.00, [0.05, 0.39, 1.11, 1.25]],
       /* THE ENDING SPEAKS NO MORE. 'win-title' ("You did it!") and 'win-sub' ("Momo crossed
          the Frozen Pass!") lived here and were cut with the banner that showed them: the
          ending is the dance now, the camera pushes in on it, and a voice over the top was
@@ -2757,9 +2759,14 @@ class AudioManager {
     if (Date.now() - p.at > 4000) { (this.saidLog = this.saidLog || []).push(p.id + ':too-late'); return; }
     this.say(p.id);
   }
+  /* A window is [start, length, wordOffsets]. The third element is where each word of the
+     line begins, in seconds from the START OF THE WINDOW — measured off the recording by
+     tools/vo-bake-words.mjs, so the text can be revealed on the syllable it is spoken
+     instead of at an even rate that matches no delivery. A take with no offsets baked is
+     still valid: the reveal falls back to spreading the words evenly. */
   voLine(id) {
     const L = CFG.vo && CFG.vo.lines && CFG.vo.lines[id];
-    return L ? { at: L[0], dur: L[1] } : null;
+    return L ? { at: L[0], dur: L[1], words: L[2] || null } : null;
   }
   /** Speak one line of CFG.vo. Returns its length in seconds, or 0 if nothing will be heard. */
   say(id) {
@@ -2800,7 +2807,7 @@ class AudioManager {
         el.currentTime = L.at;
         const p = el.play(); if (p && p.catch) p.catch(() => {});
         this.setDuck(0.35);
-        this.saying = { el, timer: setTimeout(() => { try { el.pause(); } catch (e) { /* gone */ } done(); }, L.dur * 1000) };
+        this.saying = { id, at: L.at, el, timer: setTimeout(() => { try { el.pause(); } catch (e) { /* gone */ } done(); }, L.dur * 1000) };
         return L.dur;
       } catch (e) { return 0; }
     }
@@ -2814,9 +2821,29 @@ class AudioManager {
       src.start(this.ctx.currentTime, L.at, L.dur);
       src.onended = () => { if (this.saying && this.saying.src === src) done(); };
       this.setDuck(0.35);
-      this.saying = { src, gain: g };
+      this.saying = { id, at: L.at, src, gain: g, startedAt: this.ctx.currentTime };
       return L.dur;
     } catch (e) { return 0; }
+  }
+  /* HOW FAR INTO THE LINE THE VOICE IS. Both paths are asked the same question: the
+     <audio> element by its own currentTime, the buffer source by the context clock since it
+     started. -1 means this line is not the one being spoken — held, finished, muted, or
+     never started — and the caller should fall back to its own timing rather than snap the
+     words to a position that does not exist. */
+  sayingAt(id) {
+    const s = this.saying;
+    if (!s || s.id !== id) return -1;
+    /* SUSPENDED IS NOT SPEAKING. Pausing the game suspends the context and pauses the media
+       element, and both then hold their position — so a caller asking "where is the voice"
+       would get the same answer every frame and believe it was still running. Saying -1 is
+       what parks the words alongside it; when the audio resumes, so do they, from the same
+       place, which is the only way a pause in the middle of a sentence stays in sync. */
+    if (s.el) return s.el.paused ? -1 : Math.max(0, s.el.currentTime - s.at);
+    if (s.startedAt != null && this.ctx) {
+      if (this.ctx.state !== 'running') return -1;
+      return Math.max(0, this.ctx.currentTime - s.startedAt);
+    }
+    return -1;
   }
   /** Speak whatever was held while the last line ran. Stale lines are dropped: a question spoken
       five seconds after its moment is worse than one not spoken at all. */
@@ -3636,12 +3663,17 @@ class Atmosphere {
      (reviewed: "big, and not like inside the game"). 17-24px is still plainly a flake. */
   static FLAKE_K = 5.2;
   constructor() {
-    const mk = (n, cfg) => Array.from({ length: n }, () => ({
+    const mk = (n, cfg) => Array.from({ length: n }, (_, i) => ({
       x: rand(0, 1920), y: rand(-80, 1080),
       r: rand(cfg.r0, cfg.r1), fall: rand(cfg.f0, cfg.f1),
       sway: rand(cfg.s0, cfg.s1), ph: rand(0, 6.283), a: rand(cfg.a0, cfg.a1), par: cfg.par,
-      // its own slow turn as it falls, either way round (see drawSnow)
-      spin: rand(0.12, 0.5) * (Math.random() < 0.5 ? -1 : 1)
+      /* ITS OWN SLOW TURN AS IT FALLS, AND NOT ALL THE SAME WAY (see drawSnow).
+         The direction alternates by index rather than being tossed for. With the counts
+         down to five in the near layer, a coin toss lands all five the same way about one
+         run in sixteen — and five flakes rotating in step does not read as weather, it
+         reads as one sprite drawn five times. Alternating makes it true every time; the
+         SPEED is still random, so no two turn together. */
+      spin: rand(0.12, 0.5) * (i % 2 ? -1 : 1)
     }));
     /* THREE DEPTHS, AND FEW OF THEM. The far layer is still dots — at a pixel and a half a
        six-armed flake is a grey smudge and costs a blit to say nothing. The mid and near
@@ -10020,6 +10052,13 @@ function createGame(canvas, hooks = {}) {
     /** Speak one line of the voice-over by its docs/VO-SCRIPT.md id; returns its seconds (0 if
         it will not be heard), so the caller can reveal the words in step with it. */
     say(id) { audio.start(); audio.resume(); return audio.say(id); },
+    /** Where every word of a line begins, in seconds from the line's start, or null if this
+        take has no per-word timings. The tutorial reveals against these. */
+    voWords(id) { const L = audio.voLine(id); return (L && L.words) ? L.words.slice() : null; },
+    /** How far into the line the voice is, right now, or -1 when it is not speaking this
+        line. The reveal is corrected against this rather than trusting its own clock, so a
+        pause, a resume or a late start cannot leave the words and the voice apart. */
+    voAt(id) { return audio.sayingAt(id); },
     /** The voice id for a phase's question, from its instruction ("Cut all the PENTAGONS." ->
         sign-pentagons). One source: the sentence itself, so a re-worded phase cannot drift. */
     signVoId(text) { return voIdFor(text); },
@@ -10807,6 +10846,9 @@ class Tutorial {
     this._built = false;
     this._wasPaused = false;
     this.spoke = false; this.voDur = 0; this._wordStep = 0.055;
+    /* Where each word of the current line is spoken, in seconds from the line's start, or
+       null for a take with none baked. Set with voDur when the step speaks. */
+    this.voWords = null; this.voId = null;
 
     /* THE BOX IS HUGGED TO THE WORDS, so it has to be hugged to the words IN THEIR OWN FONT.
        Baloo 2 is fetched at boot but it arrives when it arrives, and the first tutorial line
@@ -11191,9 +11233,27 @@ class Tutorial {
       /* SPOKEN: the clip is shared out by length, so the sentence on screen is the one
          being said. The last keeps the tail of the clip plus a beat, so the box never
          leaves on the final word. */
-      const total = lines.reduce((a, t) => a + t.length, 0) || 1;
-      plan = lines.map(t => ({ text: t, dur: Math.max(0.7, this.voDur * t.length / total) }));
-      plan[plan.length - 1].dur += 0.45;
+      /* WHERE THE SENTENCES REALLY FALL, when the take has been measured. A beat starts on
+         its first word and ends on the next beat's first word, so the sentence on screen
+         changes exactly when the speaker moves on to it. Sharing the clip out by character
+         count — what happens without the timings — assumes every character takes the same
+         time to say, and "Oh no!" against "The path is broken." is where that shows. */
+      const w = this.voWords, counts = lines.map(t => t.trim().split(/\s+/).filter(Boolean).length);
+      const need = counts.reduce((a, b) => a + b, 0);
+      if (w && w.length === need) {
+        let i = 0;
+        plan = lines.map((t, k) => {
+          const at = w[i];
+          i += counts[k];
+          const end = i < w.length ? w[i] : this.voDur;
+          return { text: t, dur: Math.max(0.7, end - at), at, i0: i - counts[k] };
+        });
+        plan[plan.length - 1].dur += 0.45;
+      } else {
+        const total = lines.reduce((a, t) => a + t.length, 0) || 1;
+        plan = lines.map(t => ({ text: t, dur: Math.max(0.7, this.voDur * t.length / total) }));
+        plan[plan.length - 1].dur += 0.45;
+      }
     } else {
       /* SILENT: the reading estimate the script was written to, per sentence — a beat to
          look at it plus ~55ms a character, floored so a two-word beat is not a flash and
@@ -11269,7 +11329,10 @@ class Tutorial {
     this.step++;
     this.t = 0;
     this.spoke = false;                                // the new step has not been read aloud yet
-    this.voDur = 0;
+    this.voDur = 0; this.voWords = null; this.voId = null;
+    /* AND THE WORDS STOP WITH IT. If a line is cut short — skipped, restarted, the sound
+       switched off — its reveal must not carry on animating a sentence nobody is saying. */
+    if (this.el.text) this.el.text.classList.remove('waiting');
     if (this.step >= this.steps.length) this.finish();
   }
 
@@ -11436,12 +11499,15 @@ class Tutorial {
       try { dur = (this.game.say && this.game.say(VO[s.id] || '')) || 0; }
       catch (e) { dur = 0; }
       this.voDur = dur;
+      this.voId = VO[s.id] || null;
+      this.voWords = this.voId && this.game.voWords ? this.game.voWords(this.voId) : null;
     }
     /* ONE SENTENCE AT A TIME (see beats). `text` from here down is the sentence showing
        NOW rather than the whole line, and show() pops the box afresh for each one. The plank
        is the exception: a sign step hands its whole line over below, because the plank is a
        written question and not someone speaking. */
     const beat = this.beatAt(line, this.t);
+    this._beat = beat;
     const text = beat.text;
     this._beatDur = beat.dur;
 
@@ -11451,6 +11517,20 @@ class Tutorial {
        never reads the DOM and the tutorial is the only thing that knows a line is up.
        It covers the reading pause as well — the line is not finished until that is over. */
     this._presenting = !!line && this.t < this.readTime(line);
+    /* IN STEP WITH THE VOICE, NOT WITH THE WALL CLOCK.
+       The delays on the words are measured off the recording, so they are only right while
+       the recording is playing. It might not be yet: AudioManager.say holds a line rather
+       than speak over the one before it, the context may still be opening, and pausing the
+       game suspends the audio mid-sentence. In every one of those the words would carry on
+       alone. So the reveal is parked unless the voice for THIS line reports that it is
+       running, and it is the audio that is asked — never this object's own clock.
+
+       A line with no voice at all (muted, a take that failed, a silent playthrough) must
+       not be parked forever: with no per-word timings in play the even-step fallback is
+       what is on screen and it is allowed to run. */
+    const usingVoice = !!(this.voWords && this.voId);
+    const speaking = usingVoice ? this.game.voAt(this.voId) >= 0 : true;
+    if (this.el.text) this.el.text.classList.toggle('waiting', usingVoice && !speaking);
     if (this.game.setDialogue) this.game.setDialogue(this._presenting);
 
     /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
@@ -11577,6 +11657,44 @@ class Tutorial {
     this._wordStep = (span > 0 && words > 1 && room > 0)
       ? clampN(room / (words - 1), 0.055, 0.55)
       : 0.055;
+    /* THE REAL TIMES, WHEN THE TAKE HAS BEEN MEASURED.
+       Everything above is the fallback — an even step across the beat, which is what a
+       silent playthrough and an unmeasured take still get. When tools/vo-bake-words.mjs has
+       written per-word offsets, each word instead gets the moment it is actually spoken,
+       relative to the start of its own sentence. That is the whole point of this change:
+       "This is Momo." and "He needs to find his friend." are not spoken at the same rate,
+       and no single step describes both.
+
+       Offsets are the LINE's; a beat is one sentence of it, so its first word's offset is
+       subtracted to make them relative to when this sentence appears. */
+    const beat = this._beat;
+    const all = this.voWords;
+    let at = null;
+    if (all && beat && beat.i0 != null && all.length >= beat.i0 + words) {
+      /* ANCHORED TO WHERE THE VOICE ACTUALLY IS, not to where this sentence was due.
+         The offsets are measured from the start of the LINE, so a sentence's own delays
+         are its words minus its first word. That is right only if the sentence is written
+         to the screen at the exact moment its first word is spoken, and it never is: the
+         beat is swapped on the game's update tick, the browser paints on the next frame,
+         and the CSS clock starts there. Measured on a loaded machine the second sentence
+         began about 0.3s — one or two words — behind the voice.
+
+         So the anchor is the voice's real position when the words are written. If it has
+         already passed this word, the delay is zero and the word is simply there; if it
+         has not, the delay is the remaining wait. This also absorbs a resume: the reveal
+         is parked while the voice is not running (see the 'waiting' class) and re-anchors
+         on the next write, so a pause in the middle of a sentence cannot leave the two
+         apart. A take that is not being spoken reports -1 and falls back to the offsets. */
+      /* WHICH WORD OF THE LINE THIS SENTENCE STARTS AT, published on the element. Only a
+         test reads it, and it needs to: the offsets are the line's, the sentence on screen
+         is a slice of it, and comparing a count of one against a count of the other is how
+         a sync check quietly measures the wrong thing. */
+      el.dataset.w0 = String(beat.i0);
+      const now = (this.voId && this.game.voAt) ? this.game.voAt(this.voId) : -1;
+      const base = now >= 0 ? Math.max(all[beat.i0], now) : all[beat.i0];
+      at = [];
+      for (let k = 0; k < words; k++) at.push(Math.max(0, all[beat.i0 + k] - base));
+    }
     const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
     /* THE FALLBACK, and it is needed BECAUSE the sentences arrive one at a time. A line
        used to be in the box whole, so its one key word was always somewhere in it. Split
@@ -11604,8 +11722,11 @@ class Tutorial {
       const w = document.createElement('span');
       w.className = n === pow ? 'w pow' : 'w';
       n++;
-      w.style.setProperty('--i', i++);
+      const k = i++;
+      w.style.setProperty('--i', k);
       if (this._wordStep) w.style.setProperty('--wd', this._wordStep.toFixed(3) + 's');
+      if (at && at[k] != null) w.style.setProperty('--wdly', at[k].toFixed(3) + 's');
+      else w.style.removeProperty('--wdly');
       w.textContent = p;
       el.appendChild(w);
     }

@@ -87,6 +87,9 @@ export class Tutorial {
     this._built = false;
     this._wasPaused = false;
     this.spoke = false; this.voDur = 0; this._wordStep = 0.055;
+    /* Where each word of the current line is spoken, in seconds from the line's start, or
+       null for a take with none baked. Set with voDur when the step speaks. */
+    this.voWords = null; this.voId = null;
 
     /* THE BOX IS HUGGED TO THE WORDS, so it has to be hugged to the words IN THEIR OWN FONT.
        Baloo 2 is fetched at boot but it arrives when it arrives, and the first tutorial line
@@ -471,9 +474,27 @@ export class Tutorial {
       /* SPOKEN: the clip is shared out by length, so the sentence on screen is the one
          being said. The last keeps the tail of the clip plus a beat, so the box never
          leaves on the final word. */
-      const total = lines.reduce((a, t) => a + t.length, 0) || 1;
-      plan = lines.map(t => ({ text: t, dur: Math.max(0.7, this.voDur * t.length / total) }));
-      plan[plan.length - 1].dur += 0.45;
+      /* WHERE THE SENTENCES REALLY FALL, when the take has been measured. A beat starts on
+         its first word and ends on the next beat's first word, so the sentence on screen
+         changes exactly when the speaker moves on to it. Sharing the clip out by character
+         count — what happens without the timings — assumes every character takes the same
+         time to say, and "Oh no!" against "The path is broken." is where that shows. */
+      const w = this.voWords, counts = lines.map(t => t.trim().split(/\s+/).filter(Boolean).length);
+      const need = counts.reduce((a, b) => a + b, 0);
+      if (w && w.length === need) {
+        let i = 0;
+        plan = lines.map((t, k) => {
+          const at = w[i];
+          i += counts[k];
+          const end = i < w.length ? w[i] : this.voDur;
+          return { text: t, dur: Math.max(0.7, end - at), at, i0: i - counts[k] };
+        });
+        plan[plan.length - 1].dur += 0.45;
+      } else {
+        const total = lines.reduce((a, t) => a + t.length, 0) || 1;
+        plan = lines.map(t => ({ text: t, dur: Math.max(0.7, this.voDur * t.length / total) }));
+        plan[plan.length - 1].dur += 0.45;
+      }
     } else {
       /* SILENT: the reading estimate the script was written to, per sentence — a beat to
          look at it plus ~55ms a character, floored so a two-word beat is not a flash and
@@ -549,7 +570,10 @@ export class Tutorial {
     this.step++;
     this.t = 0;
     this.spoke = false;                                // the new step has not been read aloud yet
-    this.voDur = 0;
+    this.voDur = 0; this.voWords = null; this.voId = null;
+    /* AND THE WORDS STOP WITH IT. If a line is cut short — skipped, restarted, the sound
+       switched off — its reveal must not carry on animating a sentence nobody is saying. */
+    if (this.el.text) this.el.text.classList.remove('waiting');
     if (this.step >= this.steps.length) this.finish();
   }
 
@@ -716,12 +740,15 @@ export class Tutorial {
       try { dur = (this.game.say && this.game.say(VO[s.id] || '')) || 0; }
       catch (e) { dur = 0; }
       this.voDur = dur;
+      this.voId = VO[s.id] || null;
+      this.voWords = this.voId && this.game.voWords ? this.game.voWords(this.voId) : null;
     }
     /* ONE SENTENCE AT A TIME (see beats). `text` from here down is the sentence showing
        NOW rather than the whole line, and show() pops the box afresh for each one. The plank
        is the exception: a sign step hands its whole line over below, because the plank is a
        written question and not someone speaking. */
     const beat = this.beatAt(line, this.t);
+    this._beat = beat;
     const text = beat.text;
     this._beatDur = beat.dur;
 
@@ -731,6 +758,20 @@ export class Tutorial {
        never reads the DOM and the tutorial is the only thing that knows a line is up.
        It covers the reading pause as well — the line is not finished until that is over. */
     this._presenting = !!line && this.t < this.readTime(line);
+    /* IN STEP WITH THE VOICE, NOT WITH THE WALL CLOCK.
+       The delays on the words are measured off the recording, so they are only right while
+       the recording is playing. It might not be yet: AudioManager.say holds a line rather
+       than speak over the one before it, the context may still be opening, and pausing the
+       game suspends the audio mid-sentence. In every one of those the words would carry on
+       alone. So the reveal is parked unless the voice for THIS line reports that it is
+       running, and it is the audio that is asked — never this object's own clock.
+
+       A line with no voice at all (muted, a take that failed, a silent playthrough) must
+       not be parked forever: with no per-word timings in play the even-step fallback is
+       what is on screen and it is allowed to run. */
+    const usingVoice = !!(this.voWords && this.voId);
+    const speaking = usingVoice ? this.game.voAt(this.voId) >= 0 : true;
+    if (this.el.text) this.el.text.classList.toggle('waiting', usingVoice && !speaking);
     if (this.game.setDialogue) this.game.setDialogue(this._presenting);
 
     /* ON AN ASKING STEP THE WORDS LEAVE AND THE HAND STAYS.
@@ -857,6 +898,44 @@ export class Tutorial {
     this._wordStep = (span > 0 && words > 1 && room > 0)
       ? clampN(room / (words - 1), 0.055, 0.55)
       : 0.055;
+    /* THE REAL TIMES, WHEN THE TAKE HAS BEEN MEASURED.
+       Everything above is the fallback — an even step across the beat, which is what a
+       silent playthrough and an unmeasured take still get. When tools/vo-bake-words.mjs has
+       written per-word offsets, each word instead gets the moment it is actually spoken,
+       relative to the start of its own sentence. That is the whole point of this change:
+       "This is Momo." and "He needs to find his friend." are not spoken at the same rate,
+       and no single step describes both.
+
+       Offsets are the LINE's; a beat is one sentence of it, so its first word's offset is
+       subtracted to make them relative to when this sentence appears. */
+    const beat = this._beat;
+    const all = this.voWords;
+    let at = null;
+    if (all && beat && beat.i0 != null && all.length >= beat.i0 + words) {
+      /* ANCHORED TO WHERE THE VOICE ACTUALLY IS, not to where this sentence was due.
+         The offsets are measured from the start of the LINE, so a sentence's own delays
+         are its words minus its first word. That is right only if the sentence is written
+         to the screen at the exact moment its first word is spoken, and it never is: the
+         beat is swapped on the game's update tick, the browser paints on the next frame,
+         and the CSS clock starts there. Measured on a loaded machine the second sentence
+         began about 0.3s — one or two words — behind the voice.
+
+         So the anchor is the voice's real position when the words are written. If it has
+         already passed this word, the delay is zero and the word is simply there; if it
+         has not, the delay is the remaining wait. This also absorbs a resume: the reveal
+         is parked while the voice is not running (see the 'waiting' class) and re-anchors
+         on the next write, so a pause in the middle of a sentence cannot leave the two
+         apart. A take that is not being spoken reports -1 and falls back to the offsets. */
+      /* WHICH WORD OF THE LINE THIS SENTENCE STARTS AT, published on the element. Only a
+         test reads it, and it needs to: the offsets are the line's, the sentence on screen
+         is a slice of it, and comparing a count of one against a count of the other is how
+         a sync check quietly measures the wrong thing. */
+      el.dataset.w0 = String(beat.i0);
+      const now = (this.voId && this.game.voAt) ? this.game.voAt(this.voId) : -1;
+      const base = now >= 0 ? Math.max(all[beat.i0], now) : all[beat.i0];
+      at = [];
+      for (let k = 0; k < words; k++) at.push(Math.max(0, all[beat.i0 + k] - base));
+    }
     const KEY = /^(friend|cross|watch|tap|jump|broken|right|fix|perfect|ice|rope|cut|swipe)[!.,?]*$/i;
     /* THE FALLBACK, and it is needed BECAUSE the sentences arrive one at a time. A line
        used to be in the box whole, so its one key word was always somewhere in it. Split
@@ -884,8 +963,11 @@ export class Tutorial {
       const w = document.createElement('span');
       w.className = n === pow ? 'w pow' : 'w';
       n++;
-      w.style.setProperty('--i', i++);
+      const k = i++;
+      w.style.setProperty('--i', k);
       if (this._wordStep) w.style.setProperty('--wd', this._wordStep.toFixed(3) + 's');
+      if (at && at[k] != null) w.style.setProperty('--wdly', at[k].toFixed(3) + 's');
+      else w.style.removeProperty('--wdly');
       w.textContent = p;
       el.appendChild(w);
     }

@@ -8,6 +8,7 @@
 export const ASSET_V = {
   "assets/art/Bubble.svg": "5f1ee1ef",
   "assets/art/cover.webp": "e0c7a5db",
+  "assets/audio/ElevenLabs 2026 09 10T05 43 18 Kshitij Voice ivc sp70 s40 sb79 v3.mp3": "3ed9ee95",
   "assets/audio/bgm-ice-hunt.mp3": "045fc178",
   "assets/audio/dragon-studio-cartoon-blinking-372481.mp3": "e1ba0c6b",
   "assets/audio/dragon-studio-heavy-boulder-thud-515257.mp3": "97c6bfa5",
@@ -81,6 +82,7 @@ export const ASSET_V = {
   "assets/ui/icons/sound-off.svg": "4c1711d1",
   "assets/ui/icons/sound-on.svg": "53f86786",
   "assets/ui/icons/touch.png": "d05ff66d",
+  "assets/ui/image.png": "a69b16dd",
   "assets/ui/plank-l.webp": "ee04d9d5",
   "assets/ui/plank-m.webp": "8e38817a",
   "assets/ui/plank-r.webp": "1bfb3779"

@@ -879,20 +879,20 @@ export const CFG = {
   vo: {
     src: 'assets/audio/vo-lines.mp3', gain: 1,
     lines: {
-      'tut-1-meet':   [0.00, 3.99],   // "This is Momo. He needs to find his friend."
-      'tut-2-goal':   [4.38, 2.83],   // "Help Momo cross the Frozen Pass!"
-      'tut-3-watch':  [7.58, 0.91],   // "Watch out!"
-      'tut-4-jump':   [8.78, 2.33],   // "Tap to jump over obstacles."
-      'tut-5-broken': [11.47, 2.85],  // "Oh no! The path is broken."
-      'tut-6-use':    [14.57, 3.07],  // "Use the right ice piece to fix the path."
-      'tut-7-fit':    [18.13, 2.27],  // "Perfect fit! Keep going!"
-      'sign-triangle':      [20.75, 1.54],
-      'sign-quadrilateral': [22.65, 1.60],
-      'sign-pentagon':      [24.62, 1.35],
-      'sign-hexagon':       [26.33, 1.37],
-      'sign-heptagon':      [28.11, 1.50],
-      'sign-pentagons':     [29.99, 2.01],
-      'sign-hexagons':      [32.50, 2.00],
+      'tut-1-meet':   [0.00, 3.99, [0.04, 0.51, 0.78, 1.56, 1.75, 2.36, 2.46, 2.69, 3.37]],   // "This is Momo. He needs to find his friend."
+      'tut-2-goal':   [4.38, 2.83, [0.06, 0.34, 0.96, 1.41, 1.62, 2.16]],   // "Help Momo cross the Frozen Pass!"
+      'tut-3-watch':  [7.58, 0.91, [0.05, 0.70]],   // "Watch out!"
+      'tut-4-jump':   [8.78, 2.33, [0.05, 0.28, 0.93, 1.07, 1.67]],   // "Tap to jump over obstacles."
+      'tut-5-broken': [11.47, 2.85, [0.05, 1.11, 1.48, 1.88, 2.19, 2.45]],  // "Oh no! The path is broken."
+      'tut-6-use':    [14.57, 3.07, [0.05, 0.51, 0.98, 1.13, 1.47, 1.82, 2.23, 2.42, 2.57]],  // "Use the right ice piece to fix the path."
+      'tut-7-fit':    [18.13, 2.27, [0.05, 0.51, 0.84, 1.66]],  // "Perfect fit! Keep going!"
+      'sign-triangle':      [20.75, 1.54, [0.05, 0.31, 0.56]],
+      'sign-quadrilateral': [22.65, 1.60, [0.06, 0.26, 0.50]],
+      'sign-pentagon':      [24.62, 1.35, [0.06, 0.27, 0.52]],
+      'sign-hexagon':       [26.33, 1.37, [0.05, 0.34, 0.73]],
+      'sign-heptagon':      [28.11, 1.50, [0.05, 0.31, 0.81]],
+      'sign-pentagons':     [29.99, 2.01, [0.05, 0.40, 0.48, 1.11]],
+      'sign-hexagons':      [32.50, 2.00, [0.05, 0.39, 1.11, 1.25]],
       /* THE ENDING SPEAKS NO MORE. 'win-title' ("You did it!") and 'win-sub' ("Momo crossed
          the Frozen Pass!") lived here and were cut with the banner that showed them: the
          ending is the dance now, the camera pushes in on it, and a voice over the top was
@@ -1891,9 +1891,14 @@ class AudioManager {
     if (Date.now() - p.at > 4000) { (this.saidLog = this.saidLog || []).push(p.id + ':too-late'); return; }
     this.say(p.id);
   }
+  /* A window is [start, length, wordOffsets]. The third element is where each word of the
+     line begins, in seconds from the START OF THE WINDOW — measured off the recording by
+     tools/vo-bake-words.mjs, so the text can be revealed on the syllable it is spoken
+     instead of at an even rate that matches no delivery. A take with no offsets baked is
+     still valid: the reveal falls back to spreading the words evenly. */
   voLine(id) {
     const L = CFG.vo && CFG.vo.lines && CFG.vo.lines[id];
-    return L ? { at: L[0], dur: L[1] } : null;
+    return L ? { at: L[0], dur: L[1], words: L[2] || null } : null;
   }
   /** Speak one line of CFG.vo. Returns its length in seconds, or 0 if nothing will be heard. */
   say(id) {
@@ -1934,7 +1939,7 @@ class AudioManager {
         el.currentTime = L.at;
         const p = el.play(); if (p && p.catch) p.catch(() => {});
         this.setDuck(0.35);
-        this.saying = { el, timer: setTimeout(() => { try { el.pause(); } catch (e) { /* gone */ } done(); }, L.dur * 1000) };
+        this.saying = { id, at: L.at, el, timer: setTimeout(() => { try { el.pause(); } catch (e) { /* gone */ } done(); }, L.dur * 1000) };
         return L.dur;
       } catch (e) { return 0; }
     }
@@ -1948,9 +1953,29 @@ class AudioManager {
       src.start(this.ctx.currentTime, L.at, L.dur);
       src.onended = () => { if (this.saying && this.saying.src === src) done(); };
       this.setDuck(0.35);
-      this.saying = { src, gain: g };
+      this.saying = { id, at: L.at, src, gain: g, startedAt: this.ctx.currentTime };
       return L.dur;
     } catch (e) { return 0; }
+  }
+  /* HOW FAR INTO THE LINE THE VOICE IS. Both paths are asked the same question: the
+     <audio> element by its own currentTime, the buffer source by the context clock since it
+     started. -1 means this line is not the one being spoken — held, finished, muted, or
+     never started — and the caller should fall back to its own timing rather than snap the
+     words to a position that does not exist. */
+  sayingAt(id) {
+    const s = this.saying;
+    if (!s || s.id !== id) return -1;
+    /* SUSPENDED IS NOT SPEAKING. Pausing the game suspends the context and pauses the media
+       element, and both then hold their position — so a caller asking "where is the voice"
+       would get the same answer every frame and believe it was still running. Saying -1 is
+       what parks the words alongside it; when the audio resumes, so do they, from the same
+       place, which is the only way a pause in the middle of a sentence stays in sync. */
+    if (s.el) return s.el.paused ? -1 : Math.max(0, s.el.currentTime - s.at);
+    if (s.startedAt != null && this.ctx) {
+      if (this.ctx.state !== 'running') return -1;
+      return Math.max(0, this.ctx.currentTime - s.startedAt);
+    }
+    return -1;
   }
   /** Speak whatever was held while the last line ran. Stale lines are dropped: a question spoken
       five seconds after its moment is worse than one not spoken at all. */
@@ -2770,12 +2795,17 @@ class Atmosphere {
      (reviewed: "big, and not like inside the game"). 17-24px is still plainly a flake. */
   static FLAKE_K = 5.2;
   constructor() {
-    const mk = (n, cfg) => Array.from({ length: n }, () => ({
+    const mk = (n, cfg) => Array.from({ length: n }, (_, i) => ({
       x: rand(0, 1920), y: rand(-80, 1080),
       r: rand(cfg.r0, cfg.r1), fall: rand(cfg.f0, cfg.f1),
       sway: rand(cfg.s0, cfg.s1), ph: rand(0, 6.283), a: rand(cfg.a0, cfg.a1), par: cfg.par,
-      // its own slow turn as it falls, either way round (see drawSnow)
-      spin: rand(0.12, 0.5) * (Math.random() < 0.5 ? -1 : 1)
+      /* ITS OWN SLOW TURN AS IT FALLS, AND NOT ALL THE SAME WAY (see drawSnow).
+         The direction alternates by index rather than being tossed for. With the counts
+         down to five in the near layer, a coin toss lands all five the same way about one
+         run in sixteen — and five flakes rotating in step does not read as weather, it
+         reads as one sprite drawn five times. Alternating makes it true every time; the
+         SPEED is still random, so no two turn together. */
+      spin: rand(0.12, 0.5) * (i % 2 ? -1 : 1)
     }));
     /* THREE DEPTHS, AND FEW OF THEM. The far layer is still dots — at a pixel and a half a
        six-armed flake is a grey smudge and costs a blit to say nothing. The mid and near
@@ -9154,6 +9184,13 @@ export function createGame(canvas, hooks = {}) {
     /** Speak one line of the voice-over by its docs/VO-SCRIPT.md id; returns its seconds (0 if
         it will not be heard), so the caller can reveal the words in step with it. */
     say(id) { audio.start(); audio.resume(); return audio.say(id); },
+    /** Where every word of a line begins, in seconds from the line's start, or null if this
+        take has no per-word timings. The tutorial reveals against these. */
+    voWords(id) { const L = audio.voLine(id); return (L && L.words) ? L.words.slice() : null; },
+    /** How far into the line the voice is, right now, or -1 when it is not speaking this
+        line. The reveal is corrected against this rather than trusting its own clock, so a
+        pause, a resume or a late start cannot leave the words and the voice apart. */
+    voAt(id) { return audio.sayingAt(id); },
     /** The voice id for a phase's question, from its instruction ("Cut all the PENTAGONS." ->
         sign-pentagons). One source: the sentence itself, so a re-worded phase cannot drift. */
     signVoId(text) { return voIdFor(text); },

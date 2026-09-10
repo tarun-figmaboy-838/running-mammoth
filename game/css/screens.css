@@ -579,9 +579,22 @@
   display: inline-block;
   /* eased, with no overshoot (asked for): the words settle rather than snap */
   animation: tutWordIn 460ms cubic-bezier(.33, .1, .25, 1) both;
-  /* --wd is set per word when the line is spoken, so the reveal keeps pace with the voice. */
-  animation-delay: calc(var(--i, 0) * var(--wd, 55ms));
+  /* ITS OWN DELAY, NOT ITS INDEX TIMES A STEP.
+     --wdly is when THIS word is spoken, measured off the recording by
+     tools/vo-bake-words.mjs and written per word by Tutorial.setWords. The old form was
+     index x step, which can only ever describe an even rate — and nobody speaks at an even
+     rate, so the text ran ahead on "is" and fell behind on "obstacles". --wd survives as
+     the fallback for a take with no per-word timings baked, and for the silent reveal. */
+  animation-delay: var(--wdly, calc(var(--i, 0) * var(--wd, 55ms)));
 }
+/* THE REVEAL WAITS FOR THE VOICE, AND HOLDS WITH IT.
+   A CSS animation runs on wall clock and the voice does not: the line can be queued behind
+   another (AudioManager.say holds rather than overlaps), the context can still be opening,
+   or the game can pause mid-sentence and suspend the audio. Any of those and the words walk
+   away from the speech. So the whole reveal is parked until the voice for this line is
+   actually running, and parked again the moment it is not — Tutorial.update sets this from
+   what the audio reports about itself, never from its own clock. */
+.tut-text.waiting .w { animation-play-state: paused; }
 .tut-text .pow {
   font-weight: 900;
   /* BRIGHT ORANGE, AND NOTHING BEHIND IT (asked for, after icy blue read as too quiet and an
