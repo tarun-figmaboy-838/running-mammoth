@@ -121,17 +121,25 @@ test.describe('the pointer, the buffers and the voice', () => {
         if (i && ord[i - 1][1][0] + ord[i - 1][1][1] > at + 0.001) bad.push(k + ' overlaps ' + ord[i - 1][0]);
       }
       const res = await fetch('/' + V.src, { method: 'HEAD' });
+      /* AND THE OGG TWIN, which is what nearly every browser actually downloads: the mp3 is
+         only the fallback for Safari before 17.4 (see assetUrl in engine.js). If the ogg were
+         missing, every one of those browsers would fall back silently and nothing else here
+         would notice. */
+      const ogg = await fetch('/' + V.src.replace('.mp3', '.ogg'), { method: 'HEAD' });
       // every question's sentence must resolve to a line that exists
       const missing = m.CFG.levelOne.phases
         .map(p => window.iceAgeGame.signVoId(p.instruction))
         .filter(id => !V.lines[id]);
-      return { n: ord.length, bad, missing, status: res.status, last: ord[ord.length - 1][1][0] + ord[ord.length - 1][1][1] };
+      return { n: ord.length, bad, missing, status: res.status, oggStatus: ogg.status, last: ord[ord.length - 1][1][0] + ord[ord.length - 1][1][1] };
     });
     // 14, not 16: the ending's two lines were cut with the banner that showed them
     expect(r.n, 'every line the learner is shown').toBe(14);
     expect(r.bad).toEqual([]);
     expect(r.missing, 'every question has a recorded line').toEqual([]);
     expect(r.status, 'the recording ships').toBe(200);
-    expect(r.last, 'the last window is inside the take').toBeLessThan(39.1);
+    expect(r.oggStatus, 'and so does the ogg the browser prefers').toBe(200);
+    /* 36.2, the length of the take that ships. It was 39.1 — the take before it — which
+       is a bound no window could have crossed and so was not checking anything. */
+    expect(r.last, 'the last window is inside the take').toBeLessThan(36.2);
   });
 });

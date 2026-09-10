@@ -108,7 +108,10 @@ if (!WRITE) { console.log('\n(report only — pass --write to put these in engin
 
 let n = 0;
 for (const r of out) {
-  const re = new RegExp("('" + r.id + "':\\s*)\\[[^\\]]*(?:\\[[^\\]]*\\])?[^\\]]*\\]");
+  /* [^\][] and not [^\]]: the class has to exclude the OPENING bracket as well, or the
+     greedy run crosses into the word array and the match ends one ']' short — which rewrote
+     [a, b, [words]] as [a, b, [words]]] and only ever showed up on a re-bake. */
+  const re = new RegExp("('" + r.id + "':\\s*)\\[[^\\][]*(?:\\[[^\\]]*\\])?[^\\][]*\\]");
   if (!re.test(s)) throw new Error('no window for ' + r.id + ' in engine.js');
   s = s.replace(re, "$1[" + r.at.toFixed(2) + ", " + r.dur.toFixed(2) + ", [" + r.rel.map(v => v.toFixed(2)).join(', ') + "]]");
   n++;

@@ -912,10 +912,11 @@
      screen. */
   width: clamp(94px, calc(13.5 * var(--u)), 520px);
   /* the opaque box of the delivered art — printed by tools/make-buttons.mjs, and it moves
-     whenever the art is re-delivered (this take is 1048 x 1101, nearly square, where the
-     stone-rimmed pair before it was 1764 x 621). Getting this wrong letterboxes the art
-     inside its own element and the button stops matching its hit area. */
-  aspect-ratio: 1048 / 1101;
+     whenever the art is re-delivered. This take is 1121 x 1162 — a round snow-capped disc
+     with a play triangle, where the one before it was 1048 x 1101 and the stone-rimmed pair
+     before that was 1764 x 621. Getting this wrong letterboxes the art inside its own
+     element and the button stops matching its hit area. */
+  aspect-ratio: 1121 / 1162;
   /* THE ART IS PAINTED BY ::before, NOT HERE — see the pulse below. It has to live on a
      layer of its own so that layer can be SCALED while this element's box, and therefore
      the hit area, stays exactly where it is. */
@@ -975,7 +976,7 @@
   position: absolute;
   inset: 0;
   z-index: 0;                      /* under the tap ring and the sparks, which are the pseudos */
-  background: url("../assets/ui/btn-play.webp?v=18279ab0") center / contain no-repeat;
+  background: url("../assets/ui/btn-play.webp?v=e75de185") center / contain no-repeat;
   pointer-events: none;
   will-change: transform, filter;
   animation: playPulse 2s cubic-bezier(.45, 0, .55, 1) 520ms infinite;

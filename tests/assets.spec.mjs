@@ -172,6 +172,50 @@ test.describe('assets', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the audio ships as Ogg, with the mp3 kept only as a fallback', async ({ page }) => {
+    await boot(page);
+    const r = await page.evaluate(async () => {
+      const m = await import('/js/engine.js');
+      /* Every audio file the game names, found by walking CFG rather than by listing them:
+         a cue added later is then covered without anyone remembering to add it here. */
+      const srcs = new Set(), seen = new Set();
+      (function walk(o, d) {
+        if (!o || typeof o !== 'object' || d > 5 || seen.has(o)) return;
+        seen.add(o);
+        for (const v of Object.values(o)) {
+          if (typeof v === 'string' && v.startsWith('assets/audio/')) srcs.add(v);
+          else if (v && typeof v === 'object') walk(v, d + 1);
+        }
+      })(m.CFG, 0);
+
+      const out = { chose: [], missingOgg: [], missingMp3: [], notMp3: [] };
+      for (const src of srcs) {
+        if (!src.endsWith('.mp3')) { out.notMp3.push(src); continue; }
+        // what the game will actually request, after assetUrl negotiates the format
+        out.chose.push(m.assetUrl(src).split('?')[0]);
+        const ogg = await fetch('/' + src.replace('.mp3', '.ogg'), { method: 'HEAD' });
+        if (!ogg.ok) out.missingOgg.push(src);
+        const mp3 = await fetch('/' + src, { method: 'HEAD' });
+        if (!mp3.ok) out.missingMp3.push(src);
+      }
+      out.playsOgg = !!new Audio().canPlayType('audio/ogg; codecs="vorbis"');
+      return out;
+    });
+
+    expect(r.notMp3, 'the config names its audio by the fallback file').toEqual([]);
+    expect(r.missingOgg, 'every cue has an ogg to be served').toEqual([]);
+    /* THE MP3 IS NOT DEAD WEIGHT. Safari only plays ogg from 17.4, so an iPad on iOS 16
+       needs the mp3 to have any sound at all. Both files must exist; only one is fetched. */
+    expect(r.missingMp3, 'and the fallback the old iPad needs is still there').toEqual([]);
+
+    /* AND THE NEGOTIATION ACTUALLY FIRES. Chromium plays ogg, so every url the game builds
+       here must be the ogg — asserting only that the file exists would pass even if
+       assetUrl had stopped choosing it. */
+    expect(r.playsOgg, 'this browser plays ogg, so it should be given ogg').toBe(true);
+    expect(r.chose.filter(u => !u.endsWith('.ogg')), 'urls the game still builds as mp3').toEqual([]);
+    expect(r.chose.length, 'the whole kit was checked').toBeGreaterThan(8);
+  });
+
   test('the whole art set is small enough to load quickly', async ({ page }) => {
     await boot(page);
     const total = await page.evaluate(async () => {

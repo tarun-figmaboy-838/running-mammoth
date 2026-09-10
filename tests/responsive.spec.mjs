@@ -116,7 +116,7 @@ test.describe('responsive, and the buffers', () => {
     expect(a.textH, 'readable against the stage').toBeGreaterThan(0.03);
   });
 
-  test('the voice is one file cut into sixteen windows, none of them overlapping', async ({ page }) => {
+  test('the voice is one file cut into fourteen windows, none of them overlapping', async ({ page }) => {
     await boot(page);
     const r = await page.evaluate(async () => {
       const m = await import('/js/engine.js');
@@ -131,10 +131,11 @@ test.describe('responsive, and the buffers', () => {
       const res = await fetch('/' + V.src, { method: 'HEAD' });
       return { n: ord.length, bad, src: V.src, status: res.status, last: ord[ord.length - 1][1][0] + ord[ord.length - 1][1][1] };
     });
-    expect(r.n, 'every line the learner is shown').toBe(16);
+    // 14, not 16: the ending's two lines were cut with the banner that showed them
+    expect(r.n, 'every line the learner is shown').toBe(14);
     expect(r.bad).toEqual([]);
     expect(r.status, 'the recording ships').toBe(200);
-    expect(r.last, 'the last window is inside the take').toBeLessThan(39.1);
+    expect(r.last, 'the last window is inside the take').toBeLessThan(36.2);
   });
 
   test('a phone in portrait shows the prompt, and nothing is painted behind it', async ({ page }) => {

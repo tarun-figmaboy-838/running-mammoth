@@ -37,7 +37,7 @@ test.describe('the voice and the crossing order', () => {
     for (const [id] of r.lines) expect(doc, `${id} is not in the script`).toContain(id.replace(/^sign-/, 'sign-').replace(/^tut-/, 'tut-'));
   });
 
-  test('the take loads and a line plays, and the words reveal across it', async ({ page }) => {
+  test('the take loads and a line plays, and each word lands where it is spoken', async ({ page }) => {
     await boot(page, { sound: true, tutorial: true, skipScreens: true });
     await page.evaluate(() => window.iceAgeGame.sfx('ui'));         // unlocks the context
     await page.waitForFunction(() => window.iceAgeGame._voice().ready, null, { timeout: 60_000 });
@@ -54,18 +54,52 @@ test.describe('the voice and the crossing order', () => {
       const t0 = Date.now();
       while (Date.now() - t0 < 120000 && document.getElementById('tut-text').textContent.trim() !== want) await new Promise(res => setTimeout(res, 80));
       await new Promise(res => setTimeout(res, 200));
-      const ws = [...document.querySelectorAll('#tut-text .w')];
-      const last = ws.length ? parseFloat(getComputedStyle(ws[ws.length - 1]).animationDelay) : -1;
-      const clip = m.CFG.vo.lines['tut-1-meet'][1];
-      // the sentence's share of the clip, by length, plus the beat the last sentence keeps (Tutorial.beats)
-      const share = clip * (want.length / ('This is Momo.'.length + want.length)) + 0.45;
-      return { words: ws.length, last, clip, share, shown: document.getElementById('tut-text').textContent.trim() };
+      const el = document.getElementById('tut-text');
+      const ws = [...el.querySelectorAll('.w')];
+      const delays = ws.map(w => parseFloat(getComputedStyle(w).animationDelay));
+      /* w0 is the index, into the LINE's baked onsets, of this sentence's first word —
+         published by setWords precisely so a check like this compares like with like. */
+      const w0 = Number(el.dataset.w0);
+      const onsets = m.CFG.vo.lines['tut-1-meet'][2];
+      return { words: ws.length, delays, w0, onsets, shown: el.textContent.trim() };
     });
     expect(r.shown, 'the second sentence is up on its own').toBe('He needs to find his friend.');
     expect(r.words, 'the sentence is set word by word').toBe(6);
-    // the last word arrives in the second half of this sentence's share of the clip, and not after it
-    expect(r.last).toBeGreaterThan(r.share * 0.45);
-    expect(r.last).toBeLessThan(r.share + 0.4);
+    expect(r.w0, 'and it knows which word of the line it starts at').toBe(3);
+
+    /* THE GAPS ARE THE RECORDING'S GAPS. setWords anchors the reveal to where the voice has
+       actually reached when the sentence is written, so the leading words can be clamped to
+       0 — the voice is already past them and they belong on screen at once. Everything after
+       that clamped prefix must sit exactly where it is spoken. */
+    const spoken = r.onsets.slice(r.w0, r.w0 + r.words);
+    expect(spoken.length, 'the take has an onset for every word of the sentence').toBe(r.words);
+
+    /* ONE ANCHOR EXPLAINS EVERY WORD. setWords writes delay = max(0, onset - base), where
+       base is where the voice had actually reached when the sentence was written. So for
+       every word that is not clamped to zero, onset - delay must come back to the SAME base
+       — that is the whole of "each word lands where it is spoken", and unlike a gap check it
+       also covers the first unclamped word, whose gap the anchor legitimately eats into. */
+    const bases = [];
+    for (let i = 0; i < r.words; i++) if (r.delays[i] > 0) bases.push(spoken[i] - r.delays[i]);
+    expect(bases.length, 'most of the sentence is still ahead of the voice when it is written')
+      .toBeGreaterThan(2);
+    const spread = Math.max(...bases) - Math.min(...bases);
+    /* 60ms: onsets are baked at a 10ms hop and delays are rounded into CSS. Nothing a
+       listener could hear, and far tighter than the ~240ms the old estimate allowed. */
+    expect(spread, 'every word points at the same moment in the recording: ' + bases.map(b => b.toFixed(3)).join(' '))
+      .toBeLessThan(0.06);
+
+    const base = bases[0];
+    /* The anchor only ever runs FORWARD from the sentence's first word — it is where the
+       voice got to, so it cannot be earlier than where the sentence began. */
+    expect(base, "the anchor is at or after the sentence first word").toBeGreaterThan(spoken[0] - 0.06);
+    // and a word is clamped to zero only when the voice really is already past it
+    for (let i = 0; i < r.words; i++) {
+      if (r.delays[i] === 0) expect(spoken[i], 'word ' + (i + 1) + ' is only pinned up front if it is already spoken').toBeLessThan(base + 0.06);
+    }
+    // the reveal finishes inside the clip it is spoken over, never after it
+    expect(r.delays[r.words - 1], 'the last word lands before the voice leaves the sentence')
+      .toBeLessThan(spoken[r.words - 1] - spoken[0] + 0.06);
   });
 
 test('a word appears when it is spoken, and holds when the voice does', async ({ page }) => {

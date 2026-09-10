@@ -26,17 +26,26 @@
 const ASSET_V = {
   "assets/art/Bubble.svg": "5f1ee1ef",
   "assets/art/cover.webp": "e0c7a5db",
-  "assets/audio/ElevenLabs 2026 09 10T05 43 18 Kshitij Voice ivc sp70 s40 sb79 v3.mp3": "3ed9ee95",
   "assets/audio/bgm-ice-hunt.mp3": "045fc178",
+  "assets/audio/bgm-ice-hunt.ogg": "a503f547",
   "assets/audio/dragon-studio-cartoon-blinking-372481.mp3": "e1ba0c6b",
+  "assets/audio/dragon-studio-cartoon-blinking-372481.ogg": "f5305723",
   "assets/audio/dragon-studio-heavy-boulder-thud-515257.mp3": "97c6bfa5",
+  "assets/audio/dragon-studio-heavy-boulder-thud-515257.ogg": "92e259de",
   "assets/audio/dragon-studio-heavy-whoosh-06-414584.mp3": "4a0fe81c",
+  "assets/audio/dragon-studio-heavy-whoosh-06-414584.ogg": "f76b1b63",
   "assets/audio/floraphonic-punchy-taps-ui-5-183901.mp3": "8716a561",
+  "assets/audio/floraphonic-punchy-taps-ui-5-183901.ogg": "9f749d00",
   "assets/audio/freesound_community-foot_steps_snow_heavy-38297.mp3": "63e91113",
+  "assets/audio/freesound_community-foot_steps_snow_heavy-38297.ogg": "9774d22d",
   "assets/audio/themediaguy-earthquake-rumble-amp-cracking-379298.mp3": "cdff169c",
+  "assets/audio/themediaguy-earthquake-rumble-amp-cracking-379298.ogg": "10c76821",
   "assets/audio/universfield-ground-impact-352053.mp3": "ab5b58dc",
+  "assets/audio/universfield-ground-impact-352053.ogg": "f6742c2a",
   "assets/audio/universfield-sad-trumpet-278822.mp3": "318bbc84",
-  "assets/audio/vo-lines.mp3": "5339eef9",
+  "assets/audio/universfield-sad-trumpet-278822.ogg": "202ea116",
+  "assets/audio/vo-lines.mp3": "3ed9ee95",
+  "assets/audio/vo-lines.ogg": "cabece25",
   "assets/char/bear.webp": "ac7771ee",
   "assets/char/duo-celebrate.webp": "7845cb0a",
   "assets/char/hd/bear.webp": "d257b5b8",
@@ -90,7 +99,7 @@ const ASSET_V = {
   "assets/sky/07-dusk.webp": "d511553c",
   "assets/sky/08-night.webp": "fdbec669",
   "assets/ui/btn-normal.webp": "ad490138",
-  "assets/ui/btn-play.webp": "18279ab0",
+  "assets/ui/btn-play.webp": "e75de185",
   "assets/ui/btn-pressed.webp": "4636e1dd",
   "assets/ui/btn-tryagain.webp": "f17bd92f",
   "assets/ui/icons/hint.svg": "2eb235fd",
@@ -100,7 +109,6 @@ const ASSET_V = {
   "assets/ui/icons/sound-off.svg": "4c1711d1",
   "assets/ui/icons/sound-on.svg": "53f86786",
   "assets/ui/icons/touch.png": "d05ff66d",
-  "assets/ui/image.png": "a69b16dd",
   "assets/ui/plank-l.webp": "ee04d9d5",
   "assets/ui/plank-m.webp": "8e38817a",
   "assets/ui/plank-r.webp": "1bfb3779"
@@ -890,7 +898,38 @@ const verifiedSides = sidesOf;
    the stale strips it had — no character at all. The file's content hash on the URL is what
    makes a changed file a new fetch and an unchanged one a cache hit. Generated at build
    time (tools/build-bundle.mjs -> js/asset-versions.js). Paths in CFG stay bare. */
+/* AND EVERY MP3 LEAVES AS AN OGG, WHERE THE BROWSER TAKES ONE.
+   The audio ships as both (tools/make-ogg.mjs): ogg vorbis is what the game is asked to use
+   and it is 28% smaller across the set, but Safari only learned to play it in 17.4, so an
+   iPad on iOS 16 would have gone silent. The choice is made ONCE, here, rather than at each
+   of the fifty call sites, and only the chosen file is ever fetched.
+
+   canPlayType returns 'probably' | 'maybe' | '' — '' is the only answer that means no, and
+   'maybe' is what several browsers say about a codec they do play, so anything non-empty is
+   taken as yes. Wrapped because a document-less context (a build script importing CFG) has
+   no Audio at all, and because the ogg twin is only used when the build actually produced
+   one: ASSET_V is generated from what is on disk, so a missing twin falls back by itself. */
+let oggOk = null;
+function playsOgg() {
+  if (oggOk === null) {
+    try {
+      /* NOT OFF THE DISK. On file:// there is no download to make smaller — the point of the
+         ogg — and Chromium aborts the media element that loads one from a file URL
+         (net::ERR_ABORTED), which is a logged failure on the one path that is supposed to be
+         silent. The mp3 loads there and is already the format the rest of the file-scheme
+         handling assumes, so the negotiation simply does not apply. */
+      if (typeof location !== 'undefined' && location.protocol === 'file:') oggOk = false;
+      else oggOk = !!new Audio().canPlayType('audio/ogg; codecs="vorbis"');
+    } catch (e) { oggOk = false; }
+  }
+  return oggOk;
+}
+
 function assetUrl(src) {
+  if (src.endsWith('.mp3') && playsOgg()) {
+    const ogg = src.slice(0, -4) + '.ogg';
+    if (ASSET_V[ogg]) src = ogg;
+  }
   const v = ASSET_V[src];
   return v ? src + '?v=' + v : src;
 }
@@ -1747,20 +1786,20 @@ const CFG = {
   vo: {
     src: 'assets/audio/vo-lines.mp3', gain: 1,
     lines: {
-      'tut-1-meet':   [0.00, 3.99, [0.04, 0.51, 0.78, 1.56, 1.75, 2.36, 2.46, 2.69, 3.37]],   // "This is Momo. He needs to find his friend."
-      'tut-2-goal':   [4.38, 2.83, [0.06, 0.34, 0.96, 1.41, 1.62, 2.16]],   // "Help Momo cross the Frozen Pass!"
-      'tut-3-watch':  [7.58, 0.91, [0.05, 0.70]],   // "Watch out!"
-      'tut-4-jump':   [8.78, 2.33, [0.05, 0.28, 0.93, 1.07, 1.67]],   // "Tap to jump over obstacles."
-      'tut-5-broken': [11.47, 2.85, [0.05, 1.11, 1.48, 1.88, 2.19, 2.45]],  // "Oh no! The path is broken."
-      'tut-6-use':    [14.57, 3.07, [0.05, 0.51, 0.98, 1.13, 1.47, 1.82, 2.23, 2.42, 2.57]],  // "Use the right ice piece to fix the path."
-      'tut-7-fit':    [18.13, 2.27, [0.05, 0.51, 0.84, 1.66]],  // "Perfect fit! Keep going!"
-      'sign-triangle':      [20.75, 1.54, [0.05, 0.31, 0.56]],
-      'sign-quadrilateral': [22.65, 1.60, [0.06, 0.26, 0.50]],
-      'sign-pentagon':      [24.62, 1.35, [0.06, 0.27, 0.52]],
-      'sign-hexagon':       [26.33, 1.37, [0.05, 0.34, 0.73]],
-      'sign-heptagon':      [28.11, 1.50, [0.05, 0.31, 0.81]],
-      'sign-pentagons':     [29.99, 2.01, [0.05, 0.40, 0.48, 1.11]],
-      'sign-hexagons':      [32.50, 2.00, [0.05, 0.39, 1.11, 1.25]],
+      'tut-1-meet':   [0.00, 3.93, [0.05, 0.63, 0.97, 1.70, 1.96, 2.48, 2.59, 2.77, 3.42]],   // "This is Momo. He needs to find his friend."
+      'tut-2-goal':   [4.28, 2.95, [0.07, 0.33, 0.95, 1.40, 1.65, 2.30]],   // "Help Momo cross the Frozen Pass!"
+      'tut-3-watch':  [7.54, 0.90, [0.06, 0.33]],   // "Watch out!"
+      'tut-4-jump':   [8.56, 2.49, [0.06, 0.33, 0.41, 0.99, 1.54]],   // "Tap to jump over obstacles."
+      'tut-5-broken': [11.23, 2.86, [0.06, 1.03, 1.40, 1.86, 2.19, 2.46]],  // "Oh no! The path is broken."
+      'tut-6-use':    [14.48, 3.30, [0.06, 0.54, 1.22, 1.62, 1.98, 2.19, 2.45, 2.63, 2.79]],  // "Use the right ice piece to fix the path."
+      'tut-7-fit':    [18.31, 2.43, [0.06, 1.27, 1.41, 1.77]],  // "Perfect fit! Keep going!"
+      'sign-triangle':      [20.87, 1.40, [0.06, 0.33, 0.60]],
+      'sign-quadrilateral': [22.63, 1.67, [0.06, 0.33, 0.56]],
+      'sign-pentagon':      [24.70, 1.37, [0.06, 0.33, 0.59]],
+      'sign-hexagon':       [26.46, 1.42, [0.06, 0.34, 0.84]],
+      'sign-heptagon':      [28.29, 1.44, [0.06, 0.37, 0.80]],
+      'sign-pentagons':     [30.12, 1.98, [0.06, 0.39, 1.05, 1.66]],
+      'sign-hexagons':      [32.47, 2.05, [0.06, 0.42, 1.29, 1.76]],
       /* THE ENDING SPEAKS NO MORE. 'win-title' ("You did it!") and 'win-sub' ("Momo crossed
          the Frozen Pass!") lived here and were cut with the banner that showed them: the
          ending is the dance now, the camera pushes in on it, and a voice over the top was
